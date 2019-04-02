@@ -5,8 +5,12 @@ include("jongro01_DNN/preprocess.jl")
 include("jongro01_DNN/model.jl")
 
 # utils
-export standardize!
+export  standardize!,
+        exclude_elem,
 # jongro01_DNN
-export jongro_df, train
+        filter_jongro,
+        split_df,
+        read_jongro,
+        train
 
 end

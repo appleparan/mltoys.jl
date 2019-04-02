@@ -2,7 +2,7 @@ using DataFrames
 using StatsBase: zscore, mean, std, mean_and_std
 using Test
 
-using MLToys: standardize!
+using MLToys: standardize!, exclude_elem
 
 @testset "Stats" begin
     @testset "zscore" begin
@@ -18,5 +18,19 @@ using MLToys: standardize!
         df[:A] = a 
         standardize!(df, "A", "newA")
         @test df[:newA] == zscore(a)
+    end
+end
+
+@testset "Split" begin
+    @testset "split_cols" begin
+        cols = ["A", "B", "C", "D"]
+        target = "A"
+        exclude_target = exclude_elem(cols, target)
+        @test cols == ["A", "B", "C", "D"]
+        @test exclude_target == ["B", "C", "D"]
+        
+        target = "C"
+        exclude_target2 = exclude_elem(cols, target)
+        @test exclude_target2 == ["A", "B", "D"]
     end
 end
