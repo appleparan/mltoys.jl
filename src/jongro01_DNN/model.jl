@@ -161,5 +161,3 @@ function prepare_train_NO2(df, total_size, batch_size, train_idx, valid_idx, tes
 
     NO2_train, NO2_valid, NO2_test, model, loss, accuracy
 end
-
-train_all()

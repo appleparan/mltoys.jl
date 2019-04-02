@@ -1,4 +1,4 @@
-using Test
+using MLToys, Test
 
 @testset "MLToys" begin
 

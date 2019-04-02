@@ -29,6 +29,3 @@ function jongro_df()
     j_df = get_jongro(df)
     CSV.write("/input/jongro_single.csv", j_df)
 end
-
-
-jongro_df()

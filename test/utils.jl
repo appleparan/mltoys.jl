@@ -1,11 +1,14 @@
 using DataFrames
-using StatsBase: zscore, mean_and_std
+using StatsBase: zscore, mean, std, mean_and_std
 using Test
+
+using MLToys: standardize!
 
 @testset "Stats" begin
     @testset "zscore" begin
-        a = 1:5
-        @test eman_and_std(collect(a)) == [3.0, sqrt(2.0)]
+        a = collect(1:5)
+        @test mean(a) == 3.0
+        @test std(a) == sqrt(sum(abs2.(a .- mean(a)) / (length(a) - 1)))
     end 
 
     @testset "zscore_df" begin
