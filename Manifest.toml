@@ -292,9 +292,9 @@ version = "0.7.0"
 
 [[LLVM]]
 deps = ["InteractiveUtils", "Libdl", "Printf", "Test", "Unicode"]
-git-tree-sha1 = "d98bd8e6e56591caceb7db300a6877fb6daca6ba"
+git-tree-sha1 = "d22678f75aca241f1e4b79093712aef264ad50fa"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "1.0.0"
+version = "1.1.0"
 
 [[LaTeXStrings]]
 deps = ["Compat"]
