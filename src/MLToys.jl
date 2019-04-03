@@ -7,9 +7,13 @@ include("jongro01_DNN/model.jl")
 # utils
 export  standardize!,
         exclude_elem,
+        getHoursLater,
+        make_minibatch,
+        perm_idx,
+        perm_df,
+        split_df,
 # jongro01_DNN
         filter_jongro,
-        split_df,
         read_jongro,
         train
 
