@@ -56,7 +56,7 @@ end
 end
 
 @testset "Minibatch" begin
-    @testset "3HLater" begin
+    @testset "HoursLater" begin
         date_fmt = Dates.DateFormat("yyyy-mm-dd HH:MM:SSz")
         last_date_str = "2015-01-14 04:00:00+09:00"
         Jan_2015 = ZonedDateTime("2015-01-01 00:00:00+09:00", date_fmt)
@@ -73,6 +73,7 @@ end
              ZonedDateTime("2015-01-14 08:00:00+09:00", date_fmt),
              ZonedDateTime("2015-01-14 09:00:00+09:00", date_fmt)])
     end
+
     @testset "split" begin
         df = DataFrame(
             A = 1:12,

@@ -73,6 +73,10 @@ function perm_idx(tot_size, train_size, valid_size, test_size)
     sort!(train_idx), sort!(valid_idx), sort!(test_idx)
 end
 
+"""
+    getHoursLater(df, hours, last_date_str, date_fmt)
+get `hours` rows of DataFrame `df` after given `date`, String will be automatically  conveted to ZonedDateTime Object
+"""
 function getHoursLater(df::DataFrame, hours::Integer, last_date_str::String, date_fmt::Dates.DateFormat=Dates.DateFormat("yyyy-mm-dd HH:MM:SSz"))
     last_date = ZonedDateTime(last_date_str, date_fmt);
 
