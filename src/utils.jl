@@ -123,7 +123,7 @@ end
 get X in Dataframe and construct X by flattening
 """
 function getX(df::DataFrame, idxs, features::Array{Symbol})
-    X = convert(Array, df[collect(idxs), features])
+    X = convert(Matrix, df[collect(idxs), features])
 
     vec(X)
 end
