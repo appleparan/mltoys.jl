@@ -119,6 +119,18 @@ function getHoursLater(df::DataFrame, hours::Integer, last_date::ZonedDateTime)
 end
 
 """
+    getX(df::DataFrame, idxs, features)
+get X in Dataframe and construct X by flattening
+"""
+function getX(df::DataFrame, idxs, features::Array{Symbol})
+    X = convert(Array, df[collect(idxs), features])
+
+    vec(X)
+end
+
+getX(df::DataFrame, idxs, features::Array{String}) = getX(df, idxs, Symbol.(eval.(features)))
+
+"""
     getY(X::DateFrame, hours)
 get last date of X and construct Y with `hours` range
 """
@@ -131,14 +143,14 @@ function getY(X::DataFrame, ycol::String, hours=24)
 end
 
 """
-    make_minibatch(X:: , Y::DataFrame, idxs)
+    make_minibatch(X::DataFrame, Y::DataFrame, idxs)
 create minibatch
 idx: partition by sample_size
 
 """
 # Bundle images together with labels and group into minibatchess
 function make_minibatch(df::Array{DataFrame}, ycol, idxs, features, hours)
-    X_batch = df[collect(idxs), features]
+    X_batch = getX(df, idxs, features)
     Y_batch = getY(X_batch, ycol, hours)
     #Y_batch = onehotbatch(Y[idxs], 0:9)
     return (X_batch, Y_batch)

@@ -75,6 +75,21 @@ end
             B = 16:19,
             C = 28:31)
     end
+
+    @testset "getX" begin
+        df = DataFrame(
+            A = 1:12,
+            B = 13:24,
+            C = 25:36)
+        sample_size = 4
+        idxs = collect(1:4)
+        features = ["A", "B", "C"]
+        X = getX(df, idxs, features)
+        @test X == [1, 2, 3, 4, 13, 14, 15, 16, 25, 26, 27, 28]
+        idxs = collect(3:6)
+        X = getX(df, idxs, features)
+        @test X == [3, 4, 5, 6, 15, 16, 17, 18, 27, 28, 29, 30]
+    end
 end
 
 @testset "Minibatch" begin
