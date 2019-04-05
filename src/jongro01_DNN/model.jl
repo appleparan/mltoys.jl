@@ -32,7 +32,7 @@ function train_all(df, features, mb_idxs, output_size)
     PM10_model, PM10_loss, PM10_accuracy =
         compile_PM10(df, feeatures, mb_idxs, train_set, valid_set, test_set)
     
-    train(PM10_model, train_set, test_set, PM10_loss, PM10_accuracy, opt, 50, "/output/PM10.bson")
+    train(PM10_model, train_set, test_set, PM10_loss, PM10_accuracy, opt, 50, "/mnt/PM10.bson")
 end
 
 function train(model, train_set, test_set, loss, accuracy, opt, epoch, filename)
