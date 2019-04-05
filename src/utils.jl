@@ -36,9 +36,9 @@ end
 
 """
     split_df(df, sample_size)
-split DataFrame and return Array of DataFrame
+split to `sample_size`d DataFrame 
 """
-function split_df(df::DataFrame, sample_size::Integer)
+function split_df(df::DataFrame, sample_size::Integer = 72)
     idxs = partition(1:size(df, 1), sample_size)
     # create array filled with undef and its size is length(idxs)
     df_arr = Array{DataFrame}(undef, length(idxs))
@@ -50,19 +50,43 @@ function split_df(df::DataFrame, sample_size::Integer)
     df_arr, idxs
 end
 
-function split_size(df, batch_size = 72)
-    total_row = size(df, 1)
-    total_size = div(total_row / batch_size)
+"""
+    window_df(df, sample_size)
+create overlapped windowed df
+"""
+function window_df(df::DataFrame, sample_size::Integer = 72)
+    # start index for window
+    # sample_size + hours (hours for Y , < sample_size) should be avalable
+    idxs = collect(1:(size(df, 1) - 2 * sample_size))
+    # create array filled with undef and its size is length(idxs)
+    df_arr = Array{DataFrame}(undef, length(idxs))
 
-    # train : valid : test = 0.64 : 0.16 : 0.20
-    train_size = round(tot_size * 0.64)
-    valid_size = round(tot_size * 0.16)
-    test_size = tot_size - (train_size + valid_size)
-
-    total_size, Int(train_size), Int(valid_size), Int(test_size)
+    for (i, idx) in zip(1:length(idxs), idxs)
+        df_arr[i] = df[idx:(idx+sample_size-1), :]
+    end
+    
+    df_arr, idxs
 end
 
-function perm_idx(tot_size, train_size, valid_size, test_size)
+"""
+    train_test_size_split(total_partition_size)
+split DataFrame and return Array of DataFrame
+"""
+function train_test_size_split(total_partition_size)
+    
+    # train : valid : test = 0.64 : 0.16 : 0.20
+    train_size = round(total_partition_size * 0.64)
+    valid_size = round(total_partition_size * 0.16)
+    test_size = total_partition_size - (train_size + valid_size)
+
+    total_partition_size, Int(train_size), Int(valid_size), Int(test_size)
+end
+
+"""
+    train_test_idx_split(tot_size, train_size, valid_size, test_size)
+permute random indexes according to precomputed size
+"""
+function train_test_idxs_split(tot_size, train_size, valid_size, test_size)
     tot_idx = collect(range(1, stop=tot_size))
     
     tot_idx = Random.randperm(tot_size)

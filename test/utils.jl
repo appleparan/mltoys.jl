@@ -53,6 +53,28 @@ end
             B = 21:24,
             C = 33:36)
     end
+
+    @testset "create_df_window" begin
+        df = DataFrame(
+            A = 1:12,
+            B = 13:24,
+            C = 25:36)
+        sample_size = 4
+        splitted, idxs = window_df(df, sample_size)
+        @test length(idxs) == 4
+        @test splitted[1] == DataFrame(
+            A = 1:4,
+            B = 13:16,
+            C = 25:28)
+        @test splitted[3] == DataFrame(
+            A = 3:6,
+            B = 15:18,
+            C = 27:30)
+        @test splitted[4] == DataFrame(
+            A = 4:7,
+            B = 16:19,
+            C = 28:31)
+    end
 end
 
 @testset "Minibatch" begin

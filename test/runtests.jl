@@ -2,7 +2,7 @@ using MLToys, Test
 
 @testset "MLToys" begin
 
-@info "Testing Basics"
+@info "Testing Utils"
 
 include("utils.jl")
 
