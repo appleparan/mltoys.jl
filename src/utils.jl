@@ -23,6 +23,18 @@ standardize!(df::DataFrame, col::String, new_col::String) = standardize!(df, Sym
 standardize!(df::DataFrame, col::Symbol) = standardize!(df, col, col)
 standardize!(df::DataFrame, col::String) = standardize!(df, Symbol(col))
 
+function standardize!(df::DataFrame, cols::Array{String}, new_col::String)
+    for col in cols
+        standardize!(df, col, new_col)
+    end
+end
+
+function standardize!(df::DataFrame, cols::Array{Symbol}, new_col::String)
+    for col in cols
+        standardize!(df, col, new_col)
+    end
+end
+
 """
     exclude_elem(cols, target_col)
 exclude element and return new splited array
@@ -41,10 +53,11 @@ split to `sample_size`d DataFrame
 function split_df(df::DataFrame, sample_size::Integer = 72)
     idxs = partition(1:size(df, 1), sample_size)
     # create array filled with undef and its size is length(idxs)
-    df_arr = Array{DataFrame}(undef, length(idxs))
+    df_arr = []
+    #df_arr = Array{DataFrame}(undef, length(idxs))
 
-    for (i, idx) in zip(1:length(idxs), idxs)
-        df_arr[i] = df[idx, :]
+    for idx in idxs
+        push!(df_arr, df[idx[1]:idx[end], :])
     end
     
     df_arr, idxs
@@ -57,12 +70,21 @@ create overlapped windowed df
 function window_df(df::DataFrame, sample_size::Integer = 72)
     # start index for window
     # sample_size + hours (hours for Y , < sample_size) should be avalable
-    idxs = collect(1:(size(df, 1) - 2 * sample_size))
+    start_idxs = collect(1:(size(df, 1) - 2 * sample_size))
+    final_idxs = start_idxs .+ (sample_size - 1)
+    idxs = []
+    for (si, fi) in zip(start_idxs, final_idxs)
+        push!(idxs, si:fi)
+    end
+    # why list comprehension doesn't work?
+    # idxs = [collect(start_idxs[i]:final_idxs[i]) for i in length(start_idxs)]
     # create array filled with undef and its size is length(idxs)
-    df_arr = Array{DataFrame}(undef, length(idxs))
+    #df_arr = Array{DataFrame}(undef, length(idxs))
+    df_arr = []
 
-    for (i, idx) in zip(1:length(idxs), idxs)
-        df_arr[i] = df[idx:(idx+sample_size-1), :]
+    #for (i, idx) in zip(1:length(idxs), idxs)
+    for idx in idxs
+        push!(df_arr, df[idx[1]:idx[end], :])
     end
     
     df_arr, idxs
@@ -149,8 +171,8 @@ idx: partition by sample_size
 
 """
 # Bundle images together with labels and group into minibatchess
-function make_minibatch(df::Array{DataFrame}, ycol, idxs, features, hours)
-    X_batch = getX(df, idxs, features)
+function make_minibatch(df::Array{DataFrame}, ycol::Symbol, idx::Array{Integer}, features::Array{Symbol}, hours::Integer)
+    X_batch = getX(df, idx, features)
     Y_batch = getY(X_batch, ycol, hours)
     #Y_batch = onehotbatch(Y[idxs], 0:9)
     return (X_batch, Y_batch)
