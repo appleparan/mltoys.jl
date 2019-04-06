@@ -20,6 +20,6 @@ export  standardize!,
 # jongro01_DNN
         filter_jongro,
         read_jongro,
-        train
+        train_all
 
 end
