@@ -1,5 +1,6 @@
 using CSV
-using DataFrames, Query
+using DataFrames, Query, Missings
+using Dates, TimeZones
 using Random
 using StatsBase: zscore
 
@@ -15,7 +16,7 @@ function filter_jongro(df)
         @collect DataFrame
     end
 
-    dropmissing(jongro_df)
+    return dropmissing(jongro_df)
 end
 
 function get_nearjongro(df)
@@ -31,20 +32,18 @@ end
 
 function read_jongro(input_path="/input/jongro_single.csv")
     df = CSV.read(input_path)
-    @show first(df, 5)
-    @show size(df)
-    df
-end
-
-"""
-    standardize_df!(df, cols, prefix)
-Standardize dataframe columns and save with new column name with given `prefix`
-"""
-function standardize_df!(df::DataFrame, cols::Array{String}, prefix::String="")
-    for col in cols 
-        new_col = prefix * col
-        standardize!(df, col, new_col)
+    
+    #df = dropmissing(df, [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid], disallowmissing=true)
+    cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid]
+    for col in cols
+        df[col] = Missings.coalesce.(df[col], 0.0)
     end
+
+    df[:date] = ZonedDateTime.(df[:date], Dates.DateFormat("yyyy-mm-dd HH:MM:SSz"))
+
+    @show first(df, 5)
+
+    df
 end
 
 function perm_df(df, permed_idx, col, labels)
