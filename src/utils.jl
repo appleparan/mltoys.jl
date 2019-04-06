@@ -175,8 +175,8 @@ idx: partition by sample_size
 # Bundle images together with labels and group into minibatchess
 function make_minibatch(df::DataFrame, ycol::Symbol,
     idx::Array{T,1}, features::Array{Symbol,1}, hours::T) where T <: Integer
-    X_batch = getX(df, idx, features)
-    Y_batch = getY(df, idx, ycol, hours)
+    X_batch = getX(df, idx, features) |> gpu
+    Y_batch = getY(df, idx, ycol, hours) |> gpu
     #Y_batch = onehotbatch(Y[idxs], 0:9)
     return (X_batch, Y_batch)
 end
