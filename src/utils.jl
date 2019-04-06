@@ -8,6 +8,7 @@ using Dates, TimeZones
 """
     standardize!(df, col, new_col)
 Apply zscore (normalization) to dataframe `df`
+TODO: how to make μ and σ optional?
 """
 function standardize!(df::DataFrame, col::Symbol, new_col::Symbol) 
     to_be_normalized = df[col]
@@ -19,19 +20,37 @@ function standardize!(df::DataFrame, col::Symbol, new_col::Symbol, μ::Real, σ:
     df[new_col] = zscore(to_be_normalized, μ, σ)
 end
 
+standardize!(df::DataFrame, col::Symbol, new_col::String) = standardize!(df, col, Symbol(eval(new_col)))
 standardize!(df::DataFrame, col::String, new_col::String) = standardize!(df, Symbol(eval(col)), Symbol(eval(new_col)))
 standardize!(df::DataFrame, col::Symbol) = standardize!(df, col, col)
 standardize!(df::DataFrame, col::String) = standardize!(df, Symbol(col))
 
-function standardize!(df::DataFrame, cols::Array{String}, new_col::String)
-    for col in cols
+standardize!(df::DataFrame, col::Symbol, new_col::String, μ::Real, σ::Real) = standardize!(df, col, Symbol(eval(new_col)), μ, σ)
+standardize!(df::DataFrame, col::String, new_col::String, μ::Real, σ::Real) = standardize!(df, Symbol(eval(col)), Symbol(eval(new_col)), μ, σ)
+standardize!(df::DataFrame, col::Symbol, μ::Real, σ::Real) = standardize!(df, col, col, μ, σ)
+standardize!(df::DataFrame, col::String, μ::Real, σ::Real) = standardize!(df, Symbol(col), μ, σ)
+
+function standardize!(df::DataFrame, cols::Array{String}, new_cols::Array{String})
+    for (col, new_col) in zip(cols, new_cols)
         standardize!(df, col, new_col)
     end
 end
 
-function standardize!(df::DataFrame, cols::Array{Symbol}, new_col::String)
-    for col in cols
+function standardize!(df::DataFrame, cols::Array{Symbol}, new_cols::Array{Symbol})
+    for (col, new_col) in zip(cols, new_cols)
         standardize!(df, col, new_col)
+    end
+end
+
+function standardize!(df::DataFrame, cols::Array{String}, new_cols::Array{String}, μs::Array{Real}, σs::Array{Real})
+    for (col, new_col, μ, σ) in zip(cols, new_cols, μs, σs)
+        standardize!(df, col, new_col, μ, σ)
+    end
+end
+
+function standardize!(df::DataFrame, cols::Array{Symbol}, new_cols::Array{Symbol}, μs::Array{Real}, σs::Array{Real})
+    for (col, new_col, μ, σ) in zip(cols, new_cols, μs, σs)
+        standardize!(df, col, new_col, μ, σ)
     end
 end
 
@@ -53,14 +72,8 @@ split to `sample_size`d DataFrame
 function split_df(df::DataFrame, sample_size::Integer = 72)
     idxs = partition(1:size(df, 1), sample_size)
     # create array filled with undef and its size is length(idxs)
-    df_arr = []
-    #df_arr = Array{DataFrame}(undef, length(idxs))
-
-    for idx in idxs
-        push!(df_arr, df[idx[1]:idx[end], :])
-    end
     
-    df_arr, idxs
+    idxs
 end
 
 """
@@ -76,18 +89,8 @@ function window_df(df::DataFrame, sample_size::Integer = 72)
     for (si, fi) in zip(start_idxs, final_idxs)
         push!(idxs, si:fi)
     end
-    # why list comprehension doesn't work?
-    # idxs = [collect(start_idxs[i]:final_idxs[i]) for i in length(start_idxs)]
-    # create array filled with undef and its size is length(idxs)
-    #df_arr = Array{DataFrame}(undef, length(idxs))
-    df_arr = []
-
-    #for (i, idx) in zip(1:length(idxs), idxs)
-    for idx in idxs
-        push!(df_arr, df[idx[1]:idx[end], :])
-    end
     
-    df_arr, idxs
+    idxs
 end
 
 """
@@ -109,7 +112,7 @@ end
 permute random indexes according to precomputed size
 """
 function train_test_idxs_split(tot_size, train_size, valid_size, test_size)
-    tot_idx = collect(range(1, stop=tot_size))
+    # tot_idx = collect(1:tot_size)
     
     tot_idx = Random.randperm(tot_size)
     train_idx = tot_idx[1: train_size]
@@ -124,19 +127,17 @@ end
 get `hours` rows of DataFrame `df` after given `date`, String will be automatically  conveted to ZonedDateTime Object
 """
 function getHoursLater(df::DataFrame, hours::Integer, last_date_str::String, date_fmt::Dates.DateFormat=Dates.DateFormat("yyyy-mm-dd HH:MM:SSz"))
-    last_date = ZonedDateTime(last_date_str, date_fmt);
-
-    getHoursLater(df, hours, last_date)
+    last_date = ZonedDateTime(last_date_str, date_fmt)
+    
+    return getHoursLater(df, hours, last_date)
 end
 
 function getHoursLater(df::DataFrame, hours::Integer, last_date::ZonedDateTime)
-    start_date = last_date + Hour(1)
+    start_date = last_date
 
-    #date_range = collect(start_date:Hour(1):start_date+Hour(hours - 1))
     # collect within daterange
-    df_hours = df |> @filter(_.date >= start_date &&
-        _.date < (start_date + Hour(hours))) |> DataFrame
-
+    df_hours = df |> @filter(start_date < _.date <= (start_date + Hour(hours))) |> DataFrame
+    
     df_hours
 end
 
@@ -144,24 +145,25 @@ end
     getX(df::DataFrame, idxs, features)
 get X in Dataframe and construct X by flattening
 """
-function getX(df::DataFrame, idxs, features::Array{Symbol})
+function getX(df::DataFrame, idxs, features::Array{Symbol,1})
     X = convert(Matrix, df[collect(idxs), features])
 
-    vec(X)
+    return vec(X)
 end
 
-getX(df::DataFrame, idxs, features::Array{String}) = getX(df, idxs, Symbol.(eval.(features)))
+getX(df::DataFrame, idxs, features::Array{String,1}) = getX(df, idxs, Symbol.(eval.(features)))
 
 """
     getY(X::DateFrame, hours)
 get last date of X and construct Y with `hours` range
 """
-function getY(X::DataFrame, ycol::String, hours=24)
-    last_date_of_X = X[end, "date"]
+function getY(df::DataFrame, idx::Array{T,1}, ycol::Symbol, hours=24) where T <: Integer
+    df_X = df[idx, :]
+    last_date_of_X = df_X[end, :date]
     
-    Y = get24HLater(X, ycol, last_date_of_X, hours)
+    Y = getHoursLater(df, hours, last_date_of_X)
 
-    Y[:, Symbol(eval(ycol))]
+    Y[:, ycol]
 end
 
 """
@@ -171,9 +173,10 @@ idx: partition by sample_size
 
 """
 # Bundle images together with labels and group into minibatchess
-function make_minibatch(df::Array{DataFrame}, ycol::Symbol, idx::Array{Integer}, features::Array{Symbol}, hours::Integer)
+function make_minibatch(df::DataFrame, ycol::Symbol,
+    idx::Array{T,1}, features::Array{Symbol,1}, hours::T) where T <: Integer
     X_batch = getX(df, idx, features)
-    Y_batch = getY(X_batch, ycol, hours)
+    Y_batch = getY(df, idx, ycol, hours)
     #Y_batch = onehotbatch(Y[idxs], 0:9)
     return (X_batch, Y_batch)
 end

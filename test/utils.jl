@@ -7,6 +7,7 @@ using StatsBase: zscore, mean, std, mean_and_std
 using Dates, TimeZones
 using MLToys: standardize!, exclude_elem
 
+@info "Testing Stats..."
 @testset "Stats" begin
     @testset "zscore" begin
         a = collect(1:5)
@@ -24,6 +25,65 @@ using MLToys: standardize!, exclude_elem
     end
 end
 
+@info "Testing Standardize..."
+@testset "Standardize" begin
+    @testset "standarized_single_string" begin
+        df = DataFrame(
+            A = 1:4,
+            B = 5:8,
+            C = 9:12)
+        standardize!(df, "A", "nA")
+        @test isapprox(df[:nA], [ -1.161895003862225,
+            -0.3872983346207417,
+             0.3872983346207417,
+             1.161895003862225])
+    end
+
+    @testset "standarized_single_symbol" begin
+        df = DataFrame(
+            A = 1:4,
+            B = 5:8,
+            C = 9:12)
+        standardize!(df, :A, "nA")
+        @test isapprox(df[:nA], [ -1.161895003862225,
+            -0.3872983346207417,
+             0.3872983346207417,
+             1.161895003862225])
+    end
+
+    @testset "standarized_Array_string" begin
+        df = DataFrame(
+            A = 1:4,
+            B = 5:8,
+            C = 9:12)
+        standardize!(df, ["A", "B"], ["nA", "nB"])
+        @test isapprox(df[:nA], [ -1.161895003862225,
+            -0.3872983346207417,
+             0.3872983346207417,
+             1.161895003862225])
+        @test isapprox(df[:nB], [ -1.161895003862225,
+             -0.3872983346207417,
+              0.3872983346207417,
+              1.161895003862225])
+    end
+
+    @testset "standarized_Array_symbol" begin
+        df = DataFrame(
+            A = 1:4,
+            B = 5:8,
+            C = 9:12)
+        standardize!(df, [:A, :B], [:nA, :nB])
+        @test isapprox(df[:nA], [ -1.161895003862225,
+            -0.3872983346207417,
+             0.3872983346207417,
+             1.161895003862225])
+        @test isapprox(df[:nB], [ -1.161895003862225,
+             -0.3872983346207417,
+              0.3872983346207417,
+              1.161895003862225])
+    end
+end
+
 @testset "Split" begin
     @testset "split_cols" begin
         cols = ["A", "B", "C", "D"]
@@ -37,40 +97,23 @@ end
         @test exclude_target2 == ["A", "B", "D"]
     end
 
-    @testset "split_df" begin
+    @testset "window_df" begin
         df = DataFrame(
             A = 1:12,
             B = 13:24,
             C = 25:36)
         sample_size = 4
-        splitted, idxs = split_df(df, sample_size)
-        @test splitted[1] == DataFrame(
-            A = 1:4,
-            B = 13:16,
-            C = 25:28)
-        @test splitted[3] == DataFrame(
-            A = 9:12,
-            B = 21:24,
-            C = 33:36)
-    end
-
-    @testset "create_df_window" begin
-        df = DataFrame(
-            A = 1:12,
-            B = 13:24,
-            C = 25:36)
-        sample_size = 4
-        splitted, idxs = window_df(df, sample_size)
+        idxs = window_df(df, sample_size)
         @test length(idxs) == 4
-        @test splitted[1] == DataFrame(
+        @test df[collect(idxs[1]), :] == DataFrame(
             A = 1:4,
             B = 13:16,
             C = 25:28)
-        @test splitted[3] == DataFrame(
+        @test df[collect(idxs[3]), :] == DataFrame(
             A = 3:6,
             B = 15:18,
             C = 27:30)
-        @test splitted[4] == DataFrame(
+        @test df[collect(idxs[4]), :] == DataFrame(
             A = 4:7,
             B = 16:19,
             C = 28:31)
@@ -90,10 +133,11 @@ end
         X = getX(df, idxs, features)
         @test X == [3, 4, 5, 6, 15, 16, 17, 18, 27, 28, 29, 30]
     end
+
 end
 
 @testset "Minibatch" begin
-    @testset "HoursLater" begin
+    @testset "getHoursLater_1" begin
         date_fmt = Dates.DateFormat("yyyy-mm-dd HH:MM:SSz")
         last_date_str = "2015-01-14 04:00:00+09:00"
         Jan_2015 = ZonedDateTime("2015-01-01 00:00:00+09:00", date_fmt)
@@ -109,6 +153,35 @@ end
              ZonedDateTime("2015-01-14 07:00:00+09:00", date_fmt),
              ZonedDateTime("2015-01-14 08:00:00+09:00", date_fmt),
              ZonedDateTime("2015-01-14 09:00:00+09:00", date_fmt)])
+    end
+    
+    @testset "getHoursLater_2" begin
+        date_fmt = Dates.DateFormat("yyyy-mm-dd HH:MM:SSz")
+        df = DataFrame(
+            date = ZonedDateTime.([
+                "2015-01-01 01:00:00+09:00",
+                "2015-01-01 02:00:00+09:00",
+                "2015-01-01 03:00:00+09:00",
+                "2015-01-01 04:00:00+09:00",
+                "2015-01-01 05:00:00+09:00",
+                "2015-01-01 06:00:00+09:00",
+                "2015-01-01 07:00:00+09:00",
+                "2015-01-01 08:00:00+09:00",
+                "2015-01-01 09:00:00+09:00",
+                "2015-01-01 10:00:00+09:00",
+                "2015-01-01 11:00:00+09:00",
+                "2015-01-01 12:00:00+09:00"], date_fmt)
+        )
+        hours = 3
+        last_date_str = "2015-01-01 04:00:00+09:00"
+        df_hours = getHoursLater(df, hours, last_date_str, date_fmt)
+        @test size(df_hours)[1] == hours
+        @test df_hours == DataFrame(
+            date = ZonedDateTime.([
+            "2015-01-01 05:00:00+09:00",
+            "2015-01-01 06:00:00+09:00",
+            "2015-01-01 07:00:00+09:00"], date_fmt)
+        )
     end
 
     @testset "split" begin
