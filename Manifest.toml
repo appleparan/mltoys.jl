@@ -72,6 +72,12 @@ version = "0.2.2"
 [[CRC32c]]
 uuid = "8bf52ea8-c179-5cab-976a-9e18b702a9bc"
 
+[[CSTParser]]
+deps = ["LibGit2", "Test", "Tokenize"]
+git-tree-sha1 = "437c93bc191cd55957b3f8dee7794b6131997c56"
+uuid = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
+version = "0.5.2"
+
 [[CSV]]
 deps = ["CategoricalArrays", "DataFrames", "DataStreams", "Dates", "Mmap", "Parsers", "Profile", "Random", "Tables", "Test", "Unicode", "WeakRefStrings"]
 git-tree-sha1 = "b92c6f626a044cc9619156d54994b94084d40abe"
@@ -230,9 +236,9 @@ version = "0.5.3"
 
 [[Flux]]
 deps = ["AbstractTrees", "Adapt", "CodecZlib", "Colors", "DelimitedFiles", "Juno", "LinearAlgebra", "MacroTools", "NNlib", "Pkg", "Random", "Reexport", "Requires", "SHA", "Statistics", "StatsBase", "Test", "Tracker", "ZipFile"]
-git-tree-sha1 = "0c4473ee0f1109e8eaddea972aa28bac3bd1a99e"
+git-tree-sha1 = "75e5a6850ad9d6129773171d9ba66be899a515ec"
 uuid = "587475ba-b771-5e3f-ad9e-33799f191a9c"
-version = "0.8.1"
+version = "0.8.2"
 
 [[ForwardDiff]]
 deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "InteractiveUtils", "LinearAlgebra", "NaNMath", "Random", "SparseArrays", "SpecialFunctions", "StaticArrays", "Test"]
@@ -340,10 +346,10 @@ uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
 [[MacroTools]]
-deps = ["Compat"]
-git-tree-sha1 = "3fd1a3022952128935b449c33552eb65895380c1"
+deps = ["CSTParser", "Compat", "DataStructures", "Test"]
+git-tree-sha1 = "daecd9e452f38297c686eba90dba2a6d5da52162"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
-version = "0.4.5"
+version = "0.5.0"
 
 [[Markdown]]
 deps = ["Base64"]
@@ -418,6 +424,12 @@ uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 deps = ["Printf"]
 uuid = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
 
+[[ProgressMeter]]
+deps = ["Distributed", "Printf", "Random", "Test"]
+git-tree-sha1 = "48058bc11607676e5bbc0b974af79106c6200787"
+uuid = "92933f4c-e287-5a05-a399-4b506db050ca"
+version = "0.9.0"
+
 [[PyCall]]
 deps = ["Conda", "Dates", "Libdl", "LinearAlgebra", "MacroTools", "Serialization", "Statistics", "Test", "VersionParsing"]
 git-tree-sha1 = "5a65d9bfd7099c2baa13d2aecf3cde752092a95b"
@@ -426,9 +438,9 @@ version = "1.91.1"
 
 [[PyPlot]]
 deps = ["Colors", "LaTeXStrings", "PyCall", "Sockets", "Test", "VersionParsing"]
-git-tree-sha1 = "a8d4bca4efe9c45c66b900f0a17b40398e581d6f"
+git-tree-sha1 = "3ea391c3211f799df20396d256cee5c8bd755605"
 uuid = "d330b81b-6aea-500a-939a-2ce795aea3ee"
-version = "2.8.0"
+version = "2.8.1"
 
 [[QuadGK]]
 deps = ["DataStructures", "LinearAlgebra", "Test"]
@@ -568,6 +580,12 @@ deps = ["Crayons", "Printf", "Test", "Unicode"]
 git-tree-sha1 = "b80671c06f8f8bae08c55d67b5ce292c5ae2660c"
 uuid = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 version = "0.5.0"
+
+[[Tokenize]]
+deps = ["Printf", "Test"]
+git-tree-sha1 = "3e83f60b74911d3042d3550884ca2776386a02b8"
+uuid = "0796e94c-ce3b-5d07-9a54-7f471281c624"
+version = "0.5.3"
 
 [[Tracker]]
 deps = ["Adapt", "DiffRules", "ForwardDiff", "LinearAlgebra", "MacroTools", "NNlib", "NaNMath", "Printf", "Random", "Requires", "SpecialFunctions", "Statistics", "Test"]
