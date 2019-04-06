@@ -24,17 +24,46 @@ function train_all(df::DataFrame, features::Array{Symbol}, mb_idxs::Array{Any},
 
     opt = ADAM(0.01)
 
-    # just remove minibatch after train because of memory usage
-    PM10_model = train(df, features, :PM10, mb_idxs,
+    @info "PM10 Training..."
+
+    # free minibatch after training because of memory usage
+    PM10_model = train(df, :PM10, features, mb_idxs,
     input_size, output_size, epoch_size, opt,
     train_idx, valid_idx, test_idx,  "/mnt/PM10.bson")
     
     nothing
 end
 
-function train(model, train_set, test_set, loss, accuracy, opt, epoch::Integer, filename::String)
+function train(df::DataFrame, ycol::Symbol, features::Array{Symbol}, mb_idxs::Array{Any},
+    input_size::Integer, output_size::Integer, epoch_size::Integer, opt,
+    train_idx, valid_idx, test_idx, output_path::String)
 
-    @info("Beginning training loop...")
+    # construct symbol for compile
+    compile = eval(Symbol(:compile, '_', ycol))
+    @show Symbol(compile)
+    
+    model, loss, accuracy = compile(input_size, output_size)
+    @show typeof(model), typeof(loss), typeof(accuracy)
+
+    batched_arr = @showprogress 1 "Constructing Minibatch..." [make_minibatch(df, ycol, collect(idx), features, output_size) for idx in mb_idxs[1:end]]
+
+    train_set = batched_arr[train_idx] |> gpu
+    valid_set = batched_arr[valid_idx] |> gpu
+    test_set = batched_arr[test_idx] |> gpu
+    @assert length(train_set[1][1]) == input_size
+    @assert length(train_set[1][2]) == output_size
+    
+    @show size(model(train_set[1][1])), size(train_set[1][2])
+    @show typeof(model(train_set[1][1])), typeof(train_set[1][2])
+    train!(model, train_set, test_set, loss, accuracy, opt, epoch_size, output_path)
+    
+    @info " Validation acc : ", accuracy(valid_set...)
+    model
+end
+
+function train!(model, train_set, test_set, loss, accuracy, opt, epoch::Integer, filename::String)
+
+    @info(" Beginning training loop...")
     
     best_acc = 0.0
     last_improvement = 0
@@ -78,27 +107,8 @@ function train(model, train_set, test_set, loss, accuracy, opt, epoch::Integer, 
     end
 end
 
-function train(df::DataFrame, ycol::Symbol, features::Array{Symbol}, mb_idxs::Array{Any},
-    input_size::Integer, output_size::Integer, epoch_size::Integer, opt,
-    train_idx, valid_idx, test_idx, output_path::String)
-    batched_arr = @showprogress 1 "Constructing Minibatch..." [make_minibatch(df, ycol, collect(idx), features, output_size) for idx in mb_idxs[1:end]]
-
-    train_set = gpu.(PM10_batched_arr[train_idx])
-    valid_set = gpu.(PM10_batched_arr[valid_idx])
-    test_set = gpu.(PM10_batched_arr[test_idx])
-    @assert length(PM10_train_set[1][1]) == input_size
-    @assert length(PM10_train_set[1][2]) == output_size
-
-    model, loss, accuracy =
-        compile_PM10(input_size, output_size)
-
-    train(model, train_set, test_set, loss, accuracy, opt, epoch_size, output_path)
-
-    model
-end
-
 function compile_PM10(input_size::Integer, output_size::Integer)
-    @info("Constructing model...")
+    @info(" Compiling model...")
     # features
     
     model = Chain(
@@ -118,10 +128,10 @@ function compile_PM10(input_size::Integer, output_size::Integer)
         softmax,
     )
 
-    loss(x, y) = Flux.mse(model(x), y)
-    accuracy(x, y) = mean(onecold(model(x)) .== onecold(y))
+    loss(x, y) = Flux.crossentropy(model(x), y)
+    accuracy(x, y) = Flux.crossentropy(model(x), y)
 
-    model = gpu(model)
+    model = model |> gpu
 
     model, loss, accuracy
 end
