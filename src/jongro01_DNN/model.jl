@@ -5,6 +5,7 @@ using BSON
 using CSV
 using CuArrays
 using Distributions: sample
+using ProgressMeter
 using StatsBase: mean_and_std
 
 using Flux
@@ -17,25 +18,21 @@ ENV["MPLBACKEND"]="agg"
 # (calculated from `model(x)`) and the ground truth `y`.  We augment the data
 # a bit, adding gaussian random noise to our image to make it more robust.
 
-function train_all(df, features, mb_idxs, output_size)
+function train_all(df::DataFrame, features::Array{Symbol}, mb_idxs::Array{Any},
+    input_size::Integer, output_size::Integer, epoch_size::Integer,
+    train_idx, valid_idx, test_idx)
+
     opt = ADAM(0.01)
 
-    # skip last segment becuase Y is a day after X finishes, so it could have bounds error
+    # just remove minibatch after train because of memory usage
+    PM10_model = train(df, features, :PM10, mb_idxs,
+    input_size, output_size, epoch_size, opt,
+    train_idx, valid_idx, test_idx,  "/mnt/PM10.bson")
     
-    PM10_batched_arr = [make_minibatch(df, "PM10", idx, feas, output_size) for idx in mb_idxs[1:end-1]]
-    
-    train_set = gpu.(PM10_batched_arr[train_idx])
-    valid_set = gpu.(PM10_batched_arr[valid_idx])
-    test_set = gpu.(PM10_batched_arr[test_idx])
-    
-    input_size = size(train_set[0][0])
-    PM10_model, PM10_loss, PM10_accuracy =
-        compile_PM10(df, feeatures, mb_idxs, train_set, valid_set, test_set)
-    
-    train(PM10_model, train_set, test_set, PM10_loss, PM10_accuracy, opt, 50, "/mnt/PM10.bson")
+    nothing
 end
 
-function train(model, train_set, test_set, loss, accuracy, opt, epoch, filename)
+function train(model, train_set, test_set, loss, accuracy, opt, epoch::Integer, filename::String)
 
     @info("Beginning training loop...")
     
@@ -81,7 +78,26 @@ function train(model, train_set, test_set, loss, accuracy, opt, epoch, filename)
     end
 end
 
-function compile_PM10(dfs, features, input_size, output_size)
+function train(df::DataFrame, ycol::Symbol, features::Array{Symbol}, mb_idxs::Array{Any},
+    input_size::Integer, output_size::Integer, epoch_size::Integer, opt,
+    train_idx, valid_idx, test_idx, output_path::String)
+    batched_arr = @showprogress 1 "Constructing Minibatch..." [make_minibatch(df, ycol, collect(idx), features, output_size) for idx in mb_idxs[1:end]]
+
+    train_set = gpu.(PM10_batched_arr[train_idx])
+    valid_set = gpu.(PM10_batched_arr[valid_idx])
+    test_set = gpu.(PM10_batched_arr[test_idx])
+    @assert length(PM10_train_set[1][1]) == input_size
+    @assert length(PM10_train_set[1][2]) == output_size
+
+    model, loss, accuracy =
+        compile_PM10(input_size, output_size)
+
+    train(model, train_set, test_set, loss, accuracy, opt, epoch_size, output_path)
+
+    model
+end
+
+function compile_PM10(input_size::Integer, output_size::Integer)
     @info("Constructing model...")
     # features
     
