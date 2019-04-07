@@ -4,6 +4,7 @@ using Printf
 using BSON: @save, @load
 using CSV
 using CuArrays
+using Dates: now
 using Distributions: sample
 using MicroLogging
 using ProgressMeter
@@ -65,7 +66,7 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
     @info(" Beginning training loop...")
     flush(stdout); flush(stderr)
 
-    best_acc = 0.0
+    best_acc = 100.0
     last_improvement = 0
     acc = 0.0
     for epoch_idx in 1:epoch_size
@@ -75,7 +76,7 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
 
         # Calculate accuracy:
         acc = accuracy(test_set)
-        @info(@sprintf("epoch [%d]: Test accuracy: %.4f", epoch_idx, acc))
+        @info(@sprintf("epoch [%d]: Test accuracy: %.4f Time: %s", epoch_idx, acc, now()))
         flush(stdout); flush(stderr)
 
         # If our accuracy is good enough, quit out.
@@ -97,7 +98,7 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
         end
 
         # If we haven't seen improvement in 5 epochs, drop our learning rate:
-        if epoch_idx - last_improvement >= 5 && opt.eta > 1e-6
+        if epoch_idx - last_improvement >= 10 && opt.eta > 1e-6
             opt.eta /= 10.0
             @warn("     -> Haven't improved in a while, dropping learning rate to $(opt.eta)!")
             flush(stdout); flush(stderr)
@@ -106,7 +107,7 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
             last_improvement = epoch_idx
         end
 
-        if epoch_idx - last_improvement >= 10
+        if epoch_idx - last_improvement >= 20
             @warn("     -> We're calling this converged.")
             flush(stdout); flush(stderr)
 
