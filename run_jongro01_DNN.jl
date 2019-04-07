@@ -1,3 +1,4 @@
+using MicroLogging
 using StatsBase: mean_and_std
 
 using MLToys

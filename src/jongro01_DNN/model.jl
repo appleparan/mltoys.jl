@@ -5,6 +5,7 @@ using BSON: @save, @load
 using CSV
 using CuArrays
 using Distributions: sample
+using MicroLogging
 using ProgressMeter
 using StatsBase: mean_and_std
 
@@ -44,7 +45,7 @@ function train(df::DataFrame, ycol::Symbol, features::Array{Symbol}, mb_idxs::Ar
 
     model, loss, accuracy = compile(input_size, output_size)
 
-    p = Progress(length(mb_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=50, color=:yellow)
+    p = Progress(length(mb_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     batched_arr = [(ProgressMeter.next!(p); make_minibatch(df, ycol, collect(idx), features, output_size)) for idx in mb_idxs]
     # don't know why but `|> gpu` causes segfault in following lines 
     train_set = batched_arr[train_idx]
