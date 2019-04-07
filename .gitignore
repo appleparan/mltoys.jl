@@ -6,3 +6,4 @@ deps/deps.jl
 # remove slurm job script
 *.sh
 *.out
+*.err
