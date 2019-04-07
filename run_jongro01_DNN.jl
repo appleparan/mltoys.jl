@@ -16,14 +16,15 @@ function run_model()
     output_size = 24
     epoch_size = 50
     
-    # split by segment
+    # split into segment
     #splitted_df, mb_idxs = split_df(size(df, 1), sample_size)
-    # split by stream
+    # split into stream
     mb_idxs = window_df(df, sample_size)
     total_size, train_size, valid_size, test_size = train_test_size_split(length(mb_idxs))
     train_idx, valid_idx, test_idx = train_test_idxs_split(total_size, train_size, valid_size, test_size)
     @info "Data preprocessing complete! "
-    # to use zscroed data
+
+    # to use zscroed data, use norm_features
     train_all(df, norm_features, mb_idxs, sample_size * length(features), output_size, epoch_size, train_idx, valid_idx, test_idx)
     
 end

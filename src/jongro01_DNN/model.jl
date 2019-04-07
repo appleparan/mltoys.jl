@@ -40,52 +40,48 @@ function train(df::DataFrame, ycol::Symbol, features::Array{Symbol}, mb_idxs::Ar
 
     # construct symbol for compile
     compile = eval(Symbol(:compile, '_', ycol))
-    @show Symbol(compile)
-    
+
     model, loss, accuracy = compile(input_size, output_size)
-    @show typeof(model), typeof(loss), typeof(accuracy)
 
-    batched_arr = @showprogress 1 "Constructing Minibatch..." [make_minibatch(df, ycol, collect(idx), features, output_size) for idx in mb_idxs[1:end]]
-
-    train_set = batched_arr[train_idx] |> gpu
-    valid_set = batched_arr[valid_idx] |> gpu
-    test_set = batched_arr[test_idx] |> gpu
-    @assert length(train_set[1][1]) == input_size
-    @assert length(train_set[1][2]) == output_size
+    p = Progress(length(mb_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=50, color=:yellow)
+    batched_arr = [(ProgressMeter.next!(p); make_minibatch(df, ycol, collect(idx), features, output_size)) for idx in mb_idxs]
+    # don't know why but `|> gpu` causes segfault in following lines 
+    train_set = batched_arr[train_idx]
+    valid_set = batched_arr[valid_idx]
+    test_set = batched_arr[test_idx]
     
-    @show size(model(train_set[1][1])), size(train_set[1][2])
-    @show typeof(model(train_set[1][1])), typeof(train_set[1][2])
     train!(model, train_set, test_set, loss, accuracy, opt, epoch_size, output_path)
-    
-    @info " Validation acc : ", accuracy(valid_set...)
+
+    @info "     Validation acc : ", accuracy(valid_set)
     model
 end
 
-function train!(model, train_set, test_set, loss, accuracy, opt, epoch::Integer, filename::String)
+function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Integer, filename::String)
 
     @info(" Beginning training loop...")
     
     best_acc = 0.0
     last_improvement = 0
-    for epoch_idx in 1:epoch
+    acc = 0.0
+    for epoch_idx in 1:epoch_size
         best_acc, last_improvement
         # Train for a single epoch
         Flux.train!(loss, params(model), train_set, opt)
 
         # Calculate accuracy:
-        acc = accuracy(test_set...)
+        acc = accuracy(test_set)
         @info(@sprintf("[%d]: Test accuracy: %.4f", epoch_idx, acc))
         
         # If our accuracy is good enough, quit out.
-        if acc >= 0.999
-            @info(" -> Early-exiting: We reached our target accuracy of 99.9%")
+        if acc < 0.01
+            @info("     -> Early-exiting: We reached our target accuracy of 0.01")
             break
         end
 
         # If this is the best accuracy we've seen so far, save the model out
         if acc >= best_acc
-            @info(" -> New best accuracy! Saving model out to mnist_conv.bson")
-            cpu_model = cpu(model)
+            @info " -> New best accuracy! Saving model out to ", filename
+            cpu_model = model |> cpu
             BSON.@save filename cpu_model epoch_idx acc
             best_acc = acc
             last_improvement = epoch_idx
@@ -94,23 +90,22 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch::Integer,
         # If we haven't seen improvement in 5 epochs, drop our learning rate:
         if epoch_idx - last_improvement >= 5 && opt.eta > 1e-6
             opt.eta /= 10.0
-            @warn(" -> Haven't improved in a while, dropping learning rate to $(opt.eta)!")
+            @warn("     -> Haven't improved in a while, dropping learning rate to $(opt.eta)!")
 
             # After dropping learning rate, give it a few epochs to improve
             last_improvement = epoch_idx
         end
 
         if epoch_idx - last_improvement >= 10
-            @warn(" -> We're calling this converged.")
+            @warn("     -> We're calling this converged.")
             break
         end
     end
 end
 
 function compile_PM10(input_size::Integer, output_size::Integer)
-    @info(" Compiling model...")
-    # features
-    
+    @info("     Compiling model...")
+
     model = Chain(
         Dense(input_size, 100),
         Dropout(0.2),
@@ -126,12 +121,24 @@ function compile_PM10(input_size::Integer, output_size::Integer)
         
         #NNlib.leakyrelu,
         softmax,
-    )
+    ) |> gpu
 
-    loss(x, y) = Flux.crossentropy(model(x), y)
-    accuracy(x, y) = Flux.crossentropy(model(x), y)
-
-    model = model |> gpu
+    loss(x, y) = Flux.mse(model(x |> gpu), y)
+    accuracy(data) = RSME(data, model)
 
     model, loss, accuracy
+end
+
+function RSME(data, model)
+    # RSME
+    acc = 0.0
+
+    for (x, y) in data
+        ŷ = model(x)
+        @assert size(ŷ) == size(y)
+
+        acc += sqrt(sum(abs2.(ŷ .- y)) / length(y))
+    end
+
+    acc / length(data)
 end
