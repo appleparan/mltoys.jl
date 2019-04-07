@@ -25,7 +25,7 @@ function train_all(df::DataFrame, features::Array{Symbol}, mb_idxs::Array{Any},
     opt = ADAM(0.01)
 
     @info "PM10 Training..."
-    flush(STDOUT)
+    flush(stdout)
 
     # free minibatch after training because of memory usage
     PM10_model = train(df, :PM10, features, mb_idxs,
@@ -54,7 +54,7 @@ function train(df::DataFrame, ycol::Symbol, features::Array{Symbol}, mb_idxs::Ar
     train!(model, train_set, test_set, loss, accuracy, opt, epoch_size, output_path)
 
     @info "     Validation acc : ", accuracy(valid_set)
-    flush(STDOUT)
+    flush(stdout)
 
     model
 end
@@ -62,7 +62,7 @@ end
 function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Integer, filename::String)
 
     @info(" Beginning training loop...")
-    flush(STDOUT)
+    flush(stdout)
 
     best_acc = 0.0
     last_improvement = 0
@@ -75,7 +75,7 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
         # Calculate accuracy:
         acc = accuracy(test_set)
         @info(@sprintf("epoch [%d]: Test accuracy: %.4f", epoch_idx, acc))
-        flush(STDOUT)
+        flush(stdout)
 
         # If our accuracy is good enough, quit out.
         if acc < 0.01
@@ -86,7 +86,7 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
         # If this is the best accuracy we've seen so far, save the model out
         if acc >= best_acc
             @info " -> New best accuracy! Saving model out to " * filename
-            flush(STDOUT)
+            flush(stdout)
 
             cpu_model = cpu(model)
             # TrackedReal cannot be writable, convert to Real
@@ -99,7 +99,7 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
         if epoch_idx - last_improvement >= 5 && opt.eta > 1e-6
             opt.eta /= 10.0
             @warn("     -> Haven't improved in a while, dropping learning rate to $(opt.eta)!")
-            flush(STDOUT)
+            flush(stdout)
 
             # After dropping learning rate, give it a few epochs to improve
             last_improvement = epoch_idx
@@ -107,7 +107,7 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
 
         if epoch_idx - last_improvement >= 10
             @warn("     -> We're calling this converged.")
-            flush(STDOUT)
+            flush(stdout)
 
             break
         end
