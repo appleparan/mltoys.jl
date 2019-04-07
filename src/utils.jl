@@ -1,6 +1,8 @@
 using Base.Iterators: partition, zip
 
+using CuArrays
 using DataFrames, Query
+using Flux
 using StatsBase: mean, std, zscore
 using Dates, TimeZones
 
@@ -177,6 +179,10 @@ function make_minibatch(df::DataFrame, ycol::Symbol,
     idx::Array{T,1}, features::Array{Symbol,1}, hours::T) where T <: Integer
     X_batch = getX(df, idx, features) |> gpu
     Y_batch = getY(df, idx, ycol, hours) |> gpu
+
+    if size(Y_batch, 1) != hours
+        @error "Wrong Y size ", size(Y_batch), idx, size(df)
+    end
     #Y_batch = onehotbatch(Y[idxs], 0:9)
     return (X_batch, Y_batch)
 end
