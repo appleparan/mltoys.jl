@@ -25,6 +25,7 @@ function train_all(df::DataFrame, features::Array{Symbol}, mb_idxs::Array{Any},
     opt = ADAM(0.01)
 
     @info "PM10 Training..."
+    flush(STDOUT)
 
     # free minibatch after training because of memory usage
     PM10_model = train(df, :PM10, features, mb_idxs,
@@ -53,13 +54,16 @@ function train(df::DataFrame, ycol::Symbol, features::Array{Symbol}, mb_idxs::Ar
     train!(model, train_set, test_set, loss, accuracy, opt, epoch_size, output_path)
 
     @info "     Validation acc : ", accuracy(valid_set)
+    flush(STDOUT)
+
     model
 end
 
 function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Integer, filename::String)
 
     @info(" Beginning training loop...")
-    
+    flush(STDOUT)
+
     best_acc = 0.0
     last_improvement = 0
     acc = 0.0
@@ -71,7 +75,8 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
         # Calculate accuracy:
         acc = accuracy(test_set)
         @info(@sprintf("epoch [%d]: Test accuracy: %.4f", epoch_idx, acc))
-        
+        flush(STDOUT)
+
         # If our accuracy is good enough, quit out.
         if acc < 0.01
             @info("     -> Early-exiting: We reached our target accuracy of 0.01")
@@ -81,6 +86,8 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
         # If this is the best accuracy we've seen so far, save the model out
         if acc >= best_acc
             @info " -> New best accuracy! Saving model out to " * filename
+            flush(STDOUT)
+
             cpu_model = cpu(model)
             # TrackedReal cannot be writable, convert to Real
             @save filename cpu_model epoch_idx acc
@@ -92,6 +99,7 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
         if epoch_idx - last_improvement >= 5 && opt.eta > 1e-6
             opt.eta /= 10.0
             @warn("     -> Haven't improved in a while, dropping learning rate to $(opt.eta)!")
+            flush(STDOUT)
 
             # After dropping learning rate, give it a few epochs to improve
             last_improvement = epoch_idx
@@ -99,6 +107,8 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
 
         if epoch_idx - last_improvement >= 10
             @warn("     -> We're calling this converged.")
+            flush(STDOUT)
+
             break
         end
     end
@@ -117,9 +127,7 @@ function compile_PM10(input_size::Integer, output_size::Integer)
         Dense(100, 100, relu),
         Dropout(0.2),
 
-        Dense(100, output_size),
-        
-        relu,
+        Dense(100, output_size)
     ) |> gpu
 
     loss(x, y) = Flux.mse(model(x |> gpu), y)
