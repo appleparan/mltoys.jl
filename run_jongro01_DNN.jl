@@ -13,11 +13,14 @@ function run_model()
     flush(stdout); flush(stderr)
 
     PM10_mean, PM10_std = mean_and_std(df[:PM10])
+    PM25_mean, PM25_std = mean_and_std(df[:PM25])
+    @info "PM10 mean and std ", PM10_mean, PM10_std
+    @info "PM25 mean and std ", PM25_mean, PM25_std
     standardize!(df, features, norm_features)
     
     sample_size = 72
     output_size = 24
-    epoch_size = 1000
+    epoch_size = 500
     
     # split into segment
     #splitted_df, mb_idxs = split_df(size(df, 1), sample_size)

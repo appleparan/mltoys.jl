@@ -34,6 +34,13 @@ function train_all(df::DataFrame, features::Array{Symbol}, mb_idxs::Array{Any},
     input_size, output_size, epoch_size, opt,
     train_idx, valid_idx, test_idx,  "/mnt/PM10.bson")
     
+    @info "PM25 Training..."
+    flush(stdout); flush(stderr)
+
+    PM25_model = train(df, :PM25, features, mb_idxs,
+    input_size, output_size, epoch_size, opt,
+    train_idx, valid_idx, test_idx,  "/mnt/PM25.bson")
+
     nothing
 end
 
