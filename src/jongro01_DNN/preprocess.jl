@@ -16,7 +16,12 @@ function filter_jongro(df)
         @collect DataFrame
     end
 
-    return dropmissing(jongro_df)
+    cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid]
+    for col in cols
+        jongro_df[col] = Missings.coalesce.(jongro_df[col], 0.0)
+    end
+
+    return jongro_df
 end
 
 function get_nearjongro(df)
@@ -25,12 +30,18 @@ end
 
 function save_jongro_df(input_path = "/input/input.csv")
     df = CSV.read(input_path)
+    sort!(df, (:date, :stationCode))
+    @show first(df, 5)
+    j_df = filter_jongro(df)
 
-    j_df = get_jongro(df)
     CSV.write("/input/jongro_single.csv", j_df)
 end
 
 function read_jongro(input_path="/input/jongro_single.csv")
+    if Base.Filesystem.isfile(input_path) == false
+        save_jongro_df()
+    end
+
     df = CSV.read(input_path)
     
     #df = dropmissing(df, [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid], disallowmissing=true)
