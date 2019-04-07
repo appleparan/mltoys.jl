@@ -84,7 +84,7 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
         end
 
         # If this is the best accuracy we've seen so far, save the model out
-        if acc >= best_acc
+        if acc <= best_acc
             @info " -> New best accuracy! Saving model out to " * filename
             flush(stdout)
 
