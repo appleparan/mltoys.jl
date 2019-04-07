@@ -1,7 +1,7 @@
 using Random
 using Printf
 
-using BSON
+using BSON: @save, @load
 using CSV
 using CuArrays
 using Distributions: sample
@@ -10,7 +10,7 @@ using StatsBase: mean_and_std
 
 using Flux
 using Flux.Tracker
-using Flux.Tracker: param, back!, grad
+using Flux.Tracker: param, back!, grad, data
 
 ENV["MPLBACKEND"]="agg"
 
@@ -70,7 +70,7 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
 
         # Calculate accuracy:
         acc = accuracy(test_set)
-        @info(@sprintf("[%d]: Test accuracy: %.4f", epoch_idx, acc))
+        @info(@sprintf("epoch [%d]: Test accuracy: %.4f", epoch_idx, acc))
         
         # If our accuracy is good enough, quit out.
         if acc < 0.01
@@ -80,9 +80,10 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
 
         # If this is the best accuracy we've seen so far, save the model out
         if acc >= best_acc
-            @info " -> New best accuracy! Saving model out to ", filename
-            cpu_model = model |> cpu
-            BSON.@save filename cpu_model epoch_idx acc
+            @info " -> New best accuracy! Saving model out to " * filename
+            cpu_model = cpu(model)
+            # TrackedReal cannot be writable, convert to Real
+            @save filename cpu_model epoch_idx acc
             best_acc = acc
             last_improvement = epoch_idx
         end
@@ -107,20 +108,18 @@ function compile_PM10(input_size::Integer, output_size::Integer)
     @info("     Compiling model...")
 
     model = Chain(
-        Dense(input_size, 100),
+        Dense(input_size, 100, relu),
         Dropout(0.2),
 
-        Dense(100, 100),
+        Dense(100, 100, relu),
         Dropout(0.2),
 
-        Dense(100, 100),
+        Dense(100, 100, relu),
         Dropout(0.2),
 
         Dense(100, output_size),
-        Dropout(0.2),
         
-        #NNlib.leakyrelu,
-        softmax,
+        relu,
     ) |> gpu
 
     loss(x, y) = Flux.mse(model(x |> gpu), y)
@@ -129,16 +128,17 @@ function compile_PM10(input_size::Integer, output_size::Integer)
     model, loss, accuracy
 end
 
-function RSME(data, model)
+function RSME(dataset, model)
     # RSME
     acc = 0.0
 
-    for (x, y) in data
+    for (x, y) in dataset
         ŷ = model(x)
         @assert size(ŷ) == size(y)
 
         acc += sqrt(sum(abs2.(ŷ .- y)) / length(y))
     end
 
-    acc / length(data)
+    # acc is incomplete TrackedReal, convert it to pure Real type
+    Flux.Tracker.data(acc / length(dataset))
 end
