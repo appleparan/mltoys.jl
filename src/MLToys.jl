@@ -1,6 +1,7 @@
 module MLToys
 
 include("utils.jl")
+include("evaluation.jl")
 include("jongro01_DNN/preprocess.jl")
 include("jongro01_DNN/model.jl")
 
@@ -17,9 +18,13 @@ export  standardize!,
         window_df,
         perm_idx,
         perm_df,
+# evaluation
+        RSME,
+        RSR,
 # jongro01_DNN
         filter_jongro,
         read_jongro,
         train_all
+
 
 end
