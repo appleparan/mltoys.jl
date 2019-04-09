@@ -1,10 +1,11 @@
 using Base.Iterators: partition, zip
 
 using CuArrays
+using Dates, TimeZones
 using DataFrames, Query
 using Flux
+using Random
 using StatsBase: mean, std, zscore
-using Dates, TimeZones
 
 # TODO : How to pass optional argument? 
 """
@@ -80,7 +81,7 @@ end
 
 """
     window_df(df, sample_size)
-create overlapped windowed df
+create list of overlapped windowe index range 
 """
 function window_df(df::DataFrame, sample_size::Integer = 72)
     # start index for window
@@ -96,32 +97,66 @@ function window_df(df::DataFrame, sample_size::Integer = 72)
 end
 
 """
-    train_test_size_split(total_partition_size)
-split DataFrame and return Array of DataFrame
+    split_sizes(total_size, batch_size)
 """
-function train_test_size_split(total_partition_size)
-    
+function split_sizes(total_size::Integer, batch_size::Integer)
+    # (train + valid) : test = 0.8 : 0.2
+    # train : valid = 0.8 : 0.2
     # train : valid : test = 0.64 : 0.16 : 0.20
-    train_size = round(total_partition_size * 0.64)
-    valid_size = round(total_partition_size * 0.16)
-    test_size = total_partition_size - (train_size + valid_size)
+    train_size = round(total_size * 0.64)
+    valid_size = round(total_size * 0.16)
+    test_size = total_size - (train_size + valid_size)
 
-    total_partition_size, Int(train_size), Int(valid_size), Int(test_size)
+    # at least contains single batch
+    @assert train_size >= batch_size
+
+    Int(train_size), Int(valid_size), Int(test_size)
+end
+
+create_chunk(xs, n) = collect(Iterators.partition(xs, n))
+"""
+    create_chunks(tot_size, train_size, valid_size, test_size, batch_size)
+create chunks by batch_size that indicates index of sg_idxs or wd_idxs
+
+expected sample result of chunks
+    [[1, 2]
+    [3, 4],
+    [5]]
+"""
+function create_chunks(total_idx::Array{Int64},
+    train_size::Integer, valid_size::Integer, test_size::Integer, batch_size::Integer)
+
+    train_chnks = create_chunk(total_idx[1: train_size], batch_size)
+    valid_chnks = create_chunk(total_idx[train_size + 1: train_size + valid_size], batch_size)
+    test_chnks = create_chunk(total_idx[train_size + valid_size + 1: end], batch_size)
+
+    #=
+    # if last element size is less than batch_size, drop it
+    function drop_small_batch!(_idxs, _size)
+        if length(_idxs[end]) < _size
+            deleteat!(_idxs, length(_idxs))
+        end
+    end
+    drop_small_batch!(train_chnks, batch_size)
+    drop_small_batch!(valid_chnks, batch_size)
+    drop_small_batch!(test_chnks, batch_size)
+    =#
+    train_chnks, valid_chnks, test_chnks
 end
 
 """
-    train_test_idx_split(tot_size, train_size, valid_size, test_size)
-permute random indexes according to precomputed size
-"""
-function train_test_idxs_split(tot_size, train_size, valid_size, test_size)
-    # tot_idx = collect(1:tot_size)
-    
-    tot_idx = Random.randperm(tot_size)
-    train_idx = tot_idx[1: train_size]
-    valid_idx = tot_idx[train_size + 1: train_size + valid_size]
-    test_idx = tot_idx[train_size + valid_size + 1: end]
+    create_idxs(tot_idx, train_size, valid_size, test_size)
+create indexes that indicates index of sg_idxs or wd_idxs
 
-    sort!(train_idx), sort!(valid_idx), sort!(test_idx)
+expected sample result of idxs
+    [1, 2, 3, 4, 5]
+"""
+function create_idxs(tot_idx::Array{Int64}, train_size::Integer, valid_size::Integer, test_size::Integer)
+    train_idxs = tot_idx[1: train_size]
+    valid_idxs = tot_idx[train_size + 1: train_size + valid_size]
+    test_idxs = tot_idx[train_size + valid_size + 1: end]
+
+    train_idxs, valid_idxs, test_idxs
 end
 
 """
@@ -147,9 +182,10 @@ end
     getX(df::DataFrame, idxs, features)
 get X in Dataframe and construct X by flattening
 """
-function getX(df::DataFrame, idxs, features::Array{Symbol,1})
+function getX(df::DataFrame, idxs, features::Array{Symbol})
     X = convert(Matrix, df[collect(idxs), features])
-
+    
+    # serialize (2D -> 1D)
     return vec(X)
 end
 
@@ -159,30 +195,72 @@ getX(df::DataFrame, idxs, features::Array{String,1}) = getX(df, idxs, Symbol.(ev
     getY(X::DateFrame, hours)
 get last date of X and construct Y with `hours` range
 """
-function getY(df::DataFrame, idx::Array{T,1}, ycol::Symbol, hours=24) where T <: Integer
+function getY(df::DataFrame, idx::Array{T},
+    ycol::Symbol, output_size::Integer=24) where T <: Integer
     df_X = df[idx, :]
     last_date_of_X = df_X[end, :date]
     
-    Y = getHoursLater(df, hours, last_date_of_X)
+    Y = getHoursLater(df, output_size, last_date_of_X)
 
     Y[:, ycol]
 end
 
 """
-    make_minibatch(X::DataFrame, Y::DataFrame, idxs)
-create minibatch
-idx: partition by sample_size
+    make_pairs(df, ycol, idx, features, hours)
+create pairs in `df` along with `idx` (row) and `features` (columns)
+output determined by ycol
 
 """
 # Bundle images together with labels and group into minibatchess
-function make_minibatch(df::DataFrame, ycol::Symbol,
-    idx::Array{T,1}, features::Array{Symbol,1}, hours::T) where T <: Integer
-    X_batch = getX(df, idx, features) |> gpu
-    Y_batch = getY(df, idx, ycol, hours) |> gpu
+function make_pairs(df::DataFrame, ycol::Symbol,
+    idx::Array{T}, features::Array{Symbol},
+    input_size::T, output_size::T) where T <: Integer
+    X = getX(df, idx, features) |> gpu
+    Y = getY(df, idx, ycol, output_size) |> gpu
 
-    if size(Y_batch, 1) != hours
-        @error "Wrong Y size ", size(Y_batch), idx, size(df)
+    @assert length(X) == input_size
+    @assert length(Y) == output_size
+    @assert ndims(X) == 1
+    @assert ndims(Y) == 1
+
+    return (X, Y)
+end
+
+"""
+    make_minibatch(input_pairs, batch_size, train_idx, valid_idx, test_idx)
+make batch by sampling. size of batch (input_size, batch_size) 
+
+[(input_single, output_single)...] =>
+[   
+    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // single batch
+    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // single batch
+    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // single batch
+]
+
+do this for train_set, valid_set, test_set
+each single batch is column stacked
+
+"""
+function make_minibatch(input_pairs::Array{T},
+    chnks::Array{I,1}, batch_size::I) where I<:Integer where T<:Tuple
+    # input_pairs Array{Tuple{Array{Int64,1},Array{Int64,1}},1}
+    X = []
+    Y = []
+
+    X = [pair[1] for pair in input_pairs[chnks]]
+    Y = [pair[2] for pair in input_pairs[chnks]]
+    X_size = length(X[1])
+    Y_size = length(Y[1])
+    # append zeros if chnks size is less than batch_size
+    chnks_size = length(chnks)
+    if chnks_size < batch_size
+        for i in chnks_size+1:batch_size
+            append!(X, [zeros(X_size)])
+            append!(Y, [zeros(Y_size)])
+        end
     end
-    #Y_batch = onehotbatch(Y[idxs], 0:9)
-    return (X_batch, Y_batch)
+
+    # (input_size * batch_size) x length(pairs), (output_size) x length(pairs)
+    # Flux.batchseq : pad zero when size is lower than batch_size
+    (Flux.batch(X), Flux.batch(Y))
 end

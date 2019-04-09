@@ -8,16 +8,16 @@ include("jongro01_DNN/model.jl")
 # utils
 export  standardize!,
         exclude_elem,
-        train_test_size_split,
-        train_test_idxs_split,
+        split_df,
+        window_df,
+        split_sizes,
+        create_chunks,
+        create_idxs,
         getHoursLater,
         getX,
         getY,
+        make_pairs,
         make_minibatch,
-        split_df,
-        window_df,
-        perm_idx,
-        perm_df,
 # evaluation
         RSME,
         RSR,
@@ -25,6 +25,4 @@ export  standardize!,
         filter_jongro,
         read_jongro,
         train_all
-
-
 end
