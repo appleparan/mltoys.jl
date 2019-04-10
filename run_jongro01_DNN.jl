@@ -33,6 +33,8 @@ function run_model()
     output_size = 24
     epoch_size = 300
     batch_size = 512
+    @info features
+    @info sample_size, output_size, epoch_size, batch_size
 
     # iterators for indicies
     # split into segment
