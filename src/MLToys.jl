@@ -1,7 +1,9 @@
 module MLToys
 
 include("utils.jl")
+include("plots.jl")
 include("evaluation.jl")
+
 include("jongro01_DNN/preprocess.jl")
 include("jongro01_DNN/model.jl")
 
@@ -24,5 +26,8 @@ export  standardize!,
 # jongro01_DNN
         filter_jongro,
         read_jongro,
-        train_all
+        train_all,
+# plot
+        plot_DNN,
+        plot_DNN_toCSV
 end

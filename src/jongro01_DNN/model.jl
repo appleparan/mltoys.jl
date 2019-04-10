@@ -18,7 +18,8 @@ ENV["MPLBACKEND"]="agg"
 
 function train_all(df::DataFrame, features::Array{Symbol}, norm_prefix::String,
     input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
-    total_idxs::Array{Any,1}, train_chnk::Array{T,1}, valid_idxs::T, test_idxs::T) where T <: Array{Int64,1}
+    total_idxs::Array{Any,1}, train_chnk::Array{T,1}, valid_idxs::T, test_idxs::T,
+    PM10_mean, PM10_std, PM25_mean, PM25_std) where T <: Array{Int64,1}
 
     @info "PM10 Training..."
     flush(stdout); flush(stderr)
@@ -26,14 +27,16 @@ function train_all(df::DataFrame, features::Array{Symbol}, norm_prefix::String,
     # free minibatch after training because of memory usage
     PM10_model, PM10_μσ = train(df, Symbol(norm_prefix, :PM10), features,
     input_size, batch_size, output_size, epoch_size,
-    total_idxs, train_chnk, valid_idxs, test_idxs, "/mnt/PM10.bson")
+    total_idxs, train_chnk, valid_idxs, test_idxs, "/mnt/PM10.bson",
+    PM10_mean, PM10_std, "/mnt/PM10.csv")
     
     @info "PM25 Training..."
     flush(stdout); flush(stderr)
 
     PM25_model, PM25_μσ = train(df, Symbol(norm_prefix, :PM10), features,
     input_size, batch_size, output_size, epoch_size,
-    total_idxs, train_chnk, valid_idxs, test_idxs, "/mnt/PM25.bson")
+    total_idxs, train_chnk, valid_idxs, test_idxs, "/mnt/PM25.bson",
+    PM25_mean, PM25_std, "/mnt/PM25.csv")
 
     nothing
 end
@@ -41,7 +44,7 @@ end
 function train(df::DataFrame, ycol::Symbol, features::Array{Symbol},
     input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
     total_idxs::Array{Any,1}, train_chnk::Array{T,1}, valid_idxs::T, test_idxs::T,
-    output_path::String) where T <: Array{Int64,1}
+    bson_path::String, total_μ::Float64, total_σ::Float64, png_path::String) where T <: Array{Int64,1}
 
     # compute mean and std by each train/valid/test set
     # merge chunks and get rows in df : https://discourse.julialang.org/t/very-best-way-to-concatenate-an-array-of-arrays/8672/17
@@ -78,11 +81,19 @@ function train(df::DataFrame, ycol::Symbol, features::Array{Symbol},
     valid_set = valid_set
     test_set = test_set
 
-    train!(model, train_set, test_set, loss, accuracy, opt, epoch_size, output_path)
+    train!(model, train_set, test_set, loss, accuracy, opt, epoch_size, bson_path)
 
     # TODO : (current) validation with zscore, (future) validation with original valud?
     @info "    Validation acc : ", accuracy("valid", valid_set)
     flush(stdout); flush(stderr)
+    #=
+    /home/appleparan/.julia/packages/GR/Q8slp/src/../deps/gr/bin/gksqt: error while loading shared libraries: libQt5Widgets.so.5: cannot open shared object file: No such file or directory
+    connect: Connection refused
+    GKS: can't connect to GKS socket application
+    Did you start 'gksqt'?
+    =#
+    # plot_DNN(valid_set, model, total_μ, total_σ, png_path)
+    plot_DNN_toCSV(valid_set, model, total_μ, total_σ, png_path)
 
     model, μσ
 end
@@ -107,8 +118,8 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
         flush(stdout); flush(stderr)
 
         # If our accuracy is good enough, quit out.
-        if acc < 0.1
-            @info("    -> Early-exiting: We reached our target accuracy (RSR) of 0.1")
+        if acc < 0.01
+            @info("    -> Early-exiting: We reached our target accuracy (RSR) of 0.01")
             break
         end
 

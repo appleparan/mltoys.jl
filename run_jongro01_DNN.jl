@@ -33,8 +33,8 @@ function run_model()
     output_size = 24
     epoch_size = 300
     batch_size = 512
-    @info features
-    @info sample_size, output_size, epoch_size, batch_size
+    @info "feature : " features
+    @info "sizes (sample, output, epoch, batch) : ", sample_size, output_size, epoch_size, batch_size
 
     # iterators for indicies
     # split into segment
@@ -55,7 +55,8 @@ function run_model()
 
     # to use zscroed data, use norm_features
     train_all(df, norm_features, norm_prefix, sample_size * length(features), batch_size, output_size, epoch_size,
-        wd_idxs, train_chnk, valid_idxs, test_idxs)
+        wd_idxs, train_chnk, valid_idxs, test_idxs,
+        PM10_mean, PM10_std, PM25_mean, PM25_std)
 end
 
 run_model()
