@@ -5,6 +5,8 @@ using StatsBase: mean_and_std
 using MLToys
 
 function run_model()
+    @info "Start Model"
+    flush(stdout); flush(stderr)
     df = read_jongro("/input/jongro_single.csv")
     #=
     first(df, 5)
@@ -17,12 +19,9 @@ function run_model()
     │ 4   │ 76     │ 111123      │ 2015-01-01T04:00:00+09:00 │ 37.572   │ 127.005   │ 0.004   │ 0.2     │ 0.019   │ 0.005   │ 111.0   │ 2.0     │ -8.8    │ 4.60449 │ 1.6759  │ 1012.3  │ missing  │ missing  │
     │ 5   │ 101    │ 111123      │ 2015-01-01T05:00:00+09:00 │ 37.572   │ 127.005   │ 0.005   │ 0.2     │ 0.019   │ 0.006   │ 127.0   │ 5.0     │ -9.1    │ 5.35625 │ 1.94951 │ 1011.8  │ missing  │ missing  │
     =#
-    features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid]
+    features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
     norm_prefix = "norm_"
     norm_features = [Symbol(eval(norm_prefix * String(f))) for f in features]
-    
-    @info "Start preprocessing..."
-    flush(stdout); flush(stderr)
 
     PM10_mean, PM10_std = mean_and_std(df[:PM10])
     PM25_mean, PM25_std = mean_and_std(df[:PM25])
@@ -32,7 +31,7 @@ function run_model()
     
     sample_size = 72
     output_size = 24
-    epoch_size = 200
+    epoch_size = 300
     batch_size = 512
 
     # iterators for indicies

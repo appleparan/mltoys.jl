@@ -107,8 +107,8 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
         flush(stdout); flush(stderr)
 
         # If our accuracy is good enough, quit out.
-        if acc < 0.01
-            @info("    -> Early-exiting: We reached our target accuracy (RSR) of 0.01")
+        if acc < 0.1
+            @info("    -> Early-exiting: We reached our target accuracy (RSR) of 0.1")
             break
         end
 

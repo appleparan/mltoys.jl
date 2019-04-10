@@ -1,8 +1,11 @@
+using Random
+
 using CSV
 using DataFrames, Query, Missings
 using Dates, TimeZones
-using Random
+using MicroLogging
 using StatsBase: zscore
+using Impute
 
 """
     filter_jongro(df)
@@ -44,15 +47,43 @@ function read_jongro(input_path="/input/jongro_single.csv")
 
     df = CSV.read(input_path)
     
-    #df = dropmissing(df, [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid], disallowmissing=true)
-    cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid]
-    for col in cols
+    @info "Start preprocessing..."
+    flush(stdout); flush(stderr)
+    df[:date] = ZonedDateTime.(df[:date], Dates.DateFormat("yyyy-mm-dd HH:MM:SSz"))
+
+    # no and staitonCode must not have missing value
+    @assert size(collect(skipmissing(df[:no])), 1) == size(df, 1)
+    @assert size(collect(skipmissing(df[:stationCode])), 1) == size(df, 1)
+
+    dropmissing!(df, [:no, :stationCode])
+    cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
+    airkorea_cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25]
+    weather_cols = [:temp, :u, :v, :pres, :humid]
+
+    @info "Imputing data..."
+    flush(stdout); flush(stderr)
+    allowmissing!(df, cols)
+    for col in [:prep, :snow]
         df[col] = Missings.coalesce.(df[col], 0.0)
     end
 
-    df[:date] = ZonedDateTime.(df[:date], Dates.DateFormat("yyyy-mm-dd HH:MM:SSz"))
+    for col in airkorea_cols
+        replace!(df[col], -999 => missing)
+    end
+
+    # convert -999 to missing
+    for col in vcat(airkorea_cols, weather_cols)
+        impute!(df[col], :interp)
+    end
+
+    # check missing values len_init_df
+    for col in names(df)
+        @assert size(df, 1) == size(collect(skipmissing(df[col])), 1)
+    end
+    dropmissing!(df, cols, disallowmissing=true)
 
     @show first(df, 5)
+    flush(stdout); flush(stderr)
 
     df
 end
