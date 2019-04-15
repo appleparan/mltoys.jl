@@ -1,5 +1,9 @@
 module MLToys
 
+# to use Plots in headless system
+# https://github.com/JuliaPlots/Plots.jl/issues/1076#issuecomment-327509819
+ENV["GKSwstype"] = "100"
+
 include("utils.jl")
 include("plots.jl")
 include("evaluation.jl")

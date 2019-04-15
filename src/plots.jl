@@ -3,7 +3,7 @@ using CSV
 using DataFrames
 using Flux
 using Flux.Tracker
-using GR
+
 using Plots
 using UnicodePlots
 
