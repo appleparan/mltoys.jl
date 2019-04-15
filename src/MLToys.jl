@@ -8,7 +8,7 @@ include("jongro01_DNN/preprocess.jl")
 include("jongro01_DNN/model.jl")
 
 # utils
-export  standardize!,
+export  zscore!,
         exclude_elem,
         split_df,
         window_df,

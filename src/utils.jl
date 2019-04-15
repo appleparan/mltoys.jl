@@ -9,51 +9,51 @@ using StatsBase: mean, std, zscore
 
 # TODO : How to pass optional argument? 
 """
-    standardize!(df, col, new_col)
+    zscore!(df, col, new_col)
 Apply zscore (normalization) to dataframe `df`
 TODO: how to make μ and σ optional?
 """
-function standardize!(df::DataFrame, col::Symbol, new_col::Symbol) 
+function zscore!(df::DataFrame, col::Symbol, new_col::Symbol) 
     to_be_normalized = df[col]
     df[new_col] = zscore(to_be_normalized)
 end
 
-function standardize!(df::DataFrame, col::Symbol, new_col::Symbol, μ::Real, σ::Real)
+function zscore!(df::DataFrame, col::Symbol, new_col::Symbol, μ::Real, σ::Real)
     to_be_normalized = df[col]
     df[new_col] = zscore(to_be_normalized, μ, σ)
 end
 
-standardize!(df::DataFrame, col::Symbol, new_col::String) = standardize!(df, col, Symbol(eval(new_col)))
-standardize!(df::DataFrame, col::String, new_col::String) = standardize!(df, Symbol(eval(col)), Symbol(eval(new_col)))
-standardize!(df::DataFrame, col::Symbol) = standardize!(df, col, col)
-standardize!(df::DataFrame, col::String) = standardize!(df, Symbol(col))
+zscore!(df::DataFrame, col::Symbol, new_col::String) = zscore!(df, col, Symbol(eval(new_col)))
+zscore!(df::DataFrame, col::String, new_col::String) = zscore!(df, Symbol(eval(col)), Symbol(eval(new_col)))
+zscore!(df::DataFrame, col::Symbol) = zscore!(df, col, col)
+zscore!(df::DataFrame, col::String) = zscore!(df, Symbol(col))
 
-standardize!(df::DataFrame, col::Symbol, new_col::String, μ::Real, σ::Real) = standardize!(df, col, Symbol(eval(new_col)), μ, σ)
-standardize!(df::DataFrame, col::String, new_col::String, μ::Real, σ::Real) = standardize!(df, Symbol(eval(col)), Symbol(eval(new_col)), μ, σ)
-standardize!(df::DataFrame, col::Symbol, μ::Real, σ::Real) = standardize!(df, col, col, μ, σ)
-standardize!(df::DataFrame, col::String, μ::Real, σ::Real) = standardize!(df, Symbol(col), μ, σ)
+zscore!(df::DataFrame, col::Symbol, new_col::String, μ::Real, σ::Real) = zscore!(df, col, Symbol(eval(new_col)), μ, σ)
+zscore!(df::DataFrame, col::String, new_col::String, μ::Real, σ::Real) = zscore!(df, Symbol(eval(col)), Symbol(eval(new_col)), μ, σ)
+zscore!(df::DataFrame, col::Symbol, μ::Real, σ::Real) = zscore!(df, col, col, μ, σ)
+zscore!(df::DataFrame, col::String, μ::Real, σ::Real) = zscore!(df, Symbol(col), μ, σ)
 
-function standardize!(df::DataFrame, cols::Array{String}, new_cols::Array{String})
+function zscore!(df::DataFrame, cols::Array{String}, new_cols::Array{String})
     for (col, new_col) in zip(cols, new_cols)
-        standardize!(df, col, new_col)
+        zscore!(df, col, new_col)
     end
 end
 
-function standardize!(df::DataFrame, cols::Array{Symbol}, new_cols::Array{Symbol})
+function zscore!(df::DataFrame, cols::Array{Symbol}, new_cols::Array{Symbol})
     for (col, new_col) in zip(cols, new_cols)
-        standardize!(df, col, new_col)
+        zscore!(df, col, new_col)
     end
 end
 
-function standardize!(df::DataFrame, cols::Array{String}, new_cols::Array{String}, μs::Array{Real}, σs::Array{Real})
+function zscore!(df::DataFrame, cols::Array{String}, new_cols::Array{String}, μs::Array{Real}, σs::Array{Real})
     for (col, new_col, μ, σ) in zip(cols, new_cols, μs, σs)
-        standardize!(df, col, new_col, μ, σ)
+        zscore!(df, col, new_col, μ, σ)
     end
 end
 
-function standardize!(df::DataFrame, cols::Array{Symbol}, new_cols::Array{Symbol}, μs::Array{Real}, σs::Array{Real})
+function zscore!(df::DataFrame, cols::Array{Symbol}, new_cols::Array{Symbol}, μs::Array{Real}, σs::Array{Real})
     for (col, new_col, μ, σ) in zip(cols, new_cols, μs, σs)
-        standardize!(df, col, new_col, μ, σ)
+        zscore!(df, col, new_col, μ, σ)
     end
 end
 

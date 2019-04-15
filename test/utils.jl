@@ -20,43 +20,43 @@ using MLToys
         df = DataFrame()
 
         df[:A] = a 
-        standardize!(df, "A", "newA")
+        MLToys.zscore!(df, "A", "newA")
         @test df[:newA] == zscore(a)
     end
 end
 
-@info "Testing Standardize..."
-@testset "Standardize" begin
-    @testset "standarized_single_string" begin
+@info "Testing zscore..."
+@testset "zscore" begin
+    @testset "zscore_single_string" begin
         df = DataFrame(
             A = 1:4,
             B = 5:8,
             C = 9:12)
-        standardize!(df, "A", "nA")
+        zscore!(df, "A", "nA")
         @test isapprox(df[:nA], [ -1.161895003862225,
             -0.3872983346207417,
              0.3872983346207417,
              1.161895003862225])
     end
 
-    @testset "standarized_single_symbol" begin
+    @testset "zscore_single_symbol" begin
         df = DataFrame(
             A = 1:4,
             B = 5:8,
             C = 9:12)
-        standardize!(df, :A, "nA")
+        zscore!(df, :A, "nA")
         @test isapprox(df[:nA], [ -1.161895003862225,
             -0.3872983346207417,
              0.3872983346207417,
              1.161895003862225])
     end
 
-    @testset "standarized_Array_string" begin
+    @testset "zscore_Array_string" begin
         df = DataFrame(
             A = 1:4,
             B = 5:8,
             C = 9:12)
-        standardize!(df, ["A", "B"], ["nA", "nB"])
+        zscore!(df, ["A", "B"], ["nA", "nB"])
         @test isapprox(df[:nA], [ -1.161895003862225,
             -0.3872983346207417,
              0.3872983346207417,
@@ -67,12 +67,12 @@ end
               1.161895003862225])
     end
 
-    @testset "standarized_Array_symbol" begin
+    @testset "zscore_Array_symbol" begin
         df = DataFrame(
             A = 1:4,
             B = 5:8,
             C = 9:12)
-        standardize!(df, [:A, :B], [:nA, :nB])
+        zscore!(df, [:A, :B], [:nA, :nB])
         @test isapprox(df[:nA], [ -1.161895003862225,
             -0.3872983346207417,
              0.3872983346207417,
