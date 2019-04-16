@@ -68,15 +68,15 @@ function plot_DNN(dataset, model, ycol::Symbol, μ::AbstractFloat, σ::AbstractF
     end
 
     gr(size = (800, 600))
-    sc = Plots.scatter(select(dnn_table, :y), selecT(dnn_table, :ŷ), title="OBS/DNN", xlabel="Observation", ylabel="DNN")
+    sc = Plots.scatter(select(dnn_table, :y), select(dnn_table, :ŷ), title="OBS/DNN", xlabel="Observation", ylabel="DNN")
     png(sc, sc_path)
 
     gr(size = (800, 600))
-    ht = Plots.histogram(elect(dnn_table, :y), title="Histogram of original data ", ylabel="# of data", bins=200, legend=false)
+    ht = Plots.histogram(select(dnn_table, :y), title="Histogram of original data ", ylabel="# of data", bins=200, legend=false)
     png(ht, hs_path_org)
 
     gr(size = (800, 600))
-    ht = Plots.histogram(elect(dnn_table, :ŷ), title="Histogram of modeled data ", ylabel="# of data", bins=200, legend=false)
+    ht = Plots.histogram(select(dnn_table, :ŷ), title="Histogram of modeled data ", ylabel="# of data", bins=200, legend=false)
     png(ht, hs_path_mdl)
 end
 
