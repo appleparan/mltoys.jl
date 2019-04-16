@@ -59,7 +59,8 @@ function read_jongro(input_path="/input/jongro_single.csv")
     cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
     airkorea_cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25]
     weather_cols = [:temp, :u, :v, :pres, :humid]
-
+    plot_totaldata(df, :PM25, "/mnt/before_")
+    plot_totaldata(df, :PM10, "/mnt/before_")
     @info "Imputing data..."
     flush(stdout); flush(stderr)
     allowmissing!(df, cols)
@@ -76,7 +77,7 @@ function read_jongro(input_path="/input/jongro_single.csv")
         impute!(df[col], :interp)
     end
 
-    # check missing values len_init_df
+    # check remaining missing values
     for col in names(df)
         @assert size(df, 1) == size(collect(skipmissing(df[col])), 1)
     end

@@ -23,16 +23,18 @@ function run_model()
     norm_prefix = "norm_"
     norm_features = [Symbol(eval(norm_prefix * String(f))) for f in features]
 
-    PM10_mean, PM10_std = mean_and_std(df[:PM10])
-    PM25_mean, PM25_std = mean_and_std(df[:PM25])
-    @info "PM10 mean and std ", PM10_mean, PM10_std
-    @info "PM25 mean and std ", PM25_mean, PM25_std
+    plot_totaldata(df, :PM25, "/mnt/")
+    plot_totaldata(df, :PM10, "/mnt/")
+
+    μσs = mean_and_std_cols(df, features)
+    @info "PM10 mean and std ", μσs["PM10", "μ"].value, μσs["PM10", "σ"].value
+    @info "PM25 mean and std ", μσs["PM25", "μ"].value, μσs["PM25", "σ"].value
     zscore!(df, features, norm_features)
     
     sample_size = 72
     output_size = 24
     epoch_size = 300
-    batch_size = 512
+    batch_size = 128
     @info "feature : " features
     @info "sizes (sample, output, epoch, batch) : ", sample_size, output_size, epoch_size, batch_size
 
@@ -55,8 +57,7 @@ function run_model()
 
     # to use zscroed data, use norm_features
     train_all(df, norm_features, norm_prefix, sample_size * length(features), batch_size, output_size, epoch_size,
-        wd_idxs, train_chnk, valid_idxs, test_idxs,
-        PM10_mean, PM10_std, PM25_mean, PM25_std)
+        wd_idxs, train_chnk, valid_idxs, test_idxs, μσs)
 end
 
 run_model()

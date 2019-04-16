@@ -5,7 +5,7 @@ using BSON: @save, @load
 using CSV
 using CuArrays
 using Dates: now
-using IndexedTables
+using JuliaDB
 using MicroLogging
 using ProgressMeter
 using StatsBase: mean_and_std
@@ -14,43 +14,46 @@ using Flux
 using Flux.Tracker
 using Flux.Tracker: param, back!, grad, data
 
-ENV["MPLBACKEND"]="agg"
-
-function train_all(df::DataFrame, features::Array{Symbol}, norm_prefix::String,
+function train_all(df::DataFrame, norm_feas::Array{Symbol}, norm_prefix::String,
     input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
     total_idxs::Array{Any,1}, train_chnk::Array{T,1}, valid_idxs::T, test_idxs::T,
-    PM10_mean, PM10_std, PM25_mean, PM25_std) where T <: Array{Int64,1}
+    μσs::NDSparse) where T <: Array{Int64,1}
 
     @info "PM10 Training..."
     flush(stdout); flush(stderr)
 
     # free minibatch after training because of memory usage
-    PM10_model, PM10_μσ = train(df, Symbol(norm_prefix, :PM10), features,
+    PM10_model, PM10_μσ = train(df, :PM10, norm_prefix, norm_feas,
     input_size, batch_size, output_size, epoch_size,
-    total_idxs, train_chnk, valid_idxs, test_idxs, "/mnt/PM10.bson",
-    PM10_mean, PM10_std, "/mnt/PM10.csv")
+    total_idxs, train_chnk, valid_idxs, test_idxs, μσs,
+    "PM10")
     
     @info "PM25 Training..."
     flush(stdout); flush(stderr)
 
-    PM25_model, PM25_μσ = train(df, Symbol(norm_prefix, :PM10), features,
+    PM25_model, PM25_μσ = train(df, :PM25, norm_prefix, norm_feas,
     input_size, batch_size, output_size, epoch_size,
-    total_idxs, train_chnk, valid_idxs, test_idxs, "/mnt/PM25.bson",
-    PM25_mean, PM25_std, "/mnt/PM25.csv")
+    total_idxs, train_chnk, valid_idxs, test_idxs, μσs,
+    "PM25")
 
     nothing
 end
 
-function train(df::DataFrame, ycol::Symbol, features::Array{Symbol},
+function train(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::Array{Symbol},
     input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
-    total_idxs::Array{Any,1}, train_chnk::Array{T,1}, valid_idxs::T, test_idxs::T,
-    bson_path::String, total_μ::Float64, total_σ::Float64, png_path::String) where T <: Array{Int64,1}
+    total_idxs::Array{Any,1}, train_chnk::Array{T,1}, valid_idxs::T, test_idxs::T, μσs::NDSparse, 
+    filename::String) where T <: Array{Int64,1}
+
+    norm_ycol = Symbol(norm_prefix, ycol)
+    # extract from ndsparse
+    total_μ = μσs[String(ycol), "μ"].value
+    total_σ = μσs[String(ycol), "σ"].value
 
     # compute mean and std by each train/valid/test set
     # merge chunks and get rows in df : https://discourse.julialang.org/t/very-best-way-to-concatenate-an-array-of-arrays/8672/17
-    train_μ, train_σ = mean_and_std(df[reduce(vcat, train_chnk), ycol])
-    valid_μ, valid_σ = mean_and_std(df[valid_idxs, ycol])
-    test_μ, test_σ = mean_and_std(df[test_idxs, ycol])
+    train_μ, train_σ = mean_and_std(df[reduce(vcat, train_chnk), norm_ycol])
+    valid_μ, valid_σ = mean_and_std(df[valid_idxs, norm_ycol])
+    test_μ, test_σ = mean_and_std(df[test_idxs, norm_ycol])
     μσ = ndsparse((
         dataset = ["train", "train", "valid", "valid", "test", "test"],
         type = ["μ", "σ", "μ", "σ", "μ", "σ"]),
@@ -63,7 +66,7 @@ function train(df::DataFrame, ycol::Symbol, features::Array{Symbol},
     # create (input(1D), output(1D)) pairs of total dataframe row
     @info "    Constructing (input, output) pairs..."
     p = Progress(length(total_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    input_pairs = [(ProgressMeter.next!(p); make_pairs(df, ycol, collect(idx), features, input_size, output_size)) for idx in total_idxs]
+    input_pairs = [(ProgressMeter.next!(p); make_pairs(df, norm_ycol, collect(idx), norm_feas, input_size, output_size)) for idx in total_idxs]
 
     # construct minibatch for train_set
     # |> gpu doesn't work to *_set directly
@@ -81,7 +84,7 @@ function train(df::DataFrame, ycol::Symbol, features::Array{Symbol},
     valid_set = valid_set
     test_set = test_set
 
-    train!(model, train_set, test_set, loss, accuracy, opt, epoch_size, bson_path)
+    train!(model, train_set, test_set, loss, accuracy, opt, epoch_size, filename)
 
     # TODO : (current) validation with zscore, (future) validation with original valud?
     @info "    Validation acc : ", accuracy("valid", valid_set)
@@ -92,8 +95,9 @@ function train(df::DataFrame, ycol::Symbol, features::Array{Symbol},
     GKS: can't connect to GKS socket application
     Did you start 'gksqt'?
     =#
-    # plot_DNN(valid_set, model, total_μ, total_σ, png_path)
-    plot_DNN_toCSV(valid_set, model, total_μ, total_σ, png_path)
+    plot_initdata(valid_set, ycol, total_μ, total_σ, "/mnt/")
+    plot_DNN(valid_set, model, ycol, total_μ, total_σ, "/mnt/")
+    # plot_DNN_toCSV(valid_set, model, total_μ, total_σ, png_path)
 
     model, μσ
 end
@@ -130,7 +134,8 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
 
             cpu_model = model |> cpu
             # TrackedReal cannot be writable, convert to Real
-            @save filename cpu_model epoch_idx acc
+            filepath = "/mnt/" * filename * ".bson"
+            @save filepath cpu_model epoch_idx acc
             best_acc = acc
             last_improvement = epoch_idx
         end
@@ -154,7 +159,7 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
     end
 end
 
-function compile_norm_PM10(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
+function compile_PM10(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
     @info("    Compiling model...")
 
     model = Chain(
@@ -177,7 +182,7 @@ function compile_norm_PM10(input_size::Integer, batch_size::Integer, output_size
     model, loss, accuracy, opt
 end
 
-function compile_norm_PM25(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
+function compile_PM25(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
     @info("    Compiling model...")
 
     model = Chain(

@@ -4,8 +4,33 @@ using CuArrays
 using Dates, TimeZones
 using DataFrames, Query
 using Flux
+using JuliaDB
 using Random
-using StatsBase: mean, std, zscore
+using StatsBase: mean, std, zscore, mean_and_std
+
+function mean_and_std_cols(df::DataFrame, cols::Array{Symbol})
+    syms = []
+    types = []
+    vals = []
+    for col in cols
+        μ, σ = mean_and_std(df[col])
+
+        push!(syms, String(col))
+        push!(types, "μ")
+        push!(vals, μ)
+
+        push!(syms, String(col))
+        push!(types, "σ")
+        push!(vals, σ)
+    end
+
+    μσ = ndsparse((
+        symbol = syms,
+        types = types),
+        (value = vals,))
+
+    μσ
+end
 
 # TODO : How to pass optional argument? 
 """
