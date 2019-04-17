@@ -17,11 +17,14 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
     hist_path = output_dir * String(ycol) * "_total_hist.png"
     plot_path = output_dir * String(ycol) * "_total_plot.png"
 
-    gr(size = (800, 600))
-    ht = Plots.histogram(df[ycol], title="Histogram of " * String(ycol), xlabel=String(ycol), ylabel="# of data", bins=200, legend=false)
+    # plot histogram
+    gr()
+    ht = Plots.histogram(df[ycol], title="Histogram of " * String(ycol),
+        xlabel=String(ycol), ylabel="# of data", bins=200,
+        fillcolor=[:red], fillalpha=0.2, legend=false)
     png(ht, hist_path)
 
-    #date_fmt = Dates.DateFormat("yyyy-mm-dd HH:MM:SSz")
+    #d plot in dates
     dates = DateTime.(df[:date])
     gr(size = (2100, 900))
     pl = Plots.plot(dates, df[ycol], title=String(ycol) * " in dates", xlabel="date", ylabel=String(ycol), bottom_margin=15mm, legend=false)
@@ -42,8 +45,10 @@ function plot_initdata(dataset, ycol::Symbol, μ::AbstractFloat, σ::AbstractFlo
         init_table = merge(init_table, tmp_table)
     end
 
-    gr(size = (800, 600))
-    ht = Plots.histogram(select(init_table, :y), title="Histogram of initial data: " * String(ycol), xlabel=String(ycol), ylabel="# of data", bins=200, legend=false)
+    gr()
+    ht = Plots.histogram(select(init_table, :y), title="Histogram of initial data: " * String(ycol),
+        xlabel=String(ycol), ylabel="# of data", bins=200,
+        fillcolor=[:red], fillalpha=0.2, legend=false)
     png(ht, hist_path)
 end
 
@@ -72,7 +77,7 @@ function plot_DNN(dataset, model, ycol::Symbol, μ::AbstractFloat, σ::AbstractF
     end
 
     lim = max(maximum(select(dnn_table, :y)), maximum(select(dnn_table, :ŷ)))
-    gr()
+    gr(size=(2000, 2000))
     sc = Plots.scatter(select(dnn_table, :y), select(dnn_table, :ŷ), 
         xlim = (0, lim), ylim = (0, lim), legend=false,
         title="OBS/DNN", xlabel="Observation", ylabel="DNN")
@@ -80,7 +85,7 @@ function plot_DNN(dataset, model, ycol::Symbol, μ::AbstractFloat, σ::AbstractF
 
     maxlim = max(maximum(select(dnn_norm_table, :y)), maximum(select(dnn_norm_table, :ŷ)))
     minlim = min(minimum(select(dnn_norm_table, :y)), minimum(select(dnn_norm_table, :ŷ)))
-    gr()
+    gr(size=(2000, 2000))
     sc = Plots.scatter(select(dnn_norm_table, :y), select(dnn_norm_table, :ŷ), 
         xlim = (minlim, maxlim), ylim = (minlim, maxlim), legend=false,
         title="OBS/DNN", xlabel="Observation", ylabel="DNN")

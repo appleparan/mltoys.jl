@@ -5,7 +5,6 @@ using DataFrames, Query, Missings
 using Dates, TimeZones
 using MicroLogging
 using StatsBase: zscore
-using Impute
 
 """
     filter_jongro(df)
@@ -59,8 +58,8 @@ function read_jongro(input_path="/input/jongro_single.csv")
     cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
     airkorea_cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25]
     weather_cols = [:temp, :u, :v, :pres, :humid]
-    plot_totaldata(df, :PM25, "/mnt/before_")
-    plot_totaldata(df, :PM10, "/mnt/before_")
+    plot_totaldata(df, :PM25, "/mnt/raw_")
+    plot_totaldata(df, :PM10, "/mnt/raw_")
     @info "Imputing data..."
     flush(stdout); flush(stderr)
     allowmissing!(df, cols)
@@ -72,11 +71,7 @@ function read_jongro(input_path="/input/jongro_single.csv")
         replace!(df[col], -999 => missing)
     end
 
-    # convert -999 to missing
-    for col in vcat(airkorea_cols, weather_cols)
-        impute!(df[col], :interp)
-    end
-
+ 
     # check remaining missing values
     for col in names(df)
         @assert size(df, 1) == size(collect(skipmissing(df[col])), 1)

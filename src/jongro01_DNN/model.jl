@@ -163,16 +163,23 @@ function compile_PM10(input_size::Integer, batch_size::Integer, output_size::Int
     @info("    Compiling model...")
 
     model = Chain(
-        Dense(input_size, 100, relu),
-        Dropout(0.2),
+         Dense(input_size, 1176, leakyrelu),
 
-        Dense(100, 100, relu),
-        Dropout(0.2),
+        Dense(1176, 808, leakyrelu),
 
-        Dense(100, 100, relu),
-        Dropout(0.2),
+        Dense(808, 563, leakyrelu),
 
-        Dense(100, output_size, relu)
+        Dense(563, 400, leakyrelu),
+
+        Dense(400, 291, leakyrelu),
+
+        Dense(291, 218, leakyrelu),
+
+        Dense(218, 169, leakyrelu),
+
+        Dense(169, 137, leakyrelu),
+
+        Dense(137, output_size)
     ) |> gpu
 
     loss(x, y) = Flux.mse(model(x), y)
@@ -186,23 +193,23 @@ function compile_PM25(input_size::Integer, batch_size::Integer, output_size::Int
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
     model = Chain(
-        Dense(input_size, 1176, relu),
+        Dense(input_size, 1176, leakyrelu),
 
-        Dense(1176, 808, relu),
+        Dense(1176, 808, leakyrelu),
 
-        Dense(808, 563, relu),
+        Dense(808, 563, leakyrelu),
 
-        Dense(563, 400, relu),
+        Dense(563, 400, leakyrelu),
 
-        Dense(400, 291, relu),
+        Dense(400, 291, leakyrelu),
 
-        Dense(291, 218, relu),
+        Dense(291, 218, leakyrelu),
 
-        Dense(218, 169, relu),
+        Dense(218, 169, leakyrelu),
 
-        Dense(169, 137, relu),
+        Dense(169, 137, leakyrelu),
 
-        Dense(137, output_size, relu)
+        Dense(137, output_size)
     ) |> gpu
 
     loss(x, y) = Flux.mse(model(x), y)

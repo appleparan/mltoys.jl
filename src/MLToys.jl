@@ -10,7 +10,7 @@ include("jongro01_DNN/preprocess.jl")
 include("jongro01_DNN/model.jl")
 
 # utils
-export mean_and_std_cols, zscore!, exclude_elem, split_df, window_df,
+export mean_and_std_cols, hampel!, zscore!, exclude_elem, split_df, window_df,
         split_sizes, create_chunks, create_idxs,
         getHoursLater, getX, getY, make_pairs, make_minibatch,
 # evaluation

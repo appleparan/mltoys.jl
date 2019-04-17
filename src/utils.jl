@@ -32,13 +32,126 @@ function mean_and_std_cols(df::DataFrame, cols::Array{Symbol})
     μσ
 end
 
+"""
+    hampel!([Z], X, μ, σ)
+Compute the Hampel estimator of an array `X` with mean `μ` and standard deviation `σ`.
+Hampel estimator formula follows as ``1/2*{tanh(0.01*((x - μ) / σ))+1.0}``.
+If a destination array `Z` is provided, the scores are stored
+in `Z` and it must have the same shape as `X`. Otherwise `X` is overwritten.
+
+Detailed implementation structure is from `zscore` in `StatsBase` package
+"""
+function _hampel!(Z::AbstractArray, X::AbstractArray, μ::Real, σ::Real)
+    # Z and X are assumed to have the same size
+    iσ = inv(σ)
+
+    for i = 1 : length(X)
+        @inbounds Z[i] = (tanh(0.01 * (X[i] - μ) * iσ) + 1.0) * 0.5
+    end
+
+    return Z
+end
+
+@generated function _hampel!(Z::AbstractArray{S,N}, X::AbstractArray{T,N},
+                             μ::AbstractArray, σ::AbstractArray) where {S,T,N}
+    quote
+        # Z and X are assumed to have the same size
+        # μ and σ are assumed to have the same size, that is compatible with size(X)
+        siz1 = size(X, 1)
+        @nextract $N ud d->size(μ, d)
+        if size(μ, 1) == 1 && siz1 > 1
+            @nloops $N i d->(d>1 ? (1:size(X,d)) : (1:1)) d->(j_d = ud_d ==1 ? 1 : i_d) begin
+                v = (@nref $N μ j)
+                c = inv(@nref $N σ j)
+                for i_1 = 1:siz1
+                    # (@nref $N Z i) = ((@nref $N X i) - v) * c
+                    (@nref $N Z i) = (tanh(0.01 * ((@nref $N X i) - v) * c) + 1.0) * 0.5
+                end
+            end
+        else
+            @nloops $N i X d->(j_d = ud_d ==1 ? 1 : i_d) begin
+                # (@nref $N Z i) = ((@nref $N X i) - (@nref $N μ j)) / (@nref $N σ j)
+                (@nref $N Z i) = (tanh(0.01 * ((@nref $N X i) - (@nref $N μ j)) / (@nref $N σ j)) + 1.0) * 0.5
+            end
+        end
+        return Z
+    end
+end
+
+function _hampel_chksize(X::AbstractArray, μ::AbstractArray, σ::AbstractArray)
+    size(μ) == size(σ) || throw(DimensionMismatch("μ and σ should have the same size."))
+    for i=1:ndims(X)
+        dμ_i = size(μ,i)
+        (dμ_i == 1 || dμ_i == size(X,i)) || throw(DimensionMismatch("X and μ have incompatible sizes."))
+    end
+end
+
+function hampel!(Z::AbstractArray{ZT}, X::AbstractArray{T}, μ::Real, σ::Real) where {ZT<:AbstractFloat,T<:Real}
+    size(Z) == size(X) || throw(DimensionMismatch("Z and X must have the same size."))
+    _hampel!(Z, X, μ, σ)
+end
+
+function hampel!(Z::AbstractArray{<:AbstractFloat}, X::AbstractArray{<:Real},
+                 μ::AbstractArray{<:Real}, σ::AbstractArray{<:Real})
+    size(Z) == size(X) || throw(DimensionMismatch("Z and X must have the same size."))
+    _hampel_chksize(X, μ, σ)
+    _hampel!(Z, X, μ, σ)
+end
+
+hampel!(X::AbstractArray{<:AbstractFloat}, μ::Real, σ::Real) = _hampel!(X, X, μ, σ)
+
+function hampel(X::AbstractArray{T}, μ::Real, σ::Real) where T<:Real
+    HT = typeof((tanh(0.01 * (zero(T) - zero(μ)) / one(σ)) + 1.0) * 0.5)
+    _hampel!(Array{HT}(undef, size(X)), X, μ, σ)
+end
+
+function hampel(X::AbstractArray{T}, μ::AbstractArray{U}, σ::AbstractArray{S}) where {T<:Real,U<:Real,S<:Real}
+    _hampel_chksize(X, μ, σ)
+    HT = typeof((tanh(0.01 * (zero(T) - zero(μ)) / one(σ)) + 1.0) * 0.5)
+    _hampel!(Array{HT}(undef, size(X)), X, μ, σ)
+end
+
+hampel(X::AbstractArray{<:Real}) = ((μ, σ) = mean_and_std(X); hampel(X, μ, σ))
+hampel(X::AbstractArray{<:Real}, dim::Int) = ((μ, σ) = mean_and_std(X, dim); hampel(X, μ, σ))
+
+"""
+    hampel!(df, col, new_col)
+Apply hampel estimators to dataframe `df`
+"""
+function hampel!(df::DataFrame, col::Symbol, new_col::Symbol)
+    to_be_normalized = df[col]
+    df[new_col] = hampel(to_be_normalized)
+end
+
+function hampel!(df::DataFrame, cols::Array{String}, new_cols::Array{String})
+    for (col, new_col) in zip(cols, new_cols)
+        hampel!(df, col, new_col)
+    end
+end
+
+function hampel!(df::DataFrame, cols::Array{Symbol}, new_cols::Array{Symbol})
+    for (col, new_col) in zip(cols, new_cols)
+        hampel!(df, col, new_col)
+    end
+end
+
+hampel!(df::DataFrame, col::Symbol, new_col::String) = hampel!(df, col, Symbol(eval(new_col)))
+hampel!(df::DataFrame, col::String, new_col::String) = hampel!(df, Symbol(eval(col)), Symbol(eval(new_col)))
+hampel!(df::DataFrame, col::Symbol) = hampel!(df, col, col)
+hampel!(df::DataFrame, col::String) = hampel!(df, Symbol(col))
+
+hampel!(df::DataFrame, col::Symbol, new_col::String, μ::Real, σ::Real) = hampel!(df, col, Symbol(eval(new_col)), μ, σ)
+hampel!(df::DataFrame, col::String, new_col::String, μ::Real, σ::Real) = hampel!(df, Symbol(eval(col)), Symbol(eval(new_col)), μ, σ)
+hampel!(df::DataFrame, col::Symbol, μ::Real, σ::Real) = hampel!(df, col, col, μ, σ)
+hampel!(df::DataFrame, col::String, μ::Real, σ::Real) = hampel!(df, Symbol(col), μ, σ)
+
 # TODO : How to pass optional argument? 
 """
     zscore!(df, col, new_col)
 Apply zscore (normalization) to dataframe `df`
 TODO: how to make μ and σ optional?
 """
-function zscore!(df::DataFrame, col::Symbol, new_col::Symbol) 
+function zscore!(df::DataFrame, col::Symbol, new_col::Symbol)
     to_be_normalized = df[col]
     df[new_col] = zscore(to_be_normalized)
 end

@@ -25,6 +25,19 @@ using MLToys
     end
 end
 
+@info "Testing hampel..."
+@testset "hampel" begin
+    @testset "zscore_single_string" begin
+        df = DataFrame(
+            A = 1:4,
+            B = 5:8,
+            C = 9:12)
+        hampel!(df, "A", "nA")
+        @show df[:nA]
+        
+    end
+end
+
 @info "Testing zscore..."
 @testset "zscore" begin
     @testset "zscore_single_string" begin
