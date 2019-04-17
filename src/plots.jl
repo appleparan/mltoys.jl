@@ -50,10 +50,11 @@ end
 function plot_DNN(dataset, model, ycol::Symbol, μ::AbstractFloat, σ::AbstractFloat, output_dir::String)
     ENV["GKSwstype"] = "100"
     sc_path = output_dir * String(ycol) * "_scatter.png"
-    hs_path_org = output_dir * String(ycol) * "_org_hist.png"
-    hs_path_mdl = output_dir * String(ycol) * "_dnn_hist.png"
+    sc_norm_path = output_dir * String(ycol) * "_norm_scatter.png"
+    hs_path = output_dir * String(ycol) * "_hist.png"
 
     dnn_table = table((y = [], ŷ = [],))
+    dnn_norm_table = table((y = [], ŷ = [],))
     for (x, y) in dataset
         ŷ = model(x |> gpu)
 
@@ -65,19 +66,33 @@ function plot_DNN(dataset, model, ycol::Symbol, μ::AbstractFloat, σ::AbstractF
         
         tmp_table = table((y = org_y, ŷ = org_ŷ,))
         dnn_table = merge(dnn_table, tmp_table)
+
+        tmp_table = table((y = cpu_y, ŷ = Flux.Tracker.data(cpu_ŷ),))
+        dnn_norm_table = merge(dnn_norm_table, tmp_table)
     end
 
-    gr(size = (800, 600))
-    sc = Plots.scatter(select(dnn_table, :y), select(dnn_table, :ŷ), title="OBS/DNN", xlabel="Observation", ylabel="DNN")
+    lim = max(maximum(select(dnn_table, :y)), maximum(select(dnn_table, :ŷ)))
+    gr()
+    sc = Plots.scatter(select(dnn_table, :y), select(dnn_table, :ŷ), 
+        xlim = (0, lim), ylim = (0, lim), legend=false,
+        title="OBS/DNN", xlabel="Observation", ylabel="DNN")
     png(sc, sc_path)
 
-    gr(size = (800, 600))
-    ht = Plots.histogram(select(dnn_table, :y), title="Histogram of original data ", ylabel="# of data", bins=200, legend=false)
-    png(ht, hs_path_org)
+    maxlim = max(maximum(select(dnn_norm_table, :y)), maximum(select(dnn_norm_table, :ŷ)))
+    minlim = min(minimum(select(dnn_norm_table, :y)), minimum(select(dnn_norm_table, :ŷ)))
+    gr()
+    sc = Plots.scatter(select(dnn_norm_table, :y), select(dnn_norm_table, :ŷ), 
+        xlim = (minlim, maxlim), ylim = (minlim, maxlim), legend=false,
+        title="OBS/DNN", xlabel="Observation", ylabel="DNN")
+    png(sc, sc_norm_path)
 
-    gr(size = (800, 600))
-    ht = Plots.histogram(select(dnn_table, :ŷ), title="Histogram of modeled data ", ylabel="# of data", bins=200, legend=false)
-    png(ht, hs_path_mdl)
+    gr()
+    ht = Plots.histogram(Any[select(dnn_table, :y), select(dnn_table, :ŷ)],
+        label=["original", "model"],
+        title="Histogram of data", ylabel="# of data", fillcolor=[:red, :blue], fillalpha=0.2)
+    png(ht, hs_path)
+
+    #save(String(ycol) * "_table.csv", dnn_table)
 end
 
 function plot_DNN_toCSV(dataset, model, μ::AbstractFloat, σ::AbstractFloat, output_path::String)
