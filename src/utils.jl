@@ -1,11 +1,12 @@
 using Base.Iterators: partition, zip
+using Random
 
 using CuArrays
 using Dates, TimeZones
 using DataFrames, Query
 using Flux
 using JuliaDB
-using Random
+
 using StatsBase: mean, std, zscore, mean_and_std
 
 function mean_and_std_cols(df::DataFrame, cols::Array{Symbol})
