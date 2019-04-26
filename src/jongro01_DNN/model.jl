@@ -1,3 +1,4 @@
+using LinearAlgebra: norm
 using Random
 using Printf
 
@@ -161,28 +162,28 @@ end
 
 function compile_PM10(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
     @info("    Compiling model...")
-
+    # answer from SO: https://stats.stackexchange.com/a/180052
+    unit_size = Int(round(input_size * 2/3))
+    @show "Unit size in PM10: ", unit_size
     model = Chain(
-         Dense(input_size, 1176, leakyrelu),
+        Dense(input_size, unit_size, leakyrelu),
 
-        Dense(1176, 808, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu),
 
-        Dense(808, 563, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu),
 
-        Dense(563, 400, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu),
 
-        Dense(400, 291, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu),
 
-        Dense(291, 218, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu),
 
-        Dense(218, 169, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu),
 
-        Dense(169, 137, leakyrelu),
-
-        Dense(137, output_size)
+        Dense(unit_size, output_size)
     ) |> gpu
 
-    loss(x, y) = Flux.mse(model(x), y)
+    loss(x, y) = Flux.mse(model(x), y) + sum(norm, params(model))
     accuracy(setname, data) = RSR(setname, data, model, μσ)
     opt = Flux.ADAM()
 
@@ -192,27 +193,27 @@ end
 function compile_PM25(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
+    unit_size = Int(round(input_size * 2/3))
+    @show "Unit size in PM25: ", unit_size
     model = Chain(
-        Dense(input_size, 1176, leakyrelu),
+        Dense(input_size, unit_size, leakyrelu),
 
-        Dense(1176, 808, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu),
 
-        Dense(808, 563, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu),
 
-        Dense(563, 400, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu),
 
-        Dense(400, 291, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu),
 
-        Dense(291, 218, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu),
 
-        Dense(218, 169, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu),
 
-        Dense(169, 137, leakyrelu),
-
-        Dense(137, output_size)
+        Dense(unit_size, output_size)
     ) |> gpu
 
-    loss(x, y) = Flux.mse(model(x), y)
+    loss(x, y) = Flux.mse(model(x), y) + sum(norm, params(model))
     accuracy(setname, data) = RSR(setname, data, model, μσ)
     opt = Flux.ADAM()
 

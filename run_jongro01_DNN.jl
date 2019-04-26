@@ -1,5 +1,6 @@
-using MicroLogging
 using Random
+
+using MicroLogging
 using StatsBase: mean_and_std
 
 using MLToys
@@ -22,14 +23,18 @@ function run_model()
     features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
     norm_prefix = "norm_"
     norm_features = [Symbol(eval(norm_prefix * String(f))) for f in features]
+    
+    μσs = mean_and_std_cols(df, features)
+    @info "PM10 mean and std ", μσs["PM10", "μ"].value, μσs["PM10", "σ"].value
+    @info "PM25 mean and std ", μσs["PM25", "μ"].value, μσs["PM25", "σ"].value
+    #hampel!(df, features, norm_features)
+    zscore!(df, features, norm_features)
 
     plot_totaldata(df, :PM25, "/mnt/")
     plot_totaldata(df, :PM10, "/mnt/")
 
-    μσs = mean_and_std_cols(df, features)
-    @info "PM10 mean and std ", μσs["PM10", "μ"].value, μσs["PM10", "σ"].value
-    @info "PM25 mean and std ", μσs["PM25", "μ"].value, μσs["PM25", "σ"].value
-    zscore!(df, features, norm_features)
+    plot_totaldata(df, Symbol(norm_prefix * "PM25"), "/mnt/")
+    plot_totaldata(df, Symbol(norm_prefix * "PM10"), "/mnt/")
     
     sample_size = 72
     output_size = 24
