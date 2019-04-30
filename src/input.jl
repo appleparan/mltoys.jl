@@ -182,7 +182,7 @@ function parse_aerosols(aes_dir::String, input_dir::String)
 
         rename!(df_raw, [:지역 => :region, :측정소코드 => :stationCode, :측정소명 => :stationName, :측정일시 => :date,
                    :주소 => :addr])
-        dropmissing!(df_raw)
+        dropmissing!(df_raw, :date)
 
         # convert to ZonedDateTime to parse time correctly (i.e. 20181231T24:00 and 20190101T00:00)
         dates = [ZonedDateTime(DateTime(string(d), date_str), tz"Asia/Seoul") for d in df_raw[:date]]
@@ -229,10 +229,16 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
             Symbol("습도(%)") => :humid,
             Symbol("현지기압(hPa)") => :pres,
             Symbol("적설(cm)") => :snow])
-        dropmissing!(df_raw)
+        dropmissing!(df_raw, :date)
 
         dates = [ZonedDateTime(DateTime(string(d), date_str), tz"Asia/Seoul") for d in df_raw[:date]]
         
+        # missings to zero except temp, humid, and pres (pressure)
+        df_raw[:wind_vel] = coalesce.(df_raw[:wind_vel], 0.0)
+        df_raw[:wind_dir] = coalesce.(df_raw[:wind_dir], 0.0)
+        df_raw[:prep] = coalesce.(df_raw[:prep], 0.0)
+        df_raw[:snow] = coalesce.(df_raw[:snow], 0.0)
+
         # http://colaweb.gmu.edu/dev/clim301/lectures/wind/wind-uv
         _u = [w[1] * Base.Math.cos(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[:wind_vel], df_raw[:wind_dir])]
         _v = [w[1] * Base.Math.sin(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[:wind_vel], df_raw[:wind_dir])]
@@ -270,12 +276,12 @@ function join_data(input_dir::String, obs_path::String, aes_dir::String, wea_dir
     @info "Parsing Station dataset..."
     flush(stdout); flush(stderr)
     df_obs = parse_obsxlsx(obs_path, input_dir)
-    @info "Parsing Aerosol dataset..."
-    flush(stdout); flush(stderr)
-    df_aes = parse_aerosols(aes_dir, input_dir)
     @info "Parsing Weather dataset..."
     flush(stdout); flush(stderr)
     df_wea = parse_weathers(wea_dir, input_dir, seoul_stn_code)
+    @info "Parsing Aerosol dataset..."
+    flush(stdout); flush(stderr)
+    df_aes = parse_aerosols(aes_dir, input_dir)
 
     # filter in date range
     df_obs = df_obs[(df_obs.oDate .<= start_date) .& (df_obs.cDate .>= end_date), :]

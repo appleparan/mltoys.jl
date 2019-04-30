@@ -46,10 +46,9 @@ function read_jongro(input_path="/input/jongro_single.csv")
     
     @info "Start preprocessing..."
     flush(stdout); flush(stderr)
-    df[:date] = ZonedDateTime.(df[:date], Dates.DateFormat("yyyy-mm-dd HH:MM:SSz"))
+    df[:date] = ZonedDateTime.(df[:date])
 
     # no and staitonCode must not have missing value
-    @assert size(collect(skipmissing(df[:no])), 1) == size(df, 1)
     @assert size(collect(skipmissing(df[:stationCode])), 1) == size(df, 1)
 
     dropmissing!(df, [:no, :stationCode])
