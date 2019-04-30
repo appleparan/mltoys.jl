@@ -6,10 +6,10 @@ using Dates, TimeZones
 using DataFrames, Query
 using Flux
 using JuliaDB
-
+using MicroLogging
 using StatsBase: mean, std, zscore, mean_and_std
 
-function mean_and_std_cols(df::DataFrame, cols::Array{Symbol})
+function mean_and_std_cols(df::DataFrame, cols::Array{Symbol, 1})
     syms = []
     types = []
     vals = []
@@ -124,13 +124,13 @@ function hampel!(df::DataFrame, col::Symbol, new_col::Symbol)
     df[new_col] = hampel(to_be_normalized)
 end
 
-function hampel!(df::DataFrame, cols::Array{String}, new_cols::Array{String})
+function hampel!(df::DataFrame, cols::Array{String, 1}, new_cols::Array{String, 1})
     for (col, new_col) in zip(cols, new_cols)
         hampel!(df, col, new_col)
     end
 end
 
-function hampel!(df::DataFrame, cols::Array{Symbol}, new_cols::Array{Symbol})
+function hampel!(df::DataFrame, cols::Array{Symbol, 1}, new_cols::Array{Symbol, 1})
     for (col, new_col) in zip(cols, new_cols)
         hampel!(df, col, new_col)
     end
@@ -172,25 +172,25 @@ zscore!(df::DataFrame, col::String, new_col::String, μ::Real, σ::Real) = zscor
 zscore!(df::DataFrame, col::Symbol, μ::Real, σ::Real) = zscore!(df, col, col, μ, σ)
 zscore!(df::DataFrame, col::String, μ::Real, σ::Real) = zscore!(df, Symbol(col), μ, σ)
 
-function zscore!(df::DataFrame, cols::Array{String}, new_cols::Array{String})
+function zscore!(df::DataFrame, cols::Array{String, 1}, new_cols::Array{String, 1})
     for (col, new_col) in zip(cols, new_cols)
         zscore!(df, col, new_col)
     end
 end
 
-function zscore!(df::DataFrame, cols::Array{Symbol}, new_cols::Array{Symbol})
+function zscore!(df::DataFrame, cols::Array{Symbol, 1}, new_cols::Array{Symbol, 1})
     for (col, new_col) in zip(cols, new_cols)
         zscore!(df, col, new_col)
     end
 end
 
-function zscore!(df::DataFrame, cols::Array{String}, new_cols::Array{String}, μs::Array{Real}, σs::Array{Real})
+function zscore!(df::DataFrame, cols::Array{String, 1}, new_cols::Array{String, 1}, μs::Array{Real, 1}, σs::Array{Real, 1})
     for (col, new_col, μ, σ) in zip(cols, new_cols, μs, σs)
         zscore!(df, col, new_col, μ, σ)
     end
 end
 
-function zscore!(df::DataFrame, cols::Array{Symbol}, new_cols::Array{Symbol}, μs::Array{Real}, σs::Array{Real})
+function zscore!(df::DataFrame, cols::Array{Symbol, 1}, new_cols::Array{Symbol, 1}, μs::Array{Real, 1}, σs::Array{Real, 1})
     for (col, new_col, μ, σ) in zip(cols, new_cols, μs, σs)
         zscore!(df, col, new_col, μ, σ)
     end
@@ -211,7 +211,7 @@ end
     split_df(df, sample_size)
 split to `sample_size`d DataFrame 
 """
-function split_df(df::DataFrame, sample_size::Integer = 72)
+function split_df(df::DataFrame, sample_size::Integer)
     idxs = partition(1:size(df, 1), sample_size)
     # create array filled with undef and its size is length(idxs)
     
@@ -222,23 +222,56 @@ end
     window_df(df, sample_size)
 create list of overlapped windowe index range 
 """
-function window_df(df::DataFrame, sample_size::Integer = 72)
+function window_df(df::DataFrame, sample_size::Integer, offset::Integer = 0)
     # start index for window
     # sample_size + hours (hours for Y , < sample_size) should be avalable
-    start_idxs = collect(1:(size(df, 1) - 2 * sample_size))
+    start_idxs = collect(1:(size(df, 1) - sample_size + 1))
     final_idxs = start_idxs .+ (sample_size - 1)
     idxs = []
     for (si, fi) in zip(start_idxs, final_idxs)
-        push!(idxs, si:fi)
+        push!(idxs, (si+offset):(fi+offset))
     end
     
     idxs
 end
 
 """
-    split_sizes(total_size, batch_size)
+    window_df(df, sample_size, start_date, end_date)
+create list of overlapped windowe index range within date range
 """
-function split_sizes(total_size::Integer, batch_size::Integer)
+function window_df(df::DataFrame, sample_size::Integer, _start_date::ZonedDateTime, end_date::ZonedDateTime)
+    # start index for window
+    # sample_size + hours (hours for Y , < sample_size) should be avalable
+    start_date = max(_start_date, df.date[1])
+    if start_date > end_date
+        throw(ArgumentError("invalid date range: $start_date ~ $end_date"))
+    end
+
+    # .value : to get `Dates` value 
+    if Dates.Hour(end_date - start_date).value < sample_size
+        throw(BoundsError("sample size($sample_size) is smaller than date range: $start_date ~ $end_date"))
+    end
+    
+    new_df = df[(df.date .>= start_date) .& (df.date .<= end_date), :]
+    offset = Dates.Hour(start_date - df.date[1]).value
+
+    window_df(new_df, sample_size, offset)
+end
+
+"""
+    window_df(df, sample_size, end_date)
+create list of overlapped windowe index range within date range starts with 1970. 1. 1.
+"""
+function window_df(df::DataFrame, sample_size::Integer, end_date::ZonedDateTime)
+    start_date = ZonedDateTime(1970, 1, 1, tz"Asia/Seoul")
+
+    window_df(df, sample_size, start_date, end_date)
+end
+
+"""
+    split_sizes3(total_size, batch_size)
+"""
+function split_sizes3(total_size::Integer, batch_size::Integer)
     # (train + valid) : test = 0.8 : 0.2
     # train : valid = 0.8 : 0.2
     # train : valid : test = 0.64 : 0.16 : 0.20
@@ -252,6 +285,51 @@ function split_sizes(total_size::Integer, batch_size::Integer)
     Int(train_size), Int(valid_size), Int(test_size)
 end
 
+"""
+    split_sizes2(total_size, batch_size)
+"""
+function split_sizes2(total_size::Integer, batch_size::Integer)
+    # (train + valid) : test = 0.8 : 0.2
+    # train : valid = 0.8 : 0.2
+    # train : valid : test = 0.64 : 0.16 : 0.20
+    train_size = round(total_size * 0.8)
+    valid_size = round(total_size * 0.2)
+
+    # at least contains single batch
+    @assert train_size >= batch_size
+
+    Int(train_size), Int(valid_size)
+end
+
+"""
+    create_idxs(tot_idx, train_size, valid_size, test_size)
+create indexes that indicates index of sg_idxs or wd_idxs
+
+expected sample result of idxs
+    [1, 2, 3, 4, 5], [6, 7], [8, 9, 10]
+"""
+function create_idxs(tot_idx::Array{I, 1}, train_size::Integer, valid_size::Integer, test_size::Integer) where I<:Integer
+    train_idxs = tot_idx[1: train_size]
+    valid_idxs = tot_idx[train_size + 1: train_size + valid_size]
+    test_idxs = tot_idx[train_size + valid_size + 1: train_size + valid_size + test_size]
+
+    train_idxs, valid_idxs, test_idxs
+end
+
+"""
+    create_idxs(tot_idx, train_size, valid_size)
+create indexes that indicates index of sg_idxs or wd_idxs
+
+expected sample result of idxs
+    [1, 2, 3, 4, 5], [6, 7]
+"""
+function create_idxs(tot_idx::Array{I, 1}, train_size::Integer, valid_size::Integer) where I<:Integer
+    train_idxs = tot_idx[1: train_size]
+    valid_idxs = tot_idx[train_size + 1: train_size + valid_size]
+
+    train_idxs, valid_idxs
+end
+
 create_chunk(xs, n) = collect(Iterators.partition(xs, n))
 """
     create_chunks(tot_size, train_size, valid_size, test_size, batch_size)
@@ -262,40 +340,30 @@ expected sample result of chunks
     [3, 4],
     [5]]
 """
-function create_chunks(total_idx::Array{Int64},
-    train_size::Integer, valid_size::Integer, test_size::Integer, batch_size::Integer)
+function create_chunks(total_idx::Array{I, 1},
+    train_size::Integer, valid_size::Integer, test_size::Integer, batch_size::Integer) where I<:Integer
 
     train_chnks = create_chunk(total_idx[1: train_size], batch_size)
     valid_chnks = create_chunk(total_idx[train_size + 1: train_size + valid_size], batch_size)
-    test_chnks = create_chunk(total_idx[train_size + valid_size + 1: end], batch_size)
+    test_chnks = create_chunk(total_idx[train_size + valid_size + 1: train_size + valid_size + test_size], batch_size)
 
-    #=
-    # if last element size is less than batch_size, drop it
-    function drop_small_batch!(_idxs, _size)
-        if length(_idxs[end]) < _size
-            deleteat!(_idxs, length(_idxs))
-        end
-    end
-    drop_small_batch!(train_chnks, batch_size)
-    drop_small_batch!(valid_chnks, batch_size)
-    drop_small_batch!(test_chnks, batch_size)
-    =#
     train_chnks, valid_chnks, test_chnks
 end
 
 """
-    create_idxs(tot_idx, train_size, valid_size, test_size)
-create indexes that indicates index of sg_idxs or wd_idxs
+    create_chunks(tot_size, train_size, valid_size, batch_eof sg_idxs or wd_idxs
 
-expected sample result of idxs
-    [1, 2, 3, 4, 5]
+expected sample result of chunks
+    [[1, 2]
+    [3]]
 """
-function create_idxs(tot_idx::Array{Int64}, train_size::Integer, valid_size::Integer, test_size::Integer)
-    train_idxs = tot_idx[1: train_size]
-    valid_idxs = tot_idx[train_size + 1: train_size + valid_size]
-    test_idxs = tot_idx[train_size + valid_size + 1: end]
+function create_chunks(total_idx::Array{I, 1},
+    train_size::Integer, valid_size::Integer, batch_size::Integer) where I<:Integer
 
-    train_idxs, valid_idxs, test_idxs
+    train_chnks = create_chunk(total_idx[1: train_size], batch_size)
+    valid_chnks = create_chunk(total_idx[train_size + 1: train_size + valid_size], batch_size)
+
+    train_chnks, valid_chnks
 end
 
 """
@@ -321,7 +389,7 @@ end
     getX(df::DataFrame, idxs, features)
 get X in Dataframe and construct X by flattening
 """
-function getX(df::DataFrame, idxs, features::Array{Symbol})
+function getX(df::DataFrame, idxs::Array{I, 1}, features::Array{Symbol, 1}) where I<:Integer
     X = convert(Matrix, df[collect(idxs), features])
     
     # serialize (2D -> 1D)
@@ -334,8 +402,8 @@ getX(df::DataFrame, idxs, features::Array{String,1}) = getX(df, idxs, Symbol.(ev
     getY(X::DateFrame, hours)
 get last date of X and construct Y with `hours` range
 """
-function getY(df::DataFrame, idx::Array{T},
-    ycol::Symbol, output_size::Integer=24) where T <: Integer
+function getY(df::DataFrame, idx::Array{I, 1},
+    ycol::Symbol, output_size::Integer=24) where I<:Integer
     df_X = df[idx, :]
     last_date_of_X = df_X[end, :date]
     
@@ -352,8 +420,8 @@ output determined by ycol
 """
 # Bundle images together with labels and group into minibatchess
 function make_pairs(df::DataFrame, ycol::Symbol,
-    idx::Array{T}, features::Array{Symbol},
-    input_size::T, output_size::T) where T <: Integer
+    idx::Array{I, 1}, features::Array{Symbol, 1},
+    input_size::Integer, output_size::Integer) where I<:Integer
     X = getX(df, idx, features) |> gpu
     Y = getY(df, idx, ycol, output_size) |> gpu
 
@@ -381,7 +449,7 @@ each single batch is column stacked
 
 """
 function make_minibatch(input_pairs::Array{T},
-    chnks::Array{I,1}, batch_size::I) where I<:Integer where T<:Tuple
+    chnks::Array{I, 1}, batch_size::Integer) where I<:Integer where T<:Tuple
     # input_pairs Array{Tuple{Array{Int64,1},Array{Int64,1}},1}
     X = []
     Y = []

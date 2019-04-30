@@ -25,19 +25,19 @@ using MLToys
     end
 end
 
+#=
 @info "Testing hampel..."
 @testset "hampel" begin
-    @testset "zscore_single_string" begin
+    @testset "hampel_single" begin
         df = DataFrame(
             A = 1:4,
             B = 5:8,
             C = 9:12)
         hampel!(df, "A", "nA")
-        @show df[:nA]
-        
+        # @test isapprox(df[:nA], [0.494191, 0.498064, 0.501936, 0.505809])
     end
 end
-
+=#
 @info "Testing zscore..."
 @testset "zscore" begin
     @testset "zscore_single_string" begin
@@ -117,45 +117,176 @@ end
             C = 25:36)
         sample_size = 4
         idxs = window_df(df, sample_size)
-        @test length(idxs) == 4
+        @test length(idxs) == 9
         @test df[collect(idxs[1]), :] == DataFrame(
             A = 1:4,
             B = 13:16,
             C = 25:28)
-        @test df[collect(idxs[3]), :] == DataFrame(
-            A = 3:6,
-            B = 15:18,
-            C = 27:30)
         @test df[collect(idxs[4]), :] == DataFrame(
             A = 4:7,
             B = 16:19,
             C = 28:31)
+        @test df[collect(idxs[9]), :] == DataFrame(
+            A = 9:12,
+            B = 21:24,
+            C = 33:36)
     end
 
-    @testset "split_sizes_0remainder" begin
+    @testset "window_df_w_dates" begin
+        # one month
+        year = 2018
+        month = 1
+        n = Dates.daysinmonth(DateTime(year, month)) * 24
+        df = DataFrame(
+            A = 1:n,
+            B = n+1:2n,
+            C = 2n+1:3n,
+            date = 
+                collect(ZonedDateTime(year, month, 1, 0,
+                    tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 1, 0, tz"Asia/Seoul") + Hour(n - 1))
+        )
+        sample_size = 12
+        idxs = window_df(df, sample_size, ZonedDateTime(year, month, 10, 0, tz"Asia/Seoul"), ZonedDateTime(year, month, 14, 23, tz"Asia/Seoul"))
+        @test length(idxs) == 109
+        @test df[collect(idxs[1]), :] == DataFrame(
+            A = 217:228,
+            B = 961:972,
+            C = 1705:1716,
+            date = collect(ZonedDateTime(year, month, 10, 0, tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 10, 11, tz"Asia/Seoul"))
+        )
+        @test df[collect(idxs[109]), :] == DataFrame(
+            A = 325:336,
+            B = 1069:1080,
+            C = 1813:1824,
+            date = collect(ZonedDateTime(year, month, 14, 12, tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 14, 23, tz"Asia/Seoul"))
+        )
+    end
+
+    @testset "window_df_w_dates_lastday" begin
+        # one month
+        year = 2018
+        month = 1
+        n = Dates.daysinmonth(DateTime(year, month)) * 24
+        df = DataFrame(
+            A = 1:n,
+            B = n+1:2n,
+            C = 2n+1:3n,
+            date = 
+                collect(ZonedDateTime(year, month, 1, 0,
+                    tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 1, 0, tz"Asia/Seoul") + Hour(n - 1))
+        )
+        sample_size = 12
+        idxs = window_df(df, sample_size,
+            ZonedDateTime(year, month, 30, 0, tz"Asia/Seoul"), ZonedDateTime(year, month, 31, 23, tz"Asia/Seoul"))
+        @test length(idxs) == 37
+        @test df[collect(idxs[37]), :] == DataFrame(
+            A = 733:744,
+            B = 1477:1488,
+            C = 2221:2232,
+            date = collect(ZonedDateTime(year, month, 31, 12, tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 31, 23, tz"Asia/Seoul"))
+        )
+    end
+
+    @testset "window_df_w_dates_exception_01" begin
+        year = 2018
+        month = 1
+        n = Dates.daysinmonth(DateTime(year, month)) * 24
+        df = DataFrame(
+            A = 1:n,
+            B = n+1:2n,
+            C = 2n+1:3n
+        )
+        @test_throws UndefVarError window_df(df, sample_size,
+            ZonedDateTime(year, month, 31, 1, tz"Asia/Seoul"), ZonedDateTime(year, month, 31, 23, tz"Asia/Seoul"))
+    end
+
+    @testset "window_df_w_dates_exception_02" begin
+        # one month
+        year = 2018
+        month = 1
+        n = Dates.daysinmonth(DateTime(year, month)) * 24
+        df = DataFrame(
+            A = 1:n,
+            B = n+1:2n,
+            C = 2n+1:3n,
+            date = 
+                collect(ZonedDateTime(year, month, 1, 0,
+                    tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 1, 0, tz"Asia/Seoul") + Hour(n - 1))
+        )
+        sample_size = 12
+        @test_throws ArgumentError window_df(df, sample_size,
+            ZonedDateTime(year, month, 31, 23, tz"Asia/Seoul"), ZonedDateTime(year, month, 31, 1, tz"Asia/Seoul"))
+        sample_size = 36
+        @test_throws BoundsError window_df(df, sample_size,
+            ZonedDateTime(year, month, 31, 1, tz"Asia/Seoul"), ZonedDateTime(year, month, 31, 23, tz"Asia/Seoul"))
+        
+    end
+
+    @testset "split_sizes3_mod0" begin
         total_size = 100
         batch_size = 10
-        train_size, valid_size, test_size = split_sizes(total_size, batch_size)
+        train_size, valid_size, test_size = split_sizes3(total_size, batch_size)
         @test train_size == 64
         @test valid_size == 16
         @test test_size == 20
     end
 
-    @testset "split_sizes_remainer" begin
-        total_size = 105
+    @testset "split_sizes3_prime" begin
+        total_size = 97
         batch_size = 10
-        train_size, valid_size, test_size = split_sizes(total_size, batch_size)
-        @test train_size == 67
-        @test valid_size == 17
-        @test test_size == 21
+        train_size, valid_size, test_size = split_sizes3(total_size, batch_size)
+        @test train_size == 62
+        @test valid_size == 16
+        @test test_size == 19
     end
 
-    @testset "create_chunks" begin
+    @testset "split_sizes2_mod0" begin
         total_size = 100
+        batch_size = 10
+        train_size, valid_size = split_sizes2(total_size, batch_size)
+        @test train_size == 80
+        @test valid_size == 20
+    end
+
+    @testset "split_sizes2_prime" begin
+        total_size = 97
+        batch_size = 10
+        train_size, valid_size = split_sizes2(total_size, batch_size)
+        @test train_size == 78
+        @test valid_size == 19
+    end
+
+    @testset "create_idxs3" begin
+        total_size = 97
         batch_size = 10
         # for test, don't permute
         total_idx = collect(1:total_size)
-        train_size, valid_size, test_size = split_sizes(100, 10)
+        train_size, valid_size, test_size = split_sizes3(total_size, batch_size)
+        train_idxs, valid_idxs, test_idxs = create_idxs(total_idx, train_size, valid_size, test_size)
+
+        @test train_idxs == collect(1:62)
+        @test valid_idxs == collect(63:78)
+        @test test_idxs == collect(79:97)
+    end
+
+    @testset "create_idxs2" begin
+        total_size = 97
+        batch_size = 10
+        # for test, don't permute
+        total_idx = collect(1:total_size)
+        train_size, valid_size = split_sizes2(total_size, batch_size)
+        train_idxs, valid_idxs = create_idxs(total_idx, train_size, valid_size)
+
+        @test train_idxs == collect(1:78)
+        @test valid_idxs == collect(79:97)
+    end
+
+    @testset "create_chunks3" begin
+        total_size = 97
+        batch_size = 10
+        # for test, don't permute
+        total_idx = collect(1:total_size)
+        train_size, valid_size, test_size = split_sizes3(total_size, batch_size)
         train_chnks, valid_chnks, test_chnks = create_chunks(total_idx, train_size, valid_size, test_size, batch_size)
 
         @test length(train_chnks) == 7
@@ -163,24 +294,28 @@ end
         @test length(test_chnks) == 2
 
         @test train_chnks[1] == collect(1:10)
-        @test train_chnks[7] == collect(61:64)
-        @test valid_chnks[1] == collect(65:74)
-        @test valid_chnks[2] == collect(75:80)
-        @test test_chnks[1] == collect(81:90)
-        @test test_chnks[2] == collect(91:100)
+        @test train_chnks[7] == collect(61:62)
+        @test valid_chnks[1] == collect(63:72)
+        @test valid_chnks[2] == collect(73:78)
+        @test test_chnks[1] == collect(79:88)
+        @test test_chnks[2] == collect(89:97)
     end
-
-    @testset "create_idxs" begin
-        total_size = 100
+    
+    @testset "create_chunks2" begin
+        total_size = 97
         batch_size = 10
         # for test, don't permute
         total_idx = collect(1:total_size)
-        train_size, valid_size, test_size = split_sizes(100, 10)
-        train_idxs, valid_idxs, test_idxs = create_idxs(total_idx, train_size, valid_size, test_size)
+        train_size, valid_size = split_sizes2(total_size, batch_size)
+        train_chnks, valid_chnks = create_chunks(total_idx, train_size, valid_size, batch_size)
 
-        @test train_idxs == collect(1:64)
-        @test valid_idxs == collect(65:80)
-        @test test_idxs == collect(81:100)
+        @test length(train_chnks) == 8
+        @test length(valid_chnks) == 2
+
+        @test train_chnks[1] == collect(1:10)
+        @test train_chnks[8] == collect(71:78)
+        @test valid_chnks[1] == collect(79:88)
+        @test valid_chnks[2] == collect(89:97)
     end
 end
 
