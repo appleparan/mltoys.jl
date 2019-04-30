@@ -207,7 +207,6 @@ end
 
 function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Integer)
     re_wea_fn = Regex("SURFACE_ASOS_$(string(wea_stn_code))_HR_([0-9]+)_([0-9]+)_([0-9]+).csv")
-    @show re_wea_fn
     date_str = "yyyy-mm-dd HH:MM"
 
     wea_paths = joinpath(input_dir, wea_dir)
