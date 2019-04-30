@@ -40,7 +40,7 @@ function parse_obsxlsx(obs_path::String, input_dir::String)
 
     for i in 1:size(ws, 1)
         # just pick old date
-        opened_date = ZonedDateTime(1990, 1, 1, tz"Asia/Seoul")
+        opened_date = ZonedDateTime(1970, 1, 1, tz"Asia/Seoul")
         # close value to maximum value in Int64
         closed_date = ZonedDateTime(2037, 12, 31, tz"Asia/Seoul")
 
