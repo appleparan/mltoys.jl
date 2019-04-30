@@ -301,35 +301,6 @@ function split_sizes2(total_size::Integer, batch_size::Integer)
     Int(train_size), Int(valid_size)
 end
 
-"""
-    create_idxs(tot_idx, train_size, valid_size, test_size)
-create indexes that indicates index of sg_idxs or wd_idxs
-
-expected sample result of idxs
-    [1, 2, 3, 4, 5], [6, 7], [8, 9, 10]
-"""
-function create_idxs(tot_idx::Array{I, 1}, train_size::Integer, valid_size::Integer, test_size::Integer) where I<:Integer
-    train_idxs = tot_idx[1: train_size]
-    valid_idxs = tot_idx[train_size + 1: train_size + valid_size]
-    test_idxs = tot_idx[train_size + valid_size + 1: train_size + valid_size + test_size]
-
-    train_idxs, valid_idxs, test_idxs
-end
-
-"""
-    create_idxs(tot_idx, train_size, valid_size)
-create indexes that indicates index of sg_idxs or wd_idxs
-
-expected sample result of idxs
-    [1, 2, 3, 4, 5], [6, 7]
-"""
-function create_idxs(tot_idx::Array{I, 1}, train_size::Integer, valid_size::Integer) where I<:Integer
-    train_idxs = tot_idx[1: train_size]
-    valid_idxs = tot_idx[train_size + 1: train_size + valid_size]
-
-    train_idxs, valid_idxs
-end
-
 create_chunk(xs, n) = collect(Iterators.partition(xs, n))
 """
     create_chunks(tot_size, train_size, valid_size, test_size, batch_size)
@@ -364,6 +335,35 @@ function create_chunks(total_idx::Array{I, 1},
     valid_chnks = create_chunk(total_idx[train_size + 1: train_size + valid_size], batch_size)
 
     train_chnks, valid_chnks
+end
+
+"""
+    create_idxs(tot_idx, train_size, valid_size, test_size)
+create indexes that indicates index of sg_idxs or wd_idxs
+
+expected sample result of idxs
+    [1, 2, 3, 4, 5], [6, 7], [8, 9, 10]
+"""
+function create_idxs(tot_idx::Array{I, 1}, train_size::Integer, valid_size::Integer, test_size::Integer) where I<:Integer
+    train_idxs = tot_idx[1: train_size]
+    valid_idxs = tot_idx[train_size + 1: train_size + valid_size]
+    test_idxs = tot_idx[train_size + valid_size + 1: train_size + valid_size + test_size]
+
+    train_idxs, valid_idxs, test_idxs
+end
+
+"""
+    create_idxs(tot_idx, train_size, valid_size)
+create indexes that indicates index of sg_idxs or wd_idxs
+
+expected sample result of idxs
+    [1, 2, 3, 4, 5], [6, 7]
+"""
+function create_idxs(tot_idx::Array{I, 1}, train_size::Integer, valid_size::Integer) where I<:Integer
+    train_idxs = tot_idx[1: train_size]
+    valid_idxs = tot_idx[train_size + 1: train_size + valid_size]
+
+    train_idxs, valid_idxs
 end
 
 """
