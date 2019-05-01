@@ -15,7 +15,7 @@ export join_data,
 # utils
         mean_and_std_cols, hampel!, zscore!, exclude_elem, split_df, window_df,
         split_sizes3, split_sizes2, create_chunks, create_idxs,
-        getHoursLater, getX, getY, make_pairs, make_minibatch,
+        getHoursLater, getX, getY, make_pairs, make_minibatch, remove_missing_pairs!,
 # evaluation
         RSME, RSR,
 # jongro01_DNN
