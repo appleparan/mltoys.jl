@@ -239,10 +239,12 @@ end
     window_df(df, sample_size, start_date, end_date)
 create list of overlapped windowe index range within date range
 """
-function window_df(df::DataFrame, sample_size::Integer, _start_date::ZonedDateTime, end_date::ZonedDateTime)
+function window_df(df::DataFrame, sample_size::Integer, _start_date::ZonedDateTime, _end_date::ZonedDateTime)
     # start index for window
     # sample_size + hours (hours for Y , < sample_size) should be avalable
-    start_date = max(_start_date, df.date[1])
+    # moreover,I should to round time to 1 hour unit
+    start_date = ceil(max(_start_date, df.date[1]), Dates.Hour(1))
+    end_date = floor(_end_date, Dates.Hour(1))
     if start_date > end_date
         throw(ArgumentError("invalid date range: $start_date ~ $end_date"))
     end

@@ -146,15 +146,15 @@ end
                     tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 1, 0, tz"Asia/Seoul") + Hour(n - 1))
         )
         sample_size = 12
-        idxs = window_df(df, sample_size, ZonedDateTime(year, month, 10, 0, tz"Asia/Seoul"), ZonedDateTime(year, month, 14, 23, tz"Asia/Seoul"))
-        @test length(idxs) == 109
+        idxs = window_df(df, sample_size, ZonedDateTime(year, month, 10, 0, 1, tz"Asia/Seoul"), ZonedDateTime(year, month, 14, 23, 59, tz"Asia/Seoul"))
+        @test length(idxs) == 108
         @test df[collect(idxs[1]), :] == DataFrame(
-            A = 217:228,
-            B = 961:972,
-            C = 1705:1716,
-            date = collect(ZonedDateTime(year, month, 10, 0, tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 10, 11, tz"Asia/Seoul"))
+            A = 218:229,
+            B = 962:973,
+            C = 1706:1717,
+            date = collect(ZonedDateTime(year, month, 10, 1, tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 10, 12, tz"Asia/Seoul"))
         )
-        @test df[collect(idxs[109]), :] == DataFrame(
+        @test df[collect(idxs[108]), :] == DataFrame(
             A = 325:336,
             B = 1069:1080,
             C = 1813:1824,
