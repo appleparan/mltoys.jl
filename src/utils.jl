@@ -7,6 +7,7 @@ using DataFrames, Query
 using Flux
 using JuliaDB
 using MicroLogging
+using ProgressMeter
 using StatsBase: mean, std, zscore, mean_and_std
 
 function mean_and_std_cols(df::DataFrame, cols::Array{Symbol, 1})
@@ -490,7 +491,7 @@ end
 """
     validate_pairs!(pairs, ratio = 0.5)
 """
-function remove_missing_pairs!(pairs, missing_ratio = 0.5)
+function remove_missing_pairs!(pairs, missing_ratio = 0.5, p::Progress = Progress(length(pairs)))
     @assert 0.0 <= missing_ratio <= 1.0
 
     invalid_idxs = []
@@ -502,6 +503,7 @@ function remove_missing_pairs!(pairs, missing_ratio = 0.5)
             # if use deleteat here, it manipulates pairs while loop and return wrong results
             push!(invalid_idxs, idx)
         end
+        ProgressMeter.next!(p)
     end
 
     deleteat!(pairs, invalid_idxs)
