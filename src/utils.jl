@@ -262,7 +262,7 @@ end
 
 """
     window_df(df, sample_size, end_date)
-create list of overlapped windowe index range within date range starts with 1970. 1. 1.
+create list of overlapped window index range within date range starts with 1970. 1. 1.
 """
 function window_df(df::DataFrame, sample_size::Integer, end_date::ZonedDateTime)
     start_date = ZonedDateTime(1970, 1, 1, tz"Asia/Seoul")
@@ -272,6 +272,7 @@ end
 
 """
     split_sizes3(total_size, batch_size)
+split `total_size` for train/valid/test set (0.64:0.16:0.20)
 """
 function split_sizes3(total_size::Integer, batch_size::Integer)
     # (train + valid) : test = 0.8 : 0.2
@@ -289,6 +290,7 @@ end
 
 """
     split_sizes2(total_size, batch_size)
+split `total_size` for train/valid set (0.8:0.2)
 """
 function split_sizes2(total_size::Integer, batch_size::Integer)
     # (train + valid) : test = 0.8 : 0.2
@@ -306,7 +308,10 @@ end
 create_chunk(xs, n) = collect(Iterators.partition(xs, n))
 """
     create_chunks(tot_size, train_size, valid_size, test_size, batch_size)
-create chunks by batch_size that indicates index of sg_idxs or wd_idxs
+create chunks for train/valid/test set that indicates index of sg_idxs or wd_idxs
+# of each chunk is `batch_size`.
+
+`chunks` are used for training.
 
 expected sample result of chunks
     [[1, 2]
@@ -324,7 +329,11 @@ function create_chunks(total_idx::Array{I, 1},
 end
 
 """
-    create_chunks(tot_size, train_size, valid_size, batch_eof sg_idxs or wd_idxs
+    create_chunks(tot_size, train_size, valid_size, batch_size)
+create chunks for train/valid set that indicates index of sg_idxs or wd_idxs
+# of each chunk is `batch_size`.
+
+`chunks` are used for training.
 
 expected sample result of chunks
     [[1, 2]
@@ -341,7 +350,9 @@ end
 
 """
     create_idxs(tot_idx, train_size, valid_size, test_size)
-create indexes that indicates index of sg_idxs or wd_idxs
+split tot_idx to train/valid/test set that indicates index of sg_idxs or wd_idxs
+
+`idxs` are used for more general purpose
 
 expected sample result of idxs
     [1, 2, 3, 4, 5], [6, 7], [8, 9, 10]
@@ -356,7 +367,9 @@ end
 
 """
     create_idxs(tot_idx, train_size, valid_size)
-create indexes that indicates index of sg_idxs or wd_idxs
+split tot_idx to train/valid set that indicates index of sg_idxs or wd_idxs
+
+`idxs` are used for more general purpose
 
 expected sample result of idxs
     [1, 2, 3, 4, 5], [6, 7]
@@ -472,4 +485,26 @@ function make_minibatch(input_pairs::Array{T},
     # (input_size * batch_size) x length(pairs), (output_size) x length(pairs)
     # Flux.batchseq : pad zero when size is lower than batch_size
     (Flux.batch(X), Flux.batch(Y))
+end
+
+"""
+    validate_pairs!(pairs, ratio = 0.5)
+"""
+function remove_missing_pairs!(pairs, missing_ratio = 0.5)
+    @assert 0.0 <= missing_ratio <= 1.0
+
+    invalid_idxs = []
+    for (idx, (x, y)) in enumerate(pairs)
+        size_y = length(y)
+        size_m = length(findall(_y -> ismissing(_y) || _y == 0.0, y))
+
+        if (size_m / size_y) >= missing_ratio
+            # if use deleteat here, it manipulates pairs while loop and return wrong results
+            push!(invalid_idxs, idx)
+        end
+    end
+
+    deleteat!(pairs, invalid_idxs)
+
+    nothing
 end

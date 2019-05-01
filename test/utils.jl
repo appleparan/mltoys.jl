@@ -438,4 +438,50 @@ end
         @test minibatch == 
             ([19 25 0; 20 26 0; 21 27 0; 22 28 0], [23 29 0; 24 30 0])
     end
+
+    @testset "validate_pairs_only_missing_0.5" begin
+        pairs = [
+            ([ 1, 2, 3, 4], [ 5, 6, 7, 8, 9,10]),
+            ([ 7, 8, 9,10], [11,12,13,14,15,missing]),
+            ([13,14,15,16], [17,18,19,20,missing,missing]),
+            ([19,20,21,22], [23,24,25,missing,missing,missing]),
+            ([25,26,27,28], [29,30,missing,missing,missing,missing])]
+
+        remove_missing_pairs!(pairs, 0.5)
+
+        @test isequal(pairs, [
+            ([ 1, 2, 3, 4], [ 5, 6, 7, 8, 9,10]),
+            ([ 7, 8, 9,10], [11,12,13,14,15,missing]),
+            ([13,14,15,16], [17,18,19,20,missing,missing])])
+    end
+
+    @testset "validate_pairs_only_missing_0.3" begin
+        pairs = [
+            ([ 1, 2, 3, 4], [ 5, 6, 7, 8, 9,10]),
+            ([ 7, 8, 9,10], [11,12,13,14,15,missing]),
+            ([13,14,15,16], [17,18,19,20,missing,missing]),
+            ([19,20,21,22], [23,24,25,missing,missing,missing]),
+            ([25,26,27,28], [29,30,missing,missing,missing,missing])]
+
+        remove_missing_pairs!(pairs, 0.3)
+
+        @test isequal(pairs, [
+            ([ 1, 2, 3, 4], [ 5, 6, 7, 8, 9,10]),
+            ([ 7, 8, 9,10], [11,12,13,14,15,missing])])
+    end
+
+    @testset "validate_pairs_missing_and_zeros" begin
+        pairs = [
+            ([ 1, 2, 3, 4], [ 5, 6, 7, 8, 9,10]),
+            ([ 7, 8, 9,10], [11,12,13,14,0.0,missing]),
+            ([13,14,15,16], [17,18,0.0,0.0,missing,missing]),
+            ([19,20,21,22], [23,24,0.0,missing,missing,missing]),
+            ([25,26,27,28], [29,30,missing,missing,missing,missing])]
+
+        remove_missing_pairs!(pairs, 0.5)
+
+        @test isequal(pairs, [
+            ([ 1, 2, 3, 4], [ 5, 6, 7, 8, 9,10]),
+            ([ 7, 8, 9,10], [11,12,13,14,0.0,missing])])
+    end
 end
