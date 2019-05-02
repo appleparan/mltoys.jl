@@ -48,13 +48,17 @@ end
 
 
 """
-function train(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::Array{Symbol},
+function train(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas::Array{Symbol},
     sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
     total_wd_idxs::Array{Any, 1}, test_wd_idxs::Array{Any, 1}, 
     train_chnk::Array{T, 1}, valid_idxs::Array{I, 1}, test_idxs::Array{I, 1},
     μσs::AbstractNDSparse, filename::String, test_dates::Array{ZonedDateTime,1}) where T <: Array{I, 1} where I <: Integer
 
     norm_ycol = Symbol(norm_prefix, ycol)
+    norm_feas = copy(_norm_feas)
+    # remove ycol itself
+    deleteat!(norm_feas, findall(x -> x == norm_ycol, norm_feas))
+
     # extract from ndsparse
     total_μ = μσs[String(ycol), "μ"].value
     total_σ = μσs[String(ycol), "σ"].value
@@ -83,11 +87,9 @@ function train(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::Arra
     p = Progress(length(test_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     test_set = [(ProgressMeter.next!(p); make_pairs(df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
 
-    #=
     @info "    Removing sparse datas..."
     p = Progress(length(input_pairs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    remove_missing_pairs!(input_pairs, p)
-    =#
+    remove_missing_pairs!(input_pairs, 0.5, p)
 
     # |> gpu doesn't work to *_set directly
     # construct minibatch for train_set

@@ -74,7 +74,7 @@ function run_model()
     test_dates = collect(test_sdate:Hour(1):test_fdate)
 
     # to use zscroed data, use norm_features
-    train_all(df, norm_features, norm_prefix, sample_size, sample_size * length(features), batch_size, output_size, epoch_size,
+    train_all(df, norm_features, norm_prefix, sample_size, sample_size * (length(features) - 1), batch_size, output_size, epoch_size,
         train_valid_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs, test_dates)
 end
 
