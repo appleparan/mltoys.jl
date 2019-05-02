@@ -21,8 +21,9 @@ export join_data,
 # jongro01_DNN
         filter_jongro, read_jongro, train_all,
 # plot
-        plot_DNN,
-        plot_DNN_toCSV,
         plot_totaldata,
-        plot_initdata
+        get_prediction_table,
+        plot_DNN_scatter,
+        plot_DNN_histogram,
+        plot_DNN_lineplot        
 end

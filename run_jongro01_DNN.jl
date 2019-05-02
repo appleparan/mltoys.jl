@@ -1,5 +1,6 @@
 using Random
 
+using Dates
 using MicroLogging
 using StatsBase: mean_and_std
 using TimeZones
@@ -70,9 +71,11 @@ function run_model()
     test_idxs = collect((train_size + valid_size + 1):(train_size + valid_size + test_size))
     flush(stdout); flush(stderr)
 
+    test_dates = collect(test_sdate:Hour(1):test_fdate)
+
     # to use zscroed data, use norm_features
     train_all(df, norm_features, norm_prefix, sample_size, sample_size * length(features), batch_size, output_size, epoch_size,
-        train_valid_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs)
+        train_valid_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs, test_dates)
 end
 
 run_model()

@@ -8,9 +8,13 @@ using JuliaDB
 
 using Plots
 using Plots.PlotMeasures
-using UnicodePlots
+using ColorTypes
 
 ENV["GKSwstype"] = "100"
+
+const BG_COLOR = RGB(248/255, 247/255, 247/255)
+const LN_COLOR = RGB(56/255, 44/255, 80/255)
+const MK_COLOR = RGB(109/255, 117/255, 126/255)
 
 function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
     ENV["GKSwstype"] = "100"
@@ -20,49 +24,27 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
     # plot histogram
     gr()
     ht = Plots.histogram(df[ycol], title="Histogram of " * String(ycol),
-        xlabel=String(ycol), ylabel="# of data", bins=200,
-        fillcolor=[:red], fillalpha=0.2, legend=false)
+        xlabel=String(ycol), ylabel="#", bins=200,
+        margin=15px, legend=false,
+        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, 
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, fillcolor=[:red], fillalpha=0.2)
     png(ht, hist_path)
 
     # plot in dates
     dates = DateTime.(df[:date])
     gr(size = (2100, 900))
-    pl = Plots.plot(dates, df[ycol], title=String(ycol) * " in dates", xlabel="date", ylabel=String(ycol), margin=15px, legend=false)
+    pl = Plots.plot(dates, df[ycol],
+        title=String(ycol) * " in dates", xlabel="date", ylabel=String(ycol),
+        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, 
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        margin=15px, background_color = BG_COLOR, linecolor = LN_COLOR, legend=false)
     png(pl, plot_path)
 end
 
-function plot_initdata(dataset, ycol::Symbol, μ::AbstractFloat, σ::AbstractFloat, output_dir::String)
-    ENV["GKSwstype"] = "100"
-    hist_path = output_dir * String(ycol) * "_total_hist.png"
-
-    init_table = table((y = [],))
-    for (x, y) in dataset
-
-        cpu_y = y |> cpu
-        org_y = cpu_y .* σ .+ μ
-
-        tmp_table = table((y = org_y,))
-        init_table = merge(init_table, tmp_table)
-    end
-
-    gr()
-    ht = Plots.histogram(JuliaDB.select(init_table, :y), title="Histogram of initial data: " * String(ycol),
-        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
-        xlabel=String(ycol), ylabel="# of data", bins=200,
-        fillalpha=0.5, legend=false)
-    png(ht, hist_path)
-end
-
-function plot_DNN(df, dataset, model, ycol::Symbol, μ::AbstractFloat, σ::AbstractFloat, output_dir::String)
-    ENV["GKSwstype"] = "100"
-    sc_01h_path = output_dir * String(ycol) * "_01h_scatter.png"
-    hs_01h_path = output_dir * String(ycol) * "_01h_hist.png"
-    sc_24h_path = output_dir * String(ycol) * "_24h_scatter.png"
-    hs_24h_path = output_dir * String(ycol) * "_24h_hist.png"
-    line_01h_path = output_dir * String(ycol) * "_01h_line.png"
-    line_24h_path = output_dir * String(ycol) * "_24h_line.png"
+function get_prediction_table(df, dataset, model, ycol::Symbol, μ::AbstractFloat, σ::AbstractFloat, output_dir::String)
     table_01h_path = output_dir * String(ycol) * "_01h_table.csv"
-    table_24h_path = output_dir * String(ycol) * "_01h_table.csv"
+    table_24h_path = output_dir * String(ycol) * "_24h_table.csv"
 
     dnn_01h_table = table((y = [], ŷ = [],))
     dnn_24h_table = table((y = [], ŷ = [],))
@@ -76,53 +58,85 @@ function plot_DNN(df, dataset, model, ycol::Symbol, μ::AbstractFloat, σ::Abstr
         org_y = cpu_y .* σ .+ μ
         org_ŷ = Flux.Tracker.data(cpu_ŷ) .* σ .+ μ
         
-        tmp_table = table((y = org_y[1], ŷ = org_ŷ[1],))
-        dnn_01h_table = merge(dnn_table, tmp_table)
+        tmp_table = table((y = [org_y[1]], ŷ = [org_ŷ[1]],))
+        dnn_01h_table = merge(dnn_01h_table, tmp_table)
 
-        tmp_table = table((y = org_y[24], ŷ = org_ŷ[24],))
-        dnn_24h_table = merge(dnn_table, tmp_table)
+        tmp_table = table((y = [org_y[24]], ŷ = [org_ŷ[24]],))
+        dnn_24h_table = merge(dnn_24h_table, tmp_table)
     end
+
+    JuliaDB.save(dnn_01h_table, table_01h_path)
+    JuliaDB.save(dnn_24h_table, table_24h_path)
+
+    dnn_01h_table, dnn_24h_table
+end
+
+function plot_DNN_scatter(dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String)
+    ENV["GKSwstype"] = "100"
+    sc_01h_path = output_dir * String(ycol) * "_01h_scatter.png"
+    sc_24h_path = output_dir * String(ycol) * "_24h_scatter.png"
 
     lim = max(maximum(JuliaDB.select(dnn_01h_table, :y)), maximum(JuliaDB.select(dnn_01h_table, :ŷ)))
     gr(size=(1080, 1080))
     sc = Plots.scatter(JuliaDB.select(dnn_01h_table, :y), JuliaDB.select(dnn_01h_table, :ŷ), 
-        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         xlim = (0, lim), ylim = (0, lim), legend=false,
-        title="OBS/DNN", xlabel="Observation", ylabel="DNN")
+        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        title="OBS/DNN", xlabel="Observation", ylabel="DNN",
+        margin=15px, background_color = BG_COLOR, markercolor = MK_COLOR)
     plot!(0:0.1:lim, 0:0.1:lim, 
-        xlim = (0, lim), ylim = (0, lim), legend=false)
+        xlim = (0, lim), ylim = (0, lim), legend=false,
+        background_color = BG_COLOR, linecolor = LN_COLOR)
     png(sc, sc_01h_path)
 
-    gr()
-    gr(size=(2560, 1080))
-    ht = Plots.histogram([JuliaDB.select(dnn_01h_table, :y), JuliaDB.select(dnn_01h_table, :ŷ)],
-        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
-        label=["obs", "model"],
-        title="Histogram of data", ylabel="# of data", fillalpha=0.5)
-    png(ht, hs_01h_path)
-
-    lim = max(maximum(JuliaDB.select(dnn_24h_table, :y)), maximum(JuliaDB.select(dnn_24h_table, :ŷ)))
     gr(size=(1080, 1080))
     sc = Plots.scatter(JuliaDB.select(dnn_24h_table, :y), JuliaDB.select(dnn_24h_table, :ŷ), 
-        guidefontsize = 24, titlefontsize = 40, tickfontsize = 18, 
         xlim = (0, lim), ylim = (0, lim), legend=false,
-        title="OBS/DNN", xlabel="Observation", ylabel="DNN")
+        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        title="OBS/DNN", xlabel="Observation", ylabel="DNN",
+        margin=15px, background_color = BG_COLOR, markercolor = MK_COLOR)
     plot!(0:0.1:lim, 0:0.1:lim, 
-        xlim = (0, lim), ylim = (0, lim), legend=false)
-    png(sc, sc_24h_path)
+        xlim = (0, lim), ylim = (0, lim), legend=false,
+        background_color = BG_COLOR, linecolor = LN_COLOR)
+    png(sc, sc_24h_path)   
+end
+
+function plot_DNN_histogram(dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String)
+    ENV["GKSwstype"] = "100"
+    hs_01h_path = output_dir * String(ycol) * "_01h_hist.png"
+    hs_24h_path = output_dir * String(ycol) * "_24h_hist.png"
+
+    gr(size=(2560, 1080))
+    ht = Plots.histogram([JuliaDB.select(dnn_01h_table, :y), JuliaDB.select(dnn_01h_table, :ŷ)],
+        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        label=["obs", "model"], margin=15px,
+        title="Histogram of data", ylabel="#",
+        background_color = BG_COLOR, fillalpha=0.5)
+    png(ht, hs_01h_path)
 
     gr(size=(2560, 1080))
     ht = Plots.histogram([JuliaDB.select(dnn_24h_table, :y), JuliaDB.select(dnn_24h_table, :ŷ)],
-        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
-        label=["obs", "model"],
-        title="Histogram of data", ylabel="# of data", fillalpha=0.5)
+        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        label=["obs", "model"], margin=15px,
+        title="Histogram of data", ylabel="#",
+        background_color = BG_COLOR, fillalpha=0.5)
     png(ht, hs_24h_path)
+end
+
+function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String)
+    ENV["GKSwstype"] = "100"
+    line_01h_path = output_dir * String(ycol) * "_01h_line.png"
+    line_24h_path = output_dir * String(ycol) * "_24h_line.png"
 
     # plot in dates
-    dates = DateTime.(df[:date])
     gr(size = (2100, 900))
     pl = Plots.plot(dates, [JuliaDB.select(dnn_01h_table, :y), JuliaDB.select(dnn_01h_table, :ŷ)],
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR,
         line=[:dot, :solid], color=[:red, :black], label=["obs.", "model"],
         title=String(ycol) * " in dates (1h)", 
         xlabel="date", ylabel=String(ycol), legend=true)
@@ -131,12 +145,10 @@ function plot_DNN(df, dataset, model, ycol::Symbol, μ::AbstractFloat, σ::Abstr
     gr(size = (2100, 900))
     pl = Plots.plot(dates, [JuliaDB.select(dnn_24h_table, :y), JuliaDB.select(dnn_24h_table, :ŷ)],
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR,
         line=[:dot, :solid], color=[:red, :black], label=["obs.", "model"],
         title=String(ycol) * " in dates (24h)", 
         xlabel="date", ylabel=String(ycol), legend=true)
     png(pl, line_24h_path)
-
-    #save(String(ycol) * "_table.csv", dnn_table)
-    JuliaDB.save(dnn_01h_table, table_01h_path)
-    JuliaDB.save(dnn_24h_table, table_24h_path)
 end

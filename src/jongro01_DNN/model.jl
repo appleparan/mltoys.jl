@@ -18,7 +18,7 @@ using Flux.Tracker: param, back!, grad, data
 function train_all(df::DataFrame, norm_feas::Array{Symbol}, norm_prefix::String,
     sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
     total_wd_idxs::Array{Any, 1}, test_wd_idxs::Array{Any, 1}, train_chnk::Array{T, 1}, valid_idxs::Array{I, 1}, test_idxs::Array{I, 1},
-    μσs::AbstractNDSparse) where T <: Array{I, 1} where I <: Integer
+    μσs::AbstractNDSparse, test_dates::Array{ZonedDateTime,1}) where T <: Array{I, 1} where I <: Integer
 
     @info "PM10 Training..."
     flush(stdout); flush(stderr)
@@ -27,7 +27,7 @@ function train_all(df::DataFrame, norm_feas::Array{Symbol}, norm_prefix::String,
     PM10_model, PM10_μσ = train(df, :PM10, norm_prefix, norm_feas,
     sample_size, input_size, batch_size, output_size, epoch_size,
     total_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs,
-    "PM10")
+    "PM10", test_dates)
 
     @info "PM25 Training..."
     flush(stdout); flush(stderr)
@@ -35,7 +35,7 @@ function train_all(df::DataFrame, norm_feas::Array{Symbol}, norm_prefix::String,
     PM25_model, PM25_μσ = train(df, :PM25, norm_prefix, norm_feas,
     sample_size, input_size, batch_size, output_size, epoch_size,
     total_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs,
-    "PM25")
+    "PM25", test_dates)
 
     nothing
 end
@@ -52,7 +52,7 @@ function train(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::Arra
     sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
     total_wd_idxs::Array{Any, 1}, test_wd_idxs::Array{Any, 1}, 
     train_chnk::Array{T, 1}, valid_idxs::Array{I, 1}, test_idxs::Array{I, 1},
-    μσs::AbstractNDSparse, filename::String) where T <: Array{I, 1} where I <: Integer
+    μσs::AbstractNDSparse, filename::String, test_dates::Array{ZonedDateTime,1}) where T <: Array{I, 1} where I <: Integer
 
     norm_ycol = Symbol(norm_prefix, ycol)
     # extract from ndsparse
@@ -108,9 +108,11 @@ function train(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::Arra
     # TODO : (current) validation with zscore, (future) validation with original value?
     @info "    Validation acc : ", accuracy("valid", valid_set)
     flush(stdout); flush(stderr)
-    
-    plot_initdata(test_set, ycol, total_μ, total_σ, "/mnt/")
-    plot_DNN(df, test_set, model, ycol, total_μ, total_σ, "/mnt/")
+
+    table_01h, table_24h = get_prediction_table(df, test_set, model, ycol, total_μ, total_σ, "/mnt/")
+    plot_DNN_scatter(table_01h, table_24h, ycol, "/mnt/")
+    plot_DNN_histogram(table_01h, table_24h, ycol, "/mnt/")
+    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, ycol, "/mnt/")
 
     model, μσ
 end
