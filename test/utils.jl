@@ -392,8 +392,7 @@ end
         input_size = sample_size * 2
         output_size = 12
 
-        date_fmt = Dates.DateFormat("yyyy-mm-ddTHH:MM:SSz")
-        Jan_2015 = ZonedDateTime("2015-01-01T00:00:00+09:00", date_fmt)
+        Jan_2015 = ZonedDateTime(2015, 1, 1, tz"Asia/Seoul")
         Jan_2015_hours = collect(Jan_2015:Hour(1):Jan_2015 + Day(30))
         len_df = length(Jan_2015_hours)
 
