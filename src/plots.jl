@@ -22,7 +22,7 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
     plot_path = output_dir * String(ycol) * "_total_plot.png"
 
     # plot histogram
-    gr()
+    gr(size=(1920, 1080))
     ht = Plots.histogram(df[ycol], title="Histogram of " * String(ycol),
         xlabel=String(ycol), ylabel="#", bins=200,
         margin=15px, legend=false,
@@ -33,7 +33,7 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
 
     # plot in dates
     dates = DateTime.(df[:date])
-    gr(size = (2100, 900))
+    gr(size=(1920, 1080))
     pl = Plots.plot(dates, df[ycol],
         title=String(ycol) * " in dates", xlabel="date", ylabel=String(ycol),
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, 
@@ -108,21 +108,21 @@ function plot_DNN_histogram(dnn_01h_table, dnn_24h_table, ycol::Symbol, output_d
     hs_24h_path = output_dir * String(ycol) * "_24h_hist.png"
 
     gr(size=(2560, 1080))
-    ht = Plots.histogram([JuliaDB.select(dnn_01h_table, :y), JuliaDB.select(dnn_01h_table, :ŷ)],
+    ht = Plots.histogram(JuliaDB.select(dnn_01h_table, :y), label="obs", 
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        label=["obs", "model"], margin=15px,
-        title="Histogram of data", ylabel="#",
+        margin=15px, title="Histogram of data", ylabel="#",
         background_color = BG_COLOR, fillalpha=0.5)
+    ht = Plots.histogram!(JuliaDB.select(dnn_01h_table, :ŷ), label="model")
     png(ht, hs_01h_path)
 
     gr(size=(2560, 1080))
-    ht = Plots.histogram([JuliaDB.select(dnn_24h_table, :y), JuliaDB.select(dnn_24h_table, :ŷ)],
+    ht = Plots.histogram(JuliaDB.select(dnn_24h_table, :y), label=["obs", "model"],
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        label=["obs", "model"], margin=15px,
-        title="Histogram of data", ylabel="#",
+        margin=15px, title="Histogram of data", ylabel="#",
         background_color = BG_COLOR, fillalpha=0.5)
+    ht = Plots.histogram!(JuliaDB.select(dnn_24h_table, :ŷ), label="model")
     png(ht, hs_24h_path)
 end
 
@@ -130,25 +130,32 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
     ENV["GKSwstype"] = "100"
     line_01h_path = output_dir * String(ycol) * "_01h_line.png"
     line_24h_path = output_dir * String(ycol) * "_24h_line.png"
+    dates_01h = dates .+ Dates.Hour(1)
+    dates_24h = dates .+ Dates.Hour(24)
+    len_model = length(JuliaDB.select(dnn_01h_table, :y))
 
     # plot in dates
-    gr(size = (2100, 900))
-    pl = Plots.plot(dates, [JuliaDB.select(dnn_01h_table, :y), JuliaDB.select(dnn_01h_table, :ŷ)],
+    gr(size = (2560, 1080))
+    pl = Plots.plot(dates_01h[1:len_model], JuliaDB.select(dnn_01h_table, :y),
+        line=:dot, color=:red, label="obs.",
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
-        line=[:dot, :solid], color=[:red, :black], label=["obs.", "model"],
         title=String(ycol) * " in dates (1h)", 
         xlabel="date", ylabel=String(ycol), legend=true)
+    pl = Plots.plot!(dates_01h[1:len_model], JuliaDB.select(dnn_01h_table, :ŷ),
+        line=:solid, color=:black, label="model")
     png(pl, line_01h_path)
 
-    gr(size = (2100, 900))
-    pl = Plots.plot(dates, [JuliaDB.select(dnn_24h_table, :y), JuliaDB.select(dnn_24h_table, :ŷ)],
+    gr(size = (2560, 1080))
+    pl = Plots.plot(dates_24h[1:len_model], JuliaDB.select(dnn_24h_table, :y),
+        line=:dot, color=:red, label="obs.",
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
-        line=[:dot, :solid], color=[:red, :black], label=["obs.", "model"],
         title=String(ycol) * " in dates (24h)", 
         xlabel="date", ylabel=String(ycol), legend=true)
+    pl = Plots.plot!(dates_24h[1:len_model], JuliaDB.select(dnn_24h_table, :ŷ),
+        line=:solid, color=:black, label="model")
     png(pl, line_24h_path)
 end
