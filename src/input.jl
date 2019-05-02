@@ -220,7 +220,7 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
     for _wea in wea_globs
         df_raw = CSV.read(_wea)
 
-        rename!(df_raw, [:일시 => :date, 
+        rename!(df_raw, [Symbol("일시") => :date,
             Symbol("기온(°C)") => :temp,
             Symbol("강수량(mm)") => :prep,
             Symbol("풍속(m/s)") => :wind_vel,
