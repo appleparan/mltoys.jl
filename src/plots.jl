@@ -137,6 +137,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
     # plot in dates
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_01h[1:len_model], JuliaDB.select(dnn_01h_table, :y),
+        ylim = (0.0, maximum(JuliaDB.select(dnn_01h_table, :y))),
         line=:dot, color=:red, label="obs.",
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
@@ -144,11 +145,13 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
         title=String(ycol) * " in dates (1h)", 
         xlabel="date", ylabel=String(ycol), legend=true)
     pl = Plots.plot!(dates_01h[1:len_model], JuliaDB.select(dnn_01h_table, :ŷ),
+        ylim = (0.0, maximum(JuliaDB.select(dnn_01h_table, :ŷ)))),
         line=:solid, color=:black, label="model")
     png(pl, line_01h_path)
 
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_24h[1:len_model], JuliaDB.select(dnn_24h_table, :y),
+        ylim = (0.0, maximum(JuliaDB.select(dnn_24h_table, :y))),
         line=:dot, color=:red, label="obs.",
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
@@ -156,6 +159,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
         title=String(ycol) * " in dates (24h)", 
         xlabel="date", ylabel=String(ycol), legend=true)
     pl = Plots.plot!(dates_24h[1:len_model], JuliaDB.select(dnn_24h_table, :ŷ),
+        ylim = (0.0, maximum(JuliaDB.select(dnn_01h_table, :ŷ)))),
         line=:solid, color=:black, label="model")
     png(pl, line_24h_path)
 end
