@@ -2,6 +2,7 @@ using Random
 
 using MicroLogging
 using StatsBase: mean_and_std
+using TimeZones
 
 using MLToys
 
@@ -43,26 +44,35 @@ function run_model()
     @info "feature : " features
     @info "sizes (sample, output, epoch, batch) : ", sample_size, output_size, epoch_size, batch_size
 
-    # iterators for indicies
+    # slices for indicies
     # split into segment
     # sg_idxs = split_df(size(df, 1), sample_size)
     # split into window [[1,2,3,4],[2,3,4,5]...]
-    # length(wd_idxs) == total_row
-    wd_idxs = window_df(df, sample_size)
+    train_sdate = ZonedDateTime(2015, 1, 1, 1, 0, tz"Asia/Seoul")
+    train_fdate = ZonedDateTime(2017, 12, 31, 23, 59, tz"Asia/Seoul")
+    test_sdate = ZonedDateTime(2018, 1, 1, 0, 0, tz"Asia/Seoul")
+    test_fdate = ZonedDateTime(2018, 12, 31, 23, 59, tz"Asia/Seoul")
+    # windowsed index
+    train_valid_wd_idxs = window_df(df, sample_size, output_size, train_sdate, train_fdate)
+    test_wd_idxs = window_df(df, sample_size, output_size, test_sdate, test_fdate)
     
     # I will pair single (input, output) in train method
     # however, I can predetermine how much split data 
-    total_size = length(wd_idxs)
-    train_size, valid_size, test_size = split_sizes(length(wd_idxs), batch_size)
-    # pointers to wd_idxs or sg_idxs
-    total_idxs_of_idxs = Random.randperm(total_size)
-    train_chnk, valid_chnk, test_chnk = create_chunks(total_idxs_of_idxs, train_size, valid_size, test_size, batch_size)
-    train_idxs, valid_idxs, test_idxs = create_idxs(total_idxs_of_idxs, train_size, valid_size, test_size)
+    total_size = length(train_valid_wd_idxs)
+    train_size, valid_size = split_sizes2(length(train_valid_wd_idxs), batch_size)
+    test_size = length(test_wd_idxs)
+    
+    # start indexes for idxs
+    # train and valid indexes : 1 ~ (train_size + valid_size)
+    train_valid_idxs = Random.randperm(train_size + valid_size)
+    train_chnk, valid_chnk = create_chunks(train_valid_idxs, train_size, valid_size, batch_size)
+    train_idxs, valid_idxs = create_idxs(train_valid_idxs, train_size, valid_size)
+    test_idxs = collect((train_size + valid_size + 1):(train_size + valid_size + test_size))
     flush(stdout); flush(stderr)
 
     # to use zscroed data, use norm_features
-    train_all(df, norm_features, norm_prefix, sample_size * length(features), batch_size, output_size, epoch_size,
-        wd_idxs, train_chnk, valid_idxs, test_idxs, μσs)
+    train_all(df, norm_features, norm_prefix, sample_size, sample_size * length(features), batch_size, output_size, epoch_size,
+        train_valid_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs)
 end
 
 run_model()

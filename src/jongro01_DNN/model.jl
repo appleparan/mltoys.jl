@@ -16,34 +16,43 @@ using Flux.Tracker
 using Flux.Tracker: param, back!, grad, data
 
 function train_all(df::DataFrame, norm_feas::Array{Symbol}, norm_prefix::String,
-    input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
-    total_idxs::Array{Any,1}, train_chnk::Array{T,1}, valid_idxs::T, test_idxs::T,
-    μσs::NDSparse) where T <: Array{Int64,1}
+    sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
+    total_wd_idxs::Array{Any, 1}, test_wd_idxs::Array{Any, 1}, train_chnk::Array{T, 1}, valid_idxs::Array{I, 1}, test_idxs::Array{I, 1},
+    μσs::AbstractNDSparse) where T <: Array{I, 1} where I <: Integer
 
     @info "PM10 Training..."
     flush(stdout); flush(stderr)
 
     # free minibatch after training because of memory usage
     PM10_model, PM10_μσ = train(df, :PM10, norm_prefix, norm_feas,
-    input_size, batch_size, output_size, epoch_size,
-    total_idxs, train_chnk, valid_idxs, test_idxs, μσs,
+    sample_size, input_size, batch_size, output_size, epoch_size,
+    total_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs,
     "PM10")
-    
+
     @info "PM25 Training..."
     flush(stdout); flush(stderr)
 
     PM25_model, PM25_μσ = train(df, :PM25, norm_prefix, norm_feas,
-    input_size, batch_size, output_size, epoch_size,
-    total_idxs, train_chnk, valid_idxs, test_idxs, μσs,
+    sample_size, input_size, batch_size, output_size, epoch_size,
+    total_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs,
     "PM25")
 
     nothing
 end
 
+"""
+    train(df, ycol, norm_prefix, norm_feas,
+        input_size, batch_size, output_size, epoch_size,
+        total_wd_idxs, train_chnk:, valid_idxs, test_idxs,
+        μσs, filename)
+
+
+"""
 function train(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::Array{Symbol},
-    input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
-    total_idxs::Array{Any,1}, train_chnk::Array{T,1}, valid_idxs::T, test_idxs::T, μσs::NDSparse, 
-    filename::String) where T <: Array{Int64,1}
+    sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
+    total_wd_idxs::Array{Any, 1}, test_wd_idxs::Array{Any, 1}, 
+    train_chnk::Array{T, 1}, valid_idxs::Array{I, 1}, test_idxs::Array{I, 1},
+    μσs::AbstractNDSparse, filename::String) where T <: Array{I, 1} where I <: Integer
 
     norm_ycol = Symbol(norm_prefix, ycol)
     # extract from ndsparse
@@ -55,6 +64,7 @@ function train(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::Arra
     train_μ, train_σ = mean_and_std(df[reduce(vcat, train_chnk), norm_ycol])
     valid_μ, valid_σ = mean_and_std(df[valid_idxs, norm_ycol])
     test_μ, test_σ = mean_and_std(df[test_idxs, norm_ycol])
+
     μσ = ndsparse((
         dataset = ["train", "train", "valid", "valid", "test", "test"],
         type = ["μ", "σ", "μ", "σ", "μ", "σ"]),
@@ -64,46 +74,48 @@ function train(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::Arra
     compile = eval(Symbol(:compile, '_', ycol))
     model, loss, accuracy, opt = compile(input_size, batch_size, output_size, μσ)
 
-    # create (input(1D), output(1D)) pairs of total dataframe row
-    @info "    Constructing (input, output) pairs..."
-    p = Progress(length(total_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    input_pairs = [(ProgressMeter.next!(p); make_pairs(df, norm_ycol, collect(idx), norm_feas, input_size, output_size)) for idx in total_idxs]
+    # create (input(1D), output(1D)) pairs of total dataframe row, it is indepdent by train/valid/test set
+    @info "    Constructing (input, output) pairs for train/valid set..."
+    p = Progress(length(total_wd_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
+    input_pairs = [(ProgressMeter.next!(p); make_pairs(df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in total_wd_idxs]
 
-    # construct minibatch for train_set
+    @info "    Constructing (input, output) pairs for test set..."
+    p = Progress(length(test_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
+    test_set = [(ProgressMeter.next!(p); make_pairs(df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
+
+    #=
+    @info "    Removing sparse datas..."
+    p = Progress(length(input_pairs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
+    remove_missing_pairs!(input_pairs, p)
+    =#
+
     # |> gpu doesn't work to *_set directly
-    # https://github.com/FluxML/Flux.jl/issues/704
+    # construct minibatch for train_set
+    # https://github.com/FluxML/Flux.jl/issues/704    
     @info "    Constructing minibatch..."
     p = Progress(length(train_chnk), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    # total_idxs[chnk] = get list of pair indexes -> i.e. [1, 2, 3, 4]
+    # total_wd_idxs[chnk] = get list of pair indexes -> i.e. [1, 2, 3, 4]
     train_set = [(ProgressMeter.next!(p); make_minibatch(input_pairs, chnk, batch_size)) for chnk in train_chnk]
 
     # don't construct minibatch for valid & test sets
     valid_set = input_pairs[valid_idxs]
-    test_set = input_pairs[test_idxs]
 
-    train_set = train_set
-    valid_set = valid_set
-    test_set = test_set
+    #train_set = train_set |> gpu
+    #valid_set = valid_set |> gpu
 
-    train!(model, train_set, test_set, loss, accuracy, opt, epoch_size, filename)
+    train!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, filename)
 
-    # TODO : (current) validation with zscore, (future) validation with original valud?
+    # TODO : (current) validation with zscore, (future) validation with original value?
     @info "    Validation acc : ", accuracy("valid", valid_set)
     flush(stdout); flush(stderr)
-    #=
-    /home/appleparan/.julia/packages/GR/Q8slp/src/../deps/gr/bin/gksqt: error while loading shared libraries: libQt5Widgets.so.5: cannot open shared object file: No such file or directory
-    connect: Connection refused
-    GKS: can't connect to GKS socket application
-    Did you start 'gksqt'?
-    =#
-    plot_initdata(valid_set, ycol, total_μ, total_σ, "/mnt/")
-    plot_DNN(valid_set, model, ycol, total_μ, total_σ, "/mnt/")
-    # plot_DNN_toCSV(valid_set, model, total_μ, total_σ, png_path)
+    
+    plot_initdata(test_set, ycol, total_μ, total_σ, "/mnt/")
+    plot_DNN(df, test_set, model, ycol, total_μ, total_σ, "/mnt/")
 
     model, μσ
 end
 
-function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Integer, filename::String)
+function train!(model, train_set, valid_set, loss, accuracy, opt, epoch_size::Integer, filename::String)
 
     @info("    Beginning training loop...")
     flush(stdout); flush(stderr)
@@ -118,7 +130,7 @@ function train!(model, train_set, test_set, loss, accuracy, opt, epoch_size::Int
         Flux.train!(loss, params(model), train_set, opt)
 
         # Calculate accuracy:
-        acc = accuracy("test", test_set)
+        acc = accuracy("valid", valid_set)
         @info(@sprintf("epoch [%d]: Test accuracy: %.6f Time: %s", epoch_idx, acc, now()))
         flush(stdout); flush(stderr)
 
@@ -165,25 +177,26 @@ function compile_PM10(input_size::Integer, batch_size::Integer, output_size::Int
     # answer from SO: https://stats.stackexchange.com/a/180052
     unit_size = Int(round(input_size * 2/3))
     @show "Unit size in PM10: ", unit_size
+    # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
-        Dense(input_size, unit_size, leakyrelu),
+        Dense(input_size, unit_size, leakyrelu), Dropout(0.2),
 
-        Dense(unit_size, unit_size, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
 
-        Dense(unit_size, unit_size, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
 
-        Dense(unit_size, unit_size, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
 
-        Dense(unit_size, unit_size, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
 
-        Dense(unit_size, unit_size, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
 
-        Dense(unit_size, unit_size, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
 
         Dense(unit_size, output_size)
     ) |> gpu
 
-    loss(x, y) = Flux.mse(model(x), y) + sum(norm, params(model))
+    loss(x, y) = Flux.mse(model(x), y)
     accuracy(setname, data) = RSR(setname, data, model, μσ)
     opt = Flux.ADAM()
 
@@ -195,25 +208,26 @@ function compile_PM25(input_size::Integer, batch_size::Integer, output_size::Int
     # answer from SO: https://stats.stackexchange.com/a/180052
     unit_size = Int(round(input_size * 2/3))
     @show "Unit size in PM25: ", unit_size
+    # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
-        Dense(input_size, unit_size, leakyrelu),
+        Dense(input_size, unit_size, leakyrelu), Dropout(0.2),
 
-        Dense(unit_size, unit_size, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
 
-        Dense(unit_size, unit_size, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
 
-        Dense(unit_size, unit_size, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
 
-        Dense(unit_size, unit_size, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
 
-        Dense(unit_size, unit_size, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
 
-        Dense(unit_size, unit_size, leakyrelu),
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
 
         Dense(unit_size, output_size)
     ) |> gpu
 
-    loss(x, y) = Flux.mse(model(x), y) + sum(norm, params(model))
+    loss(x, y) = Flux.mse(model(x), y)
     accuracy(setname, data) = RSR(setname, data, model, μσ)
     opt = Flux.ADAM()
 
