@@ -19,7 +19,7 @@ export join_data,
 # evaluation
         RSME, RSR,
 # jongro01_DNN
-        filter_jongro, read_jongro, train_all,
+        filter_jongro, read_jongro, train_all_DNN,
 # plot
         plot_totaldata,
         get_prediction_table,

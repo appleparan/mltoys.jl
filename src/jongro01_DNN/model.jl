@@ -15,7 +15,7 @@ using Flux
 using Flux.Tracker
 using Flux.Tracker: param, back!, grad, data
 
-function train_all(df::DataFrame, norm_feas::Array{Symbol}, norm_prefix::String,
+function train_all_DNN(df::DataFrame, norm_feas::Array{Symbol}, norm_prefix::String,
     sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
     total_wd_idxs::Array{Any, 1}, test_wd_idxs::Array{Any, 1}, train_chnk::Array{T, 1}, valid_idxs::Array{I, 1}, test_idxs::Array{I, 1},
     μσs::AbstractNDSparse, test_dates::Array{ZonedDateTime,1}) where T <: Array{I, 1} where I <: Integer
