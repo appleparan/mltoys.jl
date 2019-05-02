@@ -223,11 +223,11 @@ end
     window_df(df, sample_size)
 create list of overlapped windowe index range 
 """
-function window_df(df::DataFrame, sample_size::Integer, offset::Integer = 0)
+function window_df(df::DataFrame, sample_size::Integer, output_size::Integer, offset::Integer = 0)
     # start index for window
     # sample_size + hours (hours for Y , < sample_size) should be avalable
-    start_idxs = collect(1:(size(df, 1) - sample_size + 1))
-    final_idxs = start_idxs .+ (sample_size - 1)
+    start_idxs = collect(1:(size(df, 1) - sample_size - output_size + 1))
+    final_idxs = start_idxs .+ (sample_size + output_size - 1)
     idxs = []
     for (si, fi) in zip(start_idxs, final_idxs)
         push!(idxs, (si+offset):(fi+offset))
@@ -240,7 +240,7 @@ end
     window_df(df, sample_size, start_date, end_date)
 create list of overlapped windowe index range within date range
 """
-function window_df(df::DataFrame, sample_size::Integer, _start_date::ZonedDateTime, _end_date::ZonedDateTime)
+function window_df(df::DataFrame, sample_size::Integer, output_size::Integer, _start_date::ZonedDateTime, _end_date::ZonedDateTime)
     # start index for window
     # sample_size + hours (hours for Y , < sample_size) should be avalable
     # moreover,I should to round time to 1 hour unit
@@ -251,24 +251,25 @@ function window_df(df::DataFrame, sample_size::Integer, _start_date::ZonedDateTi
     end
 
     # .value : to get `Dates` value 
-    if Dates.Hour(end_date - start_date).value < sample_size
+    if Dates.Hour(end_date - start_date).value < sample_size + output_size
         throw(BoundsError("sample size($sample_size) is smaller than date range: $start_date ~ $end_date"))
     end
     
     new_df = df[(df.date .>= start_date) .& (df.date .<= end_date), :]
+    # offset for subDataFrame
     offset = Dates.Hour(start_date - df.date[1]).value
 
-    window_df(new_df, sample_size, offset)
+    window_df(new_df, sample_size, output_size, offset)
 end
 
 """
     window_df(df, sample_size, end_date)
 create list of overlapped window index range within date range starts with 1970. 1. 1.
 """
-function window_df(df::DataFrame, sample_size::Integer, end_date::ZonedDateTime)
+function window_df(df::DataFrame, sample_size::Integer, output_size::Integer, end_date::ZonedDateTime)
     start_date = ZonedDateTime(1970, 1, 1, tz"Asia/Seoul")
 
-    window_df(df, sample_size, start_date, end_date)
+    window_df(df, sample_size, output_size, start_date, end_date)
 end
 
 """
@@ -322,9 +323,9 @@ expected sample result of chunks
 function create_chunks(total_idx::Array{I, 1},
     train_size::Integer, valid_size::Integer, test_size::Integer, batch_size::Integer) where I<:Integer
 
-    train_chnks = create_chunk(total_idx[1: train_size], batch_size)
-    valid_chnks = create_chunk(total_idx[train_size + 1: train_size + valid_size], batch_size)
-    test_chnks = create_chunk(total_idx[train_size + valid_size + 1: train_size + valid_size + test_size], batch_size)
+    train_chnks = create_chunk(total_idx[1:train_size], batch_size)
+    valid_chnks = create_chunk(total_idx[(train_size + 1):(train_size + valid_size)], batch_size)
+    test_chnks = create_chunk(total_idx[(train_size + valid_size + 1):(train_size + valid_size + test_size)], batch_size)
 
     train_chnks, valid_chnks, test_chnks
 end
@@ -343,8 +344,8 @@ expected sample result of chunks
 function create_chunks(total_idx::Array{I, 1},
     train_size::Integer, valid_size::Integer, batch_size::Integer) where I<:Integer
 
-    train_chnks = create_chunk(total_idx[1: train_size], batch_size)
-    valid_chnks = create_chunk(total_idx[train_size + 1: train_size + valid_size], batch_size)
+    train_chnks = create_chunk(total_idx[1:train_size], batch_size)
+    valid_chnks = create_chunk(total_idx[(train_size + 1):(train_size + valid_size)], batch_size)
 
     train_chnks, valid_chnks
 end
@@ -359,9 +360,9 @@ expected sample result of idxs
     [1, 2, 3, 4, 5], [6, 7], [8, 9, 10]
 """
 function create_idxs(tot_idx::Array{I, 1}, train_size::Integer, valid_size::Integer, test_size::Integer) where I<:Integer
-    train_idxs = tot_idx[1: train_size]
-    valid_idxs = tot_idx[train_size + 1: train_size + valid_size]
-    test_idxs = tot_idx[train_size + valid_size + 1: train_size + valid_size + test_size]
+    train_idxs = tot_idx[1:train_size]
+    valid_idxs = tot_idx[(train_size + 1):(train_size + valid_size)]
+    test_idxs = tot_idx[(train_size + valid_size + 1):(train_size + valid_size + test_size)]
 
     train_idxs, valid_idxs, test_idxs
 end
@@ -376,8 +377,8 @@ expected sample result of idxs
     [1, 2, 3, 4, 5], [6, 7]
 """
 function create_idxs(tot_idx::Array{I, 1}, train_size::Integer, valid_size::Integer) where I<:Integer
-    train_idxs = tot_idx[1: train_size]
-    valid_idxs = tot_idx[train_size + 1: train_size + valid_size]
+    train_idxs = tot_idx[1:train_size]
+    valid_idxs = tot_idx[(train_size + 1):(train_size + valid_size)]
 
     train_idxs, valid_idxs
 end
@@ -419,9 +420,9 @@ getX(df::DataFrame, idxs, features::Array{String,1}) = getX(df, idxs, Symbol.(ev
 get last date of X and construct Y with `hours` range
 """
 function getY(df::DataFrame, idx::Array{I, 1},
-    ycol::Symbol, output_size::Integer=24) where I<:Integer
+    ycol::Symbol, sample_size::Integer=72, output_size::Integer=24) where I<:Integer
     df_X = df[idx, :]
-    last_date_of_X = df_X[end, :date]
+    last_date_of_X = df_X[sample_size, :date]
     
     Y = getHoursLater(df, output_size, last_date_of_X)
 
@@ -433,15 +434,17 @@ end
 create pairs in `df` along with `idx` (row) and `features` (columns)
 output determined by ycol
 
+input_size = sample size * num_selected_columns
+
 """
 # Bundle images together with labels and group into minibatchess
 function make_pairs(df::DataFrame, ycol::Symbol,
     idx::Array{I, 1}, features::Array{Symbol, 1},
-    input_size::Integer, output_size::Integer) where I<:Integer
+    sample_size::Integer, output_size::Integer) where I<:Integer
     X = getX(df, idx, features) |> gpu
-    Y = getY(df, idx, ycol, output_size) |> gpu
-
-    @assert length(X) == input_size
+    Y = getY(df, idx, ycol, sample_size, output_size) |> gpu
+    
+    @assert length(X) == sample_size * length(features)
     @assert length(Y) == output_size
     @assert ndims(X) == 1
     @assert ndims(Y) == 1

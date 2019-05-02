@@ -116,20 +116,17 @@ end
             B = 13:24,
             C = 25:36)
         sample_size = 4
-        idxs = window_df(df, sample_size)
-        @test length(idxs) == 9
+        output_size = 2
+        idxs = window_df(df, sample_size, output_size)
+        @test length(idxs) == 7
         @test df[collect(idxs[1]), :] == DataFrame(
-            A = 1:4,
-            B = 13:16,
-            C = 25:28)
-        @test df[collect(idxs[4]), :] == DataFrame(
-            A = 4:7,
-            B = 16:19,
-            C = 28:31)
-        @test df[collect(idxs[9]), :] == DataFrame(
-            A = 9:12,
-            B = 21:24,
-            C = 33:36)
+            A = 1:6,
+            B = 13:18,
+            C = 25:30)
+        @test df[collect(idxs[7]), :] == DataFrame(
+            A = 7:12,
+            B = 19:24,
+            C = 31:36)
     end
 
     @testset "window_df_w_dates" begin
@@ -146,19 +143,20 @@ end
                     tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 1, 0, tz"Asia/Seoul") + Hour(n - 1))
         )
         sample_size = 12
-        idxs = window_df(df, sample_size, ZonedDateTime(year, month, 10, 0, 1, tz"Asia/Seoul"), ZonedDateTime(year, month, 14, 23, 59, tz"Asia/Seoul"))
-        @test length(idxs) == 108
+        output_size = 2
+        idxs = window_df(df, sample_size, output_size, ZonedDateTime(year, month, 10, 0, 1, tz"Asia/Seoul"), ZonedDateTime(year, month, 14, 23, 59, tz"Asia/Seoul"))
+        @test length(idxs) == 106
         @test df[collect(idxs[1]), :] == DataFrame(
-            A = 218:229,
-            B = 962:973,
-            C = 1706:1717,
-            date = collect(ZonedDateTime(year, month, 10, 1, tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 10, 12, tz"Asia/Seoul"))
+            A = 218:231,
+            B = 962:975,
+            C = 1706:1719,
+            date = collect(ZonedDateTime(year, month, 10, 1, tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 10, 14, tz"Asia/Seoul"))
         )
-        @test df[collect(idxs[108]), :] == DataFrame(
-            A = 325:336,
-            B = 1069:1080,
-            C = 1813:1824,
-            date = collect(ZonedDateTime(year, month, 14, 12, tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 14, 23, tz"Asia/Seoul"))
+        @test df[collect(idxs[106]), :] == DataFrame(
+            A = 323:336,
+            B = 1067:1080,
+            C = 1811:1824,
+            date = collect(ZonedDateTime(year, month, 14, 10, tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 14, 23, tz"Asia/Seoul"))
         )
     end
 
@@ -176,14 +174,15 @@ end
                     tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 1, 0, tz"Asia/Seoul") + Hour(n - 1))
         )
         sample_size = 12
-        idxs = window_df(df, sample_size,
+        output_size = 2
+        idxs = window_df(df, sample_size, output_size,
             ZonedDateTime(year, month, 30, 0, tz"Asia/Seoul"), ZonedDateTime(year, month, 31, 23, tz"Asia/Seoul"))
-        @test length(idxs) == 37
-        @test df[collect(idxs[37]), :] == DataFrame(
-            A = 733:744,
-            B = 1477:1488,
-            C = 2221:2232,
-            date = collect(ZonedDateTime(year, month, 31, 12, tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 31, 23, tz"Asia/Seoul"))
+        @test length(idxs) == 35
+        @test df[collect(idxs[35]), :] == DataFrame(
+            A = 731:744,
+            B = 1475:1488,
+            C = 2219:2232,
+            date = collect(ZonedDateTime(year, month, 31, 10, tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 31, 23, tz"Asia/Seoul"))
         )
     end
 
@@ -196,7 +195,9 @@ end
             B = n+1:2n,
             C = 2n+1:3n
         )
-        @test_throws UndefVarError window_df(df, sample_size,
+        sample_size = 12
+        output_size = 2
+        @test_throws ArgumentError window_df(df, sample_size, output_size,
             ZonedDateTime(year, month, 31, 1, tz"Asia/Seoul"), ZonedDateTime(year, month, 31, 23, tz"Asia/Seoul"))
     end
 
@@ -214,10 +215,12 @@ end
                     tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 1, 0, tz"Asia/Seoul") + Hour(n - 1))
         )
         sample_size = 12
-        @test_throws ArgumentError window_df(df, sample_size,
+        output_size = 2
+        @test_throws ArgumentError window_df(df, sample_size, output_size,
             ZonedDateTime(year, month, 31, 23, tz"Asia/Seoul"), ZonedDateTime(year, month, 31, 1, tz"Asia/Seoul"))
         sample_size = 36
-        @test_throws BoundsError window_df(df, sample_size,
+        ouptut_size = 2
+        @test_throws BoundsError window_df(df, sample_size, output_size,
             ZonedDateTime(year, month, 31, 1, tz"Asia/Seoul"), ZonedDateTime(year, month, 31, 23, tz"Asia/Seoul"))
         
     end
@@ -401,7 +404,7 @@ end
             C = collect(2*len_df+1:3*len_df)
         )
         idx = collect(1:sample_size)
-        pair = make_pairs(df, :C, idx, [:A, :B], input_size, output_size)
+        pair = make_pairs(df, :C, idx, [:A, :B], sample_size, output_size)
         #=
         pair should be..
 
