@@ -406,11 +406,11 @@ end
     getX(df::DataFrame, idxs, features)
 get X in Dataframe and construct X by flattening
 """
-function getX(df::DataFrame, idxs::Array{I, 1}, features::Array{Symbol, 1}) where I<:Integer
+function getX(df::DataFrame, idxs::Array{I, 1}, features::Array{Symbol, 1}, input_size::Integer) where I<:Integer
     X = convert(Matrix, df[collect(idxs), features])
-    
+
     # serialize (2D -> 1D)
-    return vec(X)
+    return vec(X[1:input_size])
 end
 
 getX(df::DataFrame, idxs, features::Array{String,1}) = getX(df, idxs, Symbol.(eval.(features)))
@@ -441,9 +441,12 @@ input_size = sample size * num_selected_columns
 function make_pairs(df::DataFrame, ycol::Symbol,
     idx::Array{I, 1}, features::Array{Symbol, 1},
     sample_size::Integer, output_size::Integer) where I<:Integer
-    X = getX(df, idx, features) |> gpu
-    Y = getY(df, idx, ycol, sample_size, output_size) |> gpu
-    
+    X = getX(df, idx, features, sample_size * length(features))
+    Y = getY(df, idx, ycol, sample_size, output_size)
+
+    X = X |> gpu
+    Y = Y |> gpu
+
     @assert length(X) == sample_size * length(features)
     @assert length(Y) == output_size
     @assert ndims(X) == 1

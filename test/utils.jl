@@ -330,11 +330,11 @@ end
             C = 25:36)
         sample_size = 4
         idxs = collect(1:4)
-        features = ["A", "B", "C"]
-        X = getX(df, idxs, features)
+        features = [:A, :B, :C]
+        X = getX(df, idxs, features, sample_size * length(features))
         @test X == [1, 2, 3, 4, 13, 14, 15, 16, 25, 26, 27, 28]
         idxs = collect(3:6)
-        X = getX(df, idxs, features)
+        X = getX(df, idxs, features, sample_size * length(features))
         @test X == [3, 4, 5, 6, 15, 16, 17, 18, 27, 28, 29, 30]
     end
 
