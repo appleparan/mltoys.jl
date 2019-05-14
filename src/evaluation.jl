@@ -47,5 +47,5 @@ function huber_loss(ŷ, y)
 end
 
 function huber_loss_mean(ŷ, y)
-    mean.(humber_loss(ŷ, y))
+    mean.(huber_loss(ŷ, y))
 end
