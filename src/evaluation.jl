@@ -1,3 +1,4 @@
+using Statistics
 using CuArrays
 
 using Flux
