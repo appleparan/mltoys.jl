@@ -207,7 +207,7 @@ function compile_PM10(input_size::Integer, batch_size::Integer, output_size::Int
     ) |> gpu
 
     #loss(x, y) = Flux.mse(model(x), y)
-    loss(x, y) = huber_loss(model(x), y)
+    loss(x, y) = huber_loss_mean(model(x), y)
     accuracy(setname, data) = RSR(setname, data, model, μσ)
     opt = Flux.ADAM()
 
@@ -239,7 +239,7 @@ function compile_PM25(input_size::Integer, batch_size::Integer, output_size::Int
     ) |> gpu
 
     #loss(x, y) = Flux.mse(model(x), y)
-    loss(x, y) = huber_loss(model(x), y)
+    loss(x, y) = huber_loss_mean(model(x), y)
     accuracy(setname, data) = RSR(setname, data, model, μσ)
     opt = Flux.ADAM()
 
