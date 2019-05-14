@@ -36,10 +36,10 @@ function RSR(setname::String, dataset, model, μσ)
     sqrt(Flux.Tracker.data(RMSE)) / sqrt(Flux.Tracker.data(STD_obs))
 end
 
-function huber_loss(ŷ, y)
+function huber_loss(ŷ, y)
     δ = 0.5
-    error = abs.(̂ŷ .- y)
-    cond = abs.(̂ŷ .- y) .< δ
+    error = abs.(ŷ .- y)
+    cond = error .< δ
     squared_loss = 0.5 * error.^2
     linear_loss = δ .* (error .- δ .* 0.5)
 
