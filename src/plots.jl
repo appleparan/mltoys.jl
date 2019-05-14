@@ -177,6 +177,8 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
         line=:solid, color=:black, label="model")
     Plots.png(pl, line_01h_path)
 
+    @info "Correlation in 01H results: ", Statistics.cor(JuliaDB.select(dnn_01h_table, :y), JuliaDB.select(dnn_01h_table, :ŷ))
+
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_24h[1:len_model], JuliaDB.select(dnn_24h_table, :y),
         ylim = (0.0, maximum(JuliaDB.select(dnn_24h_table, :y))),
@@ -190,6 +192,8 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
         ylim = (0.0, maximum(JuliaDB.select(dnn_01h_table, :ŷ))),
         line=:solid, color=:black, label="model")
     Plots.png(pl, line_24h_path)
+
+    @info "Correlation in 24H results: ", Statistics.cor(JuliaDB.select(dnn_24h_table, :y), JuliaDB.select(dnn_24h_table, :ŷ))
 end
 
 function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime, f_date::DateTime, ycol::Symbol, output_dir::String)
