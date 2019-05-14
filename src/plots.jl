@@ -49,7 +49,7 @@ end
 function plot_corr(_df::DataFrame, feas, label_feas, output_dir::String)
     ENV["GKSwstype"] = "100"
 
-    crpl_path = output_dir * "perason_corr.png"
+    crpl_path = output_dir * "pearson_corr.png"
 
     _dfM = convert(Matrix, _df[:, feas])
 
