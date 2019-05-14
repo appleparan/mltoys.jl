@@ -44,7 +44,7 @@ function huber_loss(ŷ, y)
     squared_loss = 0.5 * error.^2
     linear_loss = δ .* (error .- δ .* 0.5)
 
-    Int.(cond) .* squared_loss + Int.(.!cond) .* linear_loss    
+    ifelse.(cond, squared_loss, linear_loss)
 end
 
 function huber_loss_mean(ŷ, y)
