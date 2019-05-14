@@ -117,10 +117,10 @@ function train(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas::Arr
     plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, ycol, "/mnt/")
     # 3 months plot
     # TODO : how to generalize date range? how to split based on test_dates?
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, ycol, DateTime(2018, 1, 1, 1), DateTime(2018, 3, 31, 23), "/mnt/")
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, ycol, DateTime(2018, 4, 1, 1), DateTime(2018, 6, 30, 23), "/mnt/")
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, ycol, DateTime(2018, 7, 1, 1), DateTime(2018, 9, 30, 23), "/mnt/")
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, ycol, DateTime(2018, 10, 1, 1), DateTime(2018, 12, 31, 23), "/mnt/")
+    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 1, 1, 1), DateTime(2018, 3, 31, 23), ycol, "/mnt/")
+    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 4, 1, 1), DateTime(2018, 6, 30, 23), ycol, "/mnt/")
+    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 7, 1, 1), DateTime(2018, 9, 30, 23), ycol, "/mnt/")
+    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 10, 1, 1), DateTime(2018, 12, 31, 23), ycol, "/mnt/")
 
     model, μσ
 end

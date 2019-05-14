@@ -187,7 +187,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
     Plots.png(pl, line_24h_path)
 end
 
-function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date, f_date, ycol::Symbol, output_dir::String)
+function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime, f_date::DateTime, ycol::Symbol, output_dir::String)
     ENV["GKSwstype"] = "100"
     fmt = @dateformat_str "yyyymmddHH"
 
