@@ -166,7 +166,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_01h[1:len_model], JuliaDB.select(dnn_01h_table, :y),
         ylim = (0.0, maximum(JuliaDB.select(dnn_01h_table, :y))),
-        line=:dot, color=:red, label="obs.",
+        line=:dot, color=:black, label="obs.",
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
@@ -174,7 +174,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
         xlabel="date", ylabel=String(ycol), legend=true)
     pl = Plots.plot!(dates_01h[1:len_model], JuliaDB.select(dnn_01h_table, :ŷ),
         ylim = (0.0, maximum(JuliaDB.select(dnn_01h_table, :ŷ))),
-        line=:solid, color=:black, label="model")
+        line=:solid, color=:red, label="model")
     Plots.png(pl, line_01h_path)
 
     @info "Correlation in 01H results: ", Statistics.cor(JuliaDB.select(dnn_01h_table, :y), JuliaDB.select(dnn_01h_table, :ŷ))
@@ -182,7 +182,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_24h[1:len_model], JuliaDB.select(dnn_24h_table, :y),
         ylim = (0.0, maximum(JuliaDB.select(dnn_24h_table, :y))),
-        line=:dot, color=:red, label="obs.",
+        line=:dot, color=:black, label="obs.",
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
@@ -190,7 +190,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
         xlabel="date", ylabel=String(ycol), legend=true)
     pl = Plots.plot!(dates_24h[1:len_model], JuliaDB.select(dnn_24h_table, :ŷ),
         ylim = (0.0, maximum(JuliaDB.select(dnn_01h_table, :ŷ))),
-        line=:solid, color=:black, label="model")
+        line=:solid, color=:red, label="model")
     Plots.png(pl, line_24h_path)
 
     @info "Correlation in 24H results: ", Statistics.cor(JuliaDB.select(dnn_24h_table, :y), JuliaDB.select(dnn_24h_table, :ŷ))
@@ -223,7 +223,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_01h[s_01h_idx:f_01h_idx], y_01h_vals[s_01h_idx:f_01h_idx],
         ylim = (0.0, maximum(y_01h_vals[s_01h_idx:f_01h_idx])),
-        line=:dot, color=:red, label="obs.",
+        line=:dot, color=:black, label="obs.",
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
@@ -231,13 +231,13 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime
         xlabel="date", ylabel=String(ycol), legend=true)
     pl = Plots.plot!(dates_01h[s_01h_idx:f_01h_idx], ŷ_01h_vals[s_01h_idx:f_01h_idx],
         ylim = (0.0, maximum(ŷ_01h_vals[s_01h_idx:f_01h_idx])),
-        line=:solid, color=:black, label="model")
+        line=:solid, color=:red, label="model")
     Plots.png(pl, line_01h_path)
 
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_24h[s_24h_idx:f_24h_idx], y_01h_vals[s_24h_idx:f_24h_idx],
         ylim = (0.0, maximum(y_24h_vals[s_24h_idx:f_24h_idx])),
-        line=:dot, color=:red, label="obs.",
+        line=:dot, color=:black, label="obs.",
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
@@ -245,6 +245,6 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime
         xlabel="date", ylabel=String(ycol), legend=true)
     pl = Plots.plot!(dates_24h[s_24h_idx:f_24h_idx], ŷ_01h_vals[s_24h_idx:f_24h_idx],
         ylim = (0.0, maximum(ŷ_24h_vals[s_24h_idx:f_24h_idx])),
-        line=:solid, color=:black, label="model")
+        line=:solid, color=:red, label="model")
     Plots.png(pl, line_24h_path)
 end
