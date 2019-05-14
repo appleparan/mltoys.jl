@@ -17,7 +17,7 @@ export join_data,
         split_sizes3, split_sizes2, create_chunks, create_idxs,
         getHoursLater, getX, getY, make_pairs, make_minibatch, remove_missing_pairs!,
 # evaluation
-        RSME, RSR,
+        RSME, RSR, huber_loss, huber_loss_mean,
 # jongro01_DNN
         filter_jongro, read_jongro, train_all_DNN,
 # plot
