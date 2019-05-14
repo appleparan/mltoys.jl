@@ -230,7 +230,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime
         title=String(ycol) * " in dates (1h)", 
         xlabel="date", ylabel=String(ycol), legend=true)
     pl = Plots.plot!(dates_01h[s_01h_idx:f_01h_idx], ŷ_01h_vals[s_01h_idx:f_01h_idx],
-        ylim = (0.0, maximum(ŷ_01h_vals[s_01h_idx:F_01h_idx])),
+        ylim = (0.0, maximum(ŷ_01h_vals[s_01h_idx:f_01h_idx])),
         line=:solid, color=:black, label="model")
     Plots.png(pl, line_01h_path)
 
