@@ -35,8 +35,7 @@ function run_model()
     plot_totaldata(df, :PM25, "/mnt/")
     plot_totaldata(df, :PM10, "/mnt/")
 
-    plot_totaldata(df, Symbol(norm_prefix * "PM25"), "/mnt/")
-    plot_totaldata(df, Symbol(norm_prefix * "PM10"), "/mnt/")
+    plot_corr(df, norm_features, features, "/mnt/")
     
     sample_size = 72
     output_size = 24

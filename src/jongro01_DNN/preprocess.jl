@@ -42,7 +42,7 @@ function read_jongro(input_path="/input/jongro_single.csv")
         save_jongro_df()
     end
 
-    df = CSV.read(input_path)
+    df = DataFrame(CSV.read(input_path))
     
     @info "Start preprocessing..."
     flush(stdout); flush(stderr)
@@ -51,7 +51,7 @@ function read_jongro(input_path="/input/jongro_single.csv")
     # no and staitonCode must not have missing value
     @assert size(collect(skipmissing(df[:stationCode])), 1) == size(df, 1)
 
-    dropmissing!(df, [:stationCode])
+    DataFrames.dropmissing!(df, [:stationCode])
     cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
     airkorea_cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25]
     weather_cols = [:temp, :u, :v, :pres, :humid]
@@ -60,7 +60,7 @@ function read_jongro(input_path="/input/jongro_single.csv")
     plot_totaldata(df, :PM10, "/mnt/raw_")
     flush(stdout); flush(stderr)
 
-    allowmissing!(df, cols)
+    DataFrames.allowmissing!(df, cols)
     for col in [:prep, :snow]
         df[col] = Missings.coalesce.(df[col], 0.0)
     end

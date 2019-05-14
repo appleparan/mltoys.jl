@@ -23,6 +23,7 @@ export join_data,
 # plot
         plot_totaldata,
         get_prediction_table,
+        plot_corr,
         plot_DNN_scatter,
         plot_DNN_histogram,
         plot_DNN_lineplot        
