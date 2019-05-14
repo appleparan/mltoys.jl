@@ -50,19 +50,24 @@ function plot_corr(_df::DataFrame, feas, label_feas, output_dir::String)
     ENV["GKSwstype"] = "100"
 
     crpl_path = output_dir * "pearson_corr.png"
+    crcsv_path = output_dir * "pearson_corr.csv"
 
-    _dfM = convert(Matrix, _df[:, feas])
+    dfM = convert(Matrix, _df[:, feas])
 
-    dfm_cor = Statistics.cor(_dfM)
+    dfm_cor = Statistics.cor(dfM)
 
     crpl = Plots.heatmap(string.(label_feas), string.(label_feas), dfm_cor,
-        clim = (-1.0, 1.0), c=:heat, legend=true,
+        clim = (-1.0, 1.0), c=:blues, legend=true,
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         title="CORR",
         margin=15px, background_color = BG_COLOR)
 
     Plots.png(crpl, crpl_path)
+
+    df_cor = DataFrame(dfm_cor)
+    names!(df_cor, Symbol.(label_feas))
+    CSV.write(crcsv_path, df_cor, writeheader = true)
 end
 
 function get_prediction_table(df, dataset, model, ycol::Symbol, μ::AbstractFloat, σ::AbstractFloat, output_dir::String)
