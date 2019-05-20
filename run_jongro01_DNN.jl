@@ -1,9 +1,7 @@
 using Random
 
-using Dates
+using Dates, TimeZones
 using MicroLogging
-using StatsBase: mean_and_std
-using TimeZones
 
 using MLToys
 

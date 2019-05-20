@@ -406,7 +406,7 @@ end
     getX(df::DataFrame, idxs, features)
 get X in Dataframe and construct X by flattening
 """
-function getX(df::DataFrame, idxs::Array{I, 1}, features::Array{Symbol, 1}, input_size::Integer) where I<:Integer
+function getX_DNN(df::DataFrame, idxs::Array{I, 1}, features::Array{Symbol, 1}, input_size::Integer) where I<:Integer
     X = convert(Matrix, df[collect(idxs), features])
 
     # serialize (2D -> 1D)
@@ -419,7 +419,7 @@ getX(df::DataFrame, idxs, features::Array{String,1}) = getX(df, idxs, Symbol.(ev
     getY(X::DateFrame, hours)
 get last date of X and construct Y with `hours` range
 """
-function getY(df::DataFrame, idx::Array{I, 1},
+function getY_DNN(df::DataFrame, idx::Array{I, 1},
     ycol::Symbol, sample_size::Integer=72, output_size::Integer=24) where I<:Integer
     df_X = df[idx, :]
     last_date_of_X = df_X[sample_size, :date]
@@ -438,11 +438,11 @@ input_size = sample size * num_selected_columns
 
 """
 # Bundle images together with labels and group into minibatchess
-function make_pairs(df::DataFrame, ycol::Symbol,
+function make_pairs_DNN(df::DataFrame, ycol::Symbol,
     idx::Array{I, 1}, features::Array{Symbol, 1},
     sample_size::Integer, output_size::Integer) where I<:Integer
-    X = getX(df, idx, features, sample_size * length(features))
-    Y = getY(df, idx, ycol, sample_size, output_size)
+    X = getX_DNN(df, idx, features, sample_size * length(features))
+    Y = getY_DNN(df, idx, ycol, sample_size, output_size)
 
     X = X |> gpu
     Y = Y |> gpu
@@ -470,7 +470,7 @@ do this for train_set, valid_set, test_set
 each single batch is column stacked
 
 """
-function make_minibatch(input_pairs::Array{T},
+function make_minibatch_DNN(input_pairs::Array{T},
     chnks::Array{I, 1}, batch_size::Integer) where I<:Integer where T<:Tuple
     # input_pairs Array{Tuple{Array{Int64,1},Array{Int64,1}},1}
     X = []
@@ -495,7 +495,7 @@ function make_minibatch(input_pairs::Array{T},
 end
 
 """
-    validate_pairs!(pairs, ratio = 0.5)
+    remove_missing_pairs!(pairs, ratio = 0.5)
 """
 function remove_missing_pairs!(pairs, missing_ratio = 0.5, p::Progress = Progress(length(pairs)))
     @assert 0.0 <= missing_ratio <= 1.0
@@ -515,4 +515,89 @@ function remove_missing_pairs!(pairs, missing_ratio = 0.5, p::Progress = Progres
     deleteat!(pairs, invalid_idxs)
 
     nothing
+end
+
+"""
+    getX_LSTM(df::DataFrame, idxs, features)
+get X in Dataframe and construct X by flattening
+"""
+function getX_LSTM(df::DataFrame, idxs::Array{I, 1}, features::Array{Symbol, 1}, input_size::Integer) where I<:Integer
+    X = convert(Matrix, df[collect(idxs), features])
+
+    return X
+end
+
+getX_LSTM(df::DataFrame, idxs, features::Array{String,1}) =
+    getX_LSTM(df, idxs, Symbol.(eval.(features)))
+
+"""
+    getY_LSTM(X::DateFrame, hours)
+get last date of X and construct Y with `hours` range
+"""
+getY_LSTM(df::DataFrame, idx::Array{I, 1},
+    ycol::Symbol, sample_size::Integer=72, output_size::Integer=24) where I<:Integer =
+        getY(df, idx, ycol, sample_size, output_size)
+
+"""
+    make_LSTM_pairs(df, ycol, idx, features, hours)
+create pairs in `df` along with `idx` (row) and `features` (columns)
+output determined by ycol
+
+input_size = sample size * num_selected_columns
+
+"""
+# Bundle images together with labels and group into minibatchess
+function make_pairs_LSTM(df::DataFrame, ycol::Symbol,
+    idx::Array{I, 1}, features::Array{Symbol, 1},
+    time_length::Integer, output_size::Integer) where I<:Integer
+    X = getX_LSTM(df, idx, features, time_length * length(features))
+    Y = getY_LSTM(df, idx, ycol, time_length, output_size)
+    @show size(X), size(Y)
+
+    # 2D -> 3D
+    X = reshape(X, (1, time_length, length(features)))
+    X = X |> gpu
+    Y = Y |> gpu
+
+    return (X, Y)
+end
+
+"""
+    make_minibatch_LSTM(input_pairs, batch_size, train_idx, valid_idx, test_idx)
+make batch by sampling. size of batch (input_size, batch_size) 
+
+[(input_single, output_single)...] =>
+[
+    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // single batch
+    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // single batch
+    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // single batch
+]
+
+do this for train_set, valid_set, test_set
+each single batch is column stacked
+
+"""
+function make_minibatch_LSTM(input_pairs::Array{T},
+    chnks::Array{I, 1}, batch_size::Integer) where I<:Integer where T<:Tuple
+
+    X = [pair[1] for pair in input_pairs[chnks]]
+    Y = [pair[2] for pair in input_pairs[chnks]]
+    X_size = size(X)
+    Y_size = size(Y)
+
+    @show batch_size, X_size, Y_size
+
+    nX = zeros(Tuple(collect(Base.Iterators.flatten(((batch_size,), X_size)))))
+    nY = zeros(Tuple(collect(Base.Iterators.flatten(((batch_size,), Y_size)))))
+    # append zeros if chnks size is less than batch_size
+    chnks_size = length(chnks)
+
+    for i in 1:chnks_size
+        nX[i, :, :] = X
+        nY[i, :, :] = Y
+    end
+
+    # (input_size * batch_size) x length(pairs), (output_size) x length(pairs)
+    # Flux.batchseq : pad zero when size is lower than batch_size
+    nX, nY
 end

@@ -1,20 +1,3 @@
-using LinearAlgebra: norm
-using Random
-using Printf
-
-using BSON: @save, @load
-using CSV
-using CuArrays
-using Dates: now
-using JuliaDB
-using MicroLogging
-using ProgressMeter
-using StatsBase: mean_and_std
-
-using Flux
-using Flux.Tracker
-using Flux.Tracker: param, back!, grad, data
-
 function train_all_DNN(df::DataFrame, norm_feas::Array{Symbol}, norm_prefix::String,
     sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
     total_wd_idxs::Array{Any, 1}, test_wd_idxs::Array{Any, 1}, train_chnk::Array{T, 1}, valid_idxs::Array{I, 1}, test_idxs::Array{I, 1},
@@ -24,7 +7,7 @@ function train_all_DNN(df::DataFrame, norm_feas::Array{Symbol}, norm_prefix::Str
     flush(stdout); flush(stderr)
 
     # free minibatch after training because of memory usage
-    PM10_model, PM10_μσ = train(df, :PM10, norm_prefix, norm_feas,
+    PM10_model, PM10_μσ = train_DNN(df, :PM10, norm_prefix, norm_feas,
     sample_size, input_size, batch_size, output_size, epoch_size,
     total_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs,
     "PM10", test_dates)
@@ -32,7 +15,7 @@ function train_all_DNN(df::DataFrame, norm_feas::Array{Symbol}, norm_prefix::Str
     @info "PM25 Training..."
     flush(stdout); flush(stderr)
 
-    PM25_model, PM25_μσ = train(df, :PM25, norm_prefix, norm_feas,
+    PM25_model, PM25_μσ = train_DNN(df, :PM25, norm_prefix, norm_feas,
     sample_size, input_size, batch_size, output_size, epoch_size,
     total_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs,
     "PM25", test_dates)
@@ -42,17 +25,19 @@ end
 
 """
     train(df, ycol, norm_prefix, norm_feas,
-        input_size, batch_size, output_size, epoch_size,
-        total_wd_idxs, train_chnk:, valid_idxs, test_idxs,
-        μσs, filename)
-
+        sample_size, input_size, batch_size, output_size, epoch_size,
+        total_wd_idxs, test_wd_idxs,
+        train_chnk, valid_idxs, test_idxs,
+        μσs, filename, test_dates)
 
 """
-function train(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas::Array{Symbol},
+function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas::Array{Symbol},
     sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
     total_wd_idxs::Array{Any, 1}, test_wd_idxs::Array{Any, 1}, 
     train_chnk::Array{T, 1}, valid_idxs::Array{I, 1}, test_idxs::Array{I, 1},
     μσs::AbstractNDSparse, filename::String, test_dates::Array{ZonedDateTime,1}) where T <: Array{I, 1} where I <: Integer
+
+    @info "DNN training starts.."
 
     norm_ycol = Symbol(norm_prefix, ycol)
     norm_feas = copy(_norm_feas)
@@ -75,17 +60,17 @@ function train(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas::Arr
         (value = [train_μ, train_σ, valid_μ, valid_σ, test_μ, test_σ],))
 
     # construct compile function symbol
-    compile = eval(Symbol(:compile, '_', ycol))
+    compile = eval(Symbol(:compile, "_", ycol, "_DNN"))
     model, loss, accuracy, opt = compile(input_size, batch_size, output_size, μσ)
 
     # create (input(1D), output(1D)) pairs of total dataframe row, it is indepdent by train/valid/test set
     @info "    Constructing (input, output) pairs for train/valid set..."
     p = Progress(length(total_wd_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    input_pairs = [(ProgressMeter.next!(p); make_pairs(df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in total_wd_idxs]
+    input_pairs = [(ProgressMeter.next!(p); make_pairs_DNN(df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in total_wd_idxs]
 
     @info "    Constructing (input, output) pairs for test set..."
     p = Progress(length(test_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    test_set = [(ProgressMeter.next!(p); make_pairs(df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
+    test_set = [(ProgressMeter.next!(p); make_pairs_DNN(df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
 
     @info "    Removing sparse datas..."
     p = Progress(length(input_pairs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
@@ -97,7 +82,7 @@ function train(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas::Arr
     @info "    Constructing minibatch..."
     p = Progress(length(train_chnk), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     # total_wd_idxs[chnk] = get list of pair indexes -> i.e. [1, 2, 3, 4]
-    train_set = [(ProgressMeter.next!(p); make_minibatch(input_pairs, chnk, batch_size)) for chnk in train_chnk]
+    train_set = [(ProgressMeter.next!(p); make_minibatch_DNN(input_pairs, chnk, batch_size)) for chnk in train_chnk]
 
     # don't construct minibatch for valid & test sets
     valid_set = input_pairs[valid_idxs]
@@ -105,7 +90,7 @@ function train(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas::Arr
     #train_set = train_set |> gpu
     #valid_set = valid_set |> gpu
 
-    train!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, filename)
+    train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, filename)
 
     # TODO : (current) validation with zscore, (future) validation with original value?
     @info "    Validation acc : ", accuracy("valid", valid_set)
@@ -117,15 +102,17 @@ function train(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas::Arr
     plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, ycol, "/mnt/")
     # 3 months plot
     # TODO : how to generalize date range? how to split based on test_dates?
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 1, 1, 1), DateTime(2018, 3, 31, 23), ycol, "/mnt/")
+    # 1/4 : because train size is 3 days, result should be start from 1/4
+    # 12/29 : same reason 1/4, but this results ends with 12/31 00:00 ~ 12/31 23:00
+    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 1, 4, 1), DateTime(2018, 3, 31, 23), ycol, "/mnt/")
     plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 4, 1, 1), DateTime(2018, 6, 30, 23), ycol, "/mnt/")
     plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 7, 1, 1), DateTime(2018, 9, 30, 23), ycol, "/mnt/")
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 10, 1, 1), DateTime(2018, 12, 31, 23), ycol, "/mnt/")
+    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 10, 1, 1), DateTime(2018, 12, 27, 23), ycol, "/mnt/")
 
     model, μσ
 end
 
-function train!(model, train_set, valid_set, loss, accuracy, opt, epoch_size::Integer, filename::String)
+function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size::Integer, filename::String)
 
     @info("    Beginning training loop...")
     flush(stdout); flush(stderr)
@@ -182,7 +169,7 @@ function train!(model, train_set, valid_set, loss, accuracy, opt, epoch_size::In
     end
 end
 
-function compile_PM10(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
+function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
     unit_size = Int(round(input_size * 2/3))
@@ -206,7 +193,7 @@ function compile_PM10(input_size::Integer, batch_size::Integer, output_size::Int
     model, loss, accuracy, opt
 end
 
-function compile_PM25(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
+function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
     unit_size = Int(round(input_size * 2/3))

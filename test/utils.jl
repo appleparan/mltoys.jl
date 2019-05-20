@@ -1,10 +1,3 @@
-using Base.Iterators: partition
-using Test
-
-using DataFrames, Query
-using StatsBase: zscore, mean, std, mean_and_std
-using Dates, TimeZones
-
 using MLToys
 
 @info "Testing Stats..."

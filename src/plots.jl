@@ -1,21 +1,3 @@
-using CuArrays
-using Statistics
-
-using CSV
-using Dates, TimeZones
-using DataFrames
-using Flux
-using Flux.Tracker
-using JuliaDB
-
-using Plots
-using Plots.PlotMeasures
-using ColorTypes
-
-using StatsPlots
-
-ENV["GKSwstype"] = "100"
-
 const BG_COLOR = RGB(248/255, 247/255, 247/255)
 const LN_COLOR = RGB(56/255, 44/255, 80/255)
 const MK_COLOR = RGB(109/255, 117/255, 126/255)
@@ -166,7 +148,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_01h[1:len_model], JuliaDB.select(dnn_01h_table, :y),
         ylim = (0.0, maximum(JuliaDB.select(dnn_01h_table, :y))),
-        line=:dot, color=:black, label="obs.",
+        line=:dash, color=:black, label="obs.",
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
@@ -182,7 +164,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_24h[1:len_model], JuliaDB.select(dnn_24h_table, :y),
         ylim = (0.0, maximum(JuliaDB.select(dnn_24h_table, :y))),
-        line=:dot, color=:black, label="obs.",
+        line=:dash, color=:black, label="obs.",
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
@@ -223,7 +205,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_01h[s_01h_idx:f_01h_idx], y_01h_vals[s_01h_idx:f_01h_idx],
         ylim = (0.0, maximum(y_01h_vals[s_01h_idx:f_01h_idx])),
-        line=:dot, color=:black, label="obs.",
+        line=:dash, color=:black, label="obs.",
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
@@ -237,7 +219,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_24h[s_24h_idx:f_24h_idx], y_01h_vals[s_24h_idx:f_24h_idx],
         ylim = (0.0, maximum(y_24h_vals[s_24h_idx:f_24h_idx])),
-        line=:dot, color=:black, label="obs.",
+        line=:dash, color=:black, label="obs.",
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,

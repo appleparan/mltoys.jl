@@ -1,15 +1,3 @@
-using Base.Filesystem
-
-using CSV
-using DataValues
-using DataFrames
-using Dates, TimeZones
-using ExcelReaders
-using FileIO
-using Glob
-using MicroLogging
-using ProgressMeter
-
 # https://github.com/vtjnash/Glob.jl/issues/11
 rglob(pat, topdir) = Base.Iterators.flatten(map(d -> glob(pat, d[1]), walkdir(topdir)))
 
