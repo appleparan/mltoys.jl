@@ -1,15 +1,3 @@
-using Base.Iterators: partition, zip
-using Random
-
-using CuArrays
-using Dates, TimeZones
-using DataFrames, Query
-using Flux
-using JuliaDB
-using MicroLogging
-using ProgressMeter
-using StatsBase: mean, std, zscore, mean_and_std
-
 function mean_and_std_cols(df::DataFrame, cols::Array{Symbol, 1})
     syms = []
     types = []
@@ -403,7 +391,7 @@ function getHoursLater(df::DataFrame, hours::Integer, last_date::ZonedDateTime)
 end
 
 """
-    getX(df::DataFrame, idxs, features)
+    getX_DNN(df::DataFrame, idxs, features, input_size)
 get X in Dataframe and construct X by flattening
 """
 function getX_DNN(df::DataFrame, idxs::Array{I, 1}, features::Array{Symbol, 1}, input_size::Integer) where I<:Integer
@@ -413,14 +401,14 @@ function getX_DNN(df::DataFrame, idxs::Array{I, 1}, features::Array{Symbol, 1}, 
     return vec(X[1:input_size])
 end
 
-getX(df::DataFrame, idxs, features::Array{String,1}) = getX(df, idxs, Symbol.(eval.(features)))
+getX_DNN(df::DataFrame, idxs, features::Array{String,1}) = getX_DNN(df, idxs, Symbol.(eval.(features)))
 
 """
     getY(X::DateFrame, hours)
 get last date of X and construct Y with `hours` range
 """
-function getY_DNN(df::DataFrame, idx::Array{I, 1},
-    ycol::Symbol, sample_size::Integer=72, output_size::Integer=24) where I<:Integer
+function getY(df::DataFrame, idx::Array{I, 1},
+    ycol::Symbol, sample_size::Integer, output_size::Integer) where I<:Integer
     df_X = df[idx, :]
     last_date_of_X = df_X[sample_size, :date]
     
@@ -429,6 +417,8 @@ function getY_DNN(df::DataFrame, idx::Array{I, 1},
     Y[:, ycol]
 end
 
+getY_DNN(df::DataFrame, idx, ycol::Symbol, sample_size, output_size) =
+    getY(df, idx, ycol, sample_size, output_size)
 """
     make_pairs(df, ycol, idx, features, hours)
 create pairs in `df` along with `idx` (row) and `features` (columns)
@@ -524,38 +514,38 @@ get X in Dataframe and construct X by flattening
 function getX_LSTM(df::DataFrame, idxs::Array{I, 1}, features::Array{Symbol, 1}, input_size::Integer) where I<:Integer
     X = convert(Matrix, df[collect(idxs), features])
 
-    return X
+    return X[1:input_size, :]
 end
 
-getX_LSTM(df::DataFrame, idxs, features::Array{String,1}) =
-    getX_LSTM(df, idxs, Symbol.(eval.(features)))
+getX_LSTM(df::DataFrame, idxs, features::Array{String,1}, input_size::Integer) =
+    getX_LSTM(df, idxs, Symbol.(eval.(features)), input_size::Integer)
 
 """
     getY_LSTM(X::DateFrame, hours)
 get last date of X and construct Y with `hours` range
 """
 getY_LSTM(df::DataFrame, idx::Array{I, 1},
-    ycol::Symbol, sample_size::Integer=72, output_size::Integer=24) where I<:Integer =
+    ycol::Symbol, sample_size::Integer, output_size::Integer) where I<:Integer =
         getY(df, idx, ycol, sample_size, output_size)
 
 """
-    make_LSTM_pairs(df, ycol, idx, features, hours)
+    make_pairs_LSTM(df, ycol, idx, features, hours)
 create pairs in `df` along with `idx` (row) and `features` (columns)
 output determined by ycol
+pairs doesn't need to consider batch_size
 
-input_size = sample size * num_selected_columns
+unlike DNN, input part (pair[1]) of
+LSTM pairs must have size as (sample size, num_selected_columns)
 
 """
 # Bundle images together with labels and group into minibatchess
 function make_pairs_LSTM(df::DataFrame, ycol::Symbol,
     idx::Array{I, 1}, features::Array{Symbol, 1},
-    time_length::Integer, output_size::Integer) where I<:Integer
-    X = getX_LSTM(df, idx, features, time_length * length(features))
-    Y = getY_LSTM(df, idx, ycol, time_length, output_size)
-    @show size(X), size(Y)
+    sample_size::Integer, output_size::Integer) where I<:Integer
+    X = getX_LSTM(df, idx, features, sample_size)
+    Y = getY_LSTM(df, idx, ycol, sample_size, output_size)
 
     # 2D -> 3D
-    X = reshape(X, (1, time_length, length(features)))
     X = X |> gpu
     Y = Y |> gpu
 
@@ -568,14 +558,13 @@ make batch by sampling. size of batch (input_size, batch_size)
 
 [(input_single, output_single)...] =>
 [
-    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // single batch
-    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // single batch
-    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // single batch
+    (([[input_single, ..., input_single] ... [input_single, ..., input_single]]), (output_single, output_single, ...output_single,)), // single batch
+    (([[input_single, ..., input_single] ... [input_single, ..., input_single]]), (output_single, output_single, ...output_single,)), // single batch
+    (([[input_single, ..., input_single] ... [input_single, ..., input_single]]), (output_single, output_single, ...output_single,)), // single batch
 ]
 
 do this for train_set, valid_set, test_set
 each single batch is column stacked
-
 """
 function make_minibatch_LSTM(input_pairs::Array{T},
     chnks::Array{I, 1}, batch_size::Integer) where I<:Integer where T<:Tuple
@@ -587,9 +576,12 @@ function make_minibatch_LSTM(input_pairs::Array{T},
 
     @show batch_size, X_size, Y_size
 
+    # append zeros if chnks size is less than batch_size
+    # flatten -> merge ((batch_size,), X_size[1], X_size[2]) ==> (batch_size, X_size[1], X_size[2])
+    # Iterators should be collected and made by Tuple
     nX = zeros(Tuple(collect(Base.Iterators.flatten(((batch_size,), X_size)))))
     nY = zeros(Tuple(collect(Base.Iterators.flatten(((batch_size,), Y_size)))))
-    # append zeros if chnks size is less than batch_size
+
     chnks_size = length(chnks)
 
     for i in 1:chnks_size

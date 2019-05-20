@@ -1,8 +1,7 @@
 module MLToys
 
 using Base.Filesystem
-using Base.Iterators: partition
-using Test
+using Base.Iterators: partition, zip
 using LinearAlgebra: norm
 using Printf
 using Random
@@ -13,13 +12,13 @@ using CSV
 using DataFrames, Missings, Query
 using DataValues
 using Dates, TimeZones
-using ExcelReaders
+
 using FileIO
 using Glob
 using JuliaDB
 using MicroLogging
 using ProgressMeter
-using StatsBase: mean_and_std, zscore, mean, std
+using StatsBase: mean, std, mean_and_std, zscore
 
 using Flux
 using Flux.Tracker
@@ -29,6 +28,12 @@ using Plots
 using Plots.PlotMeasures
 using ColorTypes
 using StatsPlots
+
+import StatsBase: zscore!
+
+if isa(Sys.which("python3"), String)
+        using ExcelReaders
+end
 
 if isa(Sys.which("nvcc"), String)
     using CuArrays
@@ -52,7 +57,8 @@ export join_data,
 # utils
         mean_and_std_cols, hampel!, zscore!, exclude_elem, split_df, window_df,
         split_sizes3, split_sizes2, create_chunks, create_idxs,
-        getHoursLater, getX, getY, make_pairs, make_minibatch, remove_missing_pairs!,
+        getHoursLater, remove_missing_pairs!,
+        getX_DNN, getY_DNN, make_pairs_DNN, make_minibatch_DNN, 
         getX_LSTM, getY_LSTM, make_pairs_LSTM, make_minibatch_LSTM,
 # evaluation
         RSME, RSR, huber_loss, huber_loss_mean,

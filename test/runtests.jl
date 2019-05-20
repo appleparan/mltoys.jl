@@ -1,9 +1,13 @@
-using MLToys, Test
+using MLToys
+using Test
+
+using DataFrames
+using StatsBase: mean, std, zscore
+using Dates, TimeZones
 
 @testset "MLToys" begin
 
-@info "Testing Utils"
-
 include("utils.jl")
+include("evaluation.jl")
 
 end
