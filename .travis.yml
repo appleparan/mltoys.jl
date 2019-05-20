@@ -3,16 +3,25 @@ language: julia
 
 os:
   - linux
-  # - osx
+  - osx
 
 julia:
   - 1.0
+  - 1.1
   - nightly
+
+codecov: true
+
+notifications:
+  email: false
 
 matrix:
   allow_failures:
     - julia: nightly
 
+after_success:
+  - julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'
+
 ## uncomment the following lines to override the default test script
 script:
- - julia --color=yes -e 'using Pkg; Pkg.activate(); Pkg.instantiate(); Pkg.test()'
+ - julia --color=yes -e 'using Pkg; Pkg.activate(); Pkg.instantiate(); Pkg.test("MLToys", coverage=true)'

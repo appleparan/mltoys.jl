@@ -171,6 +171,12 @@ git-tree-sha1 = "b974e164358fea753ef853ce7bad97afec15bb80"
 uuid = "d38c429a-6771-53c6-b99e-75d170b6e991"
 version = "0.5.1"
 
+[[Coverage]]
+deps = ["HTTP", "JSON", "LibGit2", "MbedTLS", "Pkg", "Test"]
+git-tree-sha1 = "87aafc2c6bf6f58693c71900e41be7a5737e3434"
+uuid = "a2441757-f6aa-5fb2-8edb-039e3f45d037"
+version = "0.9.1"
+
 [[Crayons]]
 deps = ["Test"]
 git-tree-sha1 = "f621b8ef51fd2004c7cf157ea47f027fdeac5523"
