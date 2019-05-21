@@ -14,7 +14,12 @@ function RSME(dataset, model)
 end
 
 # http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.532.2506&rep=rep1&type=pdf
+# MODEL EVALUATION GUIDELINES FOR SYSTEMATIC QUANTIFICATION OF ACCURACY IN WATERSHED SIMULATIONS
+
 # RSR
+#=
+RMSE-observations standard deviation ratio 
+=#
 function RSR(setname::String, dataset, model, μσ)
     RMSE = 0.0
     STD_obs = 0.0
@@ -30,28 +35,43 @@ function RSR(setname::String, dataset, model, μσ)
     sqrt(Flux.Tracker.data(RMSE)) / sqrt(Flux.Tracker.data(STD_obs))
 end
 
-function huber_loss(ŷ, y)
-    δ = 0.5
-    error = abs.(ŷ - y)
-    cond = error .< δ
-    squared_loss = 0.5 * error.^2
-    linear_loss = δ .* (error .- δ^2 .* 0.5)
+# NSE
+#=
+normalized statistic that determines the
+relative magnitude of the residual variance (“noise”)
+compared to the measured data variance (“information”
+=#
+function NSE(setname::String, dataset, model, μσ)
+    RMSE = 0.0
+    STD_obs = 0.0
+    μ = μσ[setname, "μ"][:value]
+    for (x, y) in dataset
+        ŷ = model(x |> gpu)
+        @assert size(ŷ) == size(y)
 
-    is_squared = Int.(cond)
-    is_linear = Int.(.!cond)
+        RMSE += sum(abs2.(y .- ŷ))
+        STD_obs += sum(abs2.(y .- μ))
+    end
 
-    # why this line doesn't work?
-    # Int.(cond) .* squared_loss + Int.(.!cond) .* (10 .* linear_loss)
-    #=
-    ERROR: LoadError: MethodError: no method matching !(::ForwardDiff.Dual{Nothing,Bool,1})
-    Closest candidates are:
-        !(!Matched::Missing) at missing.jl:83
-        !(!Matched::Bool) at bool.jl:35
-        !(!Matched::Function) at operators.jl:853
-    =#
-    is_squared .* squared_loss + is_linear .* (10 .* linear_loss)
+    1.0 - Flux.Tracker.data(RMSE) / Flux.Tracker.data(STD_obs)
 end
 
-function huber_loss_mean(ŷ, y)
-    mean(huber_loss(ŷ, y))
+#=
+The optimal value of PBIAS is 0.0, with low-magnitude values indicating accurate model simulation. Positive values indicate model underestimation bias, and negative values
+indicate model overestimation bias (Gupta et al., 1999)
+=#
+function PBIAS(setname::String, dataset, model, μσ)
+    sim_tendency = 0.0
+    obs = 0.0
+    μ = μσ[setname, "μ"][:value]
+    for (x, y) in dataset
+        ŷ = model(x |> gpu)
+        @assert size(ŷ) == size(y)
+
+        sim_tendency += sum((y .- ŷ))
+        obs += sum(y)
+    end
+
+    Flux.Tracker.data(sim_tendency) / Flux.Tracker.data(obs) * 100
 end
+

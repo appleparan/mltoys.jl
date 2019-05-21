@@ -45,8 +45,9 @@ ENV["GKSwstype"] = "100"
 # https://github.com/JuliaPlots/Plots.jl/issues/1076#issuecomment-327509819
 include("input.jl")
 include("utils.jl")
-include("plots.jl")
+include("loss.jl")
 include("evaluation.jl")
+include("plots.jl")
 
 include("jongro01_DNN/preprocess.jl")
 include("jongro01_DNN/model.jl")
@@ -61,7 +62,9 @@ export join_data,
         getX_DNN, getY_DNN, make_pairs_DNN, make_minibatch_DNN, 
         getX_LSTM, getY_LSTM, make_pairs_LSTM, make_minibatch_LSTM,
 # evaluation
-        RSME, RSR, huber_loss, huber_loss_mean,
+        RSME, RSR, NSE, PBIAS
+# loss
+        huber_loss, huber_loss_mean,
 # jongro01_DNN
         train_all_DNN, filter_jongro, read_jongro,
 # jongro01_DNN

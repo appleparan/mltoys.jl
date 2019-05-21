@@ -1,4 +1,5 @@
-const BG_COLOR = RGB(248/255, 247/255, 247/255)
+#const BG_COLOR = RGB(248/255, 247/255, 247/255)
+const BG_COLOR = RGB(255/255, 255/255, 255/255)
 const LN_COLOR = RGB(56/255, 44/255, 80/255)
 const MK_COLOR = RGB(109/255, 117/255, 126/255)
 
@@ -229,4 +230,45 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime
         ylim = (0.0, maximum(ŷ_24h_vals[s_24h_idx:f_24h_idx])),
         line=:solid, color=:red, label="model")
     Plots.png(pl, line_24h_path)
+end
+
+function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
+    ENV["GKSwstype"] = "100"
+    rsr_path = output_dir * String(ycol) * "_eval_RSR.png"
+    nse_path = output_dir * String(ycol) * "_eval_NSE.png"
+    pbias_path = output_dir * String(ycol) * "_eval_PBIAS.png"
+
+    last_epoch = df[end, :epoch]
+
+    gr(size = (2560, 1080))
+    pl = Plots.plot(df[:, :epoch], df[:, :RSR],
+        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR,
+        title="RSR : " * String(ycol),
+        xlabel="epoch", ylabel="RSR", legend=false)
+    annotate!([(last_epoch, df[last_epoch, :RSR], text("Value: " *  string(df[last_epoch, :RSR]), 16, :black, :right))])
+    Plots.png(pl, rsr_path)
+
+    gr(size = (2560, 1080))
+    pl = Plots.plot(df[:, :epoch], df[:, :NSE],
+        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR,
+        title="NSE : " * String(ycol),
+        xlabel="epoch", ylabel="NSE", legend=false)
+    annotate!([(last_epoch, df[last_epoch, :NSE], text("Value: " *  string(df[last_epoch, :NSE]), 16, :black, :right))])
+    Plots.png(pl, nse_path)
+
+    gr(size = (2560, 1080))
+    pl = Plots.plot(df[:, :epoch], df[:, :PBIAS],
+        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR,
+        title="PBIAS : " * String(ycol),
+        xlabel="epoch", ylabel="PBIAS", legend=false)
+    annotate!([(last_epoch, df[last_epoch, :PBIAS], text("Value: " *  string(df[last_epoch, :PBIAS]), 16, :black, :right))])
+    Plots.png(pl, pbias_path)
+
+
 end

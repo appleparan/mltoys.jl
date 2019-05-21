@@ -90,7 +90,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     #train_set = train_set |> gpu
     #valid_set = valid_set |> gpu
 
-    train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, filename)
+    df_eval = train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, filename)
 
     # TODO : (current) validation with zscore, (future) validation with original value?
     @info "    Validation acc : ", accuracy("valid", valid_set)
@@ -109,6 +109,8 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 7, 1, 1), DateTime(2018, 9, 30, 23), ycol, "/mnt/")
     plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 10, 1, 1), DateTime(2018, 12, 27, 23), ycol, "/mnt/")
 
+    plot_evaluation(df_eval, ycol, "/mnt/")
+
     model, μσ
 end
 
@@ -121,6 +123,8 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
     last_improvement = 0
     acc = 0.0
 
+    df_eval = DataFrame(epoch = Int64[], RSR = Float64[], NSE = Float64[], PBIAS = Float64[])
+
     for epoch_idx in 1:epoch_size
         best_acc, last_improvement
         # Train for a single epoch
@@ -130,6 +134,13 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
         acc = accuracy("valid", valid_set)
         @info(@sprintf("epoch [%d]: Test accuracy: %.6f Time: %s", epoch_idx, acc, now()))
         flush(stdout); flush(stderr)
+
+        # record evaluation 
+        rsr = RSR("valid", valid_set)
+        nse = NSE("valid", valid_set)
+        pbias = PBIAS("valid", valid_set)
+
+        push!(df_eval, [epoch rsr nse pbias])
 
         # If our accuracy is good enough, quit out.
         if acc < 0.01
@@ -167,6 +178,8 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
             break
         end
     end
+
+    df_eval
 end
 
 function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
