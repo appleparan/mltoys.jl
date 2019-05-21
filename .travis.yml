@@ -11,11 +11,12 @@ julia:
 
 codecov: true
 
+before_install:
+  - sudo apt-get install -y python-xlrd
+
 addons:
   apt:
-    packages:
-      - python-matplotlib
-      - python3-matplotlib
+    update: true
 
 env:
 	matrix:
