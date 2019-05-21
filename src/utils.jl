@@ -135,7 +135,7 @@ hampel!(df::DataFrame, col::String, new_col::String, μ::Real, σ::Real) = hampe
 hampel!(df::DataFrame, col::Symbol, μ::Real, σ::Real) = hampel!(df, col, col, μ, σ)
 hampel!(df::DataFrame, col::String, μ::Real, σ::Real) = hampel!(df, Symbol(col), μ, σ)
 
-# TODO : How to pass optional argument? 
+# TODO : How to pass optional argument to nested function?
 """
     zscore!(df, col, new_col)
 Apply zscore (normalization) to dataframe `df`
@@ -463,9 +463,6 @@ each single batch is column stacked
 function make_minibatch_DNN(input_pairs::Array{T},
     chnks::Array{I, 1}, batch_size::Integer) where I<:Integer where T<:Tuple
     # input_pairs Array{Tuple{Array{Int64,1},Array{Int64,1}},1}
-    X = []
-    Y = []
-
     X = [pair[1] for pair in input_pairs[chnks]]
     Y = [pair[2] for pair in input_pairs[chnks]]
     X_size = length(X[1])
@@ -550,46 +547,4 @@ function make_pairs_LSTM(df::DataFrame, ycol::Symbol,
     Y = Y |> gpu
 
     return (X, Y)
-end
-
-"""
-    make_minibatch_LSTM(input_pairs, batch_size, train_idx, valid_idx, test_idx)
-make batch by sampling. size of batch (input_size, batch_size) 
-
-[(input_single, output_single)...] =>
-[
-    (([[input_single, ..., input_single] ... [input_single, ..., input_single]]), (output_single, output_single, ...output_single,)), // single batch
-    (([[input_single, ..., input_single] ... [input_single, ..., input_single]]), (output_single, output_single, ...output_single,)), // single batch
-    (([[input_single, ..., input_single] ... [input_single, ..., input_single]]), (output_single, output_single, ...output_single,)), // single batch
-]
-
-do this for train_set, valid_set, test_set
-each single batch is column stacked
-"""
-function make_minibatch_LSTM(input_pairs::Array{T},
-    chnks::Array{I, 1}, batch_size::Integer) where I<:Integer where T<:Tuple
-
-    X = [pair[1] for pair in input_pairs[chnks]]
-    Y = [pair[2] for pair in input_pairs[chnks]]
-    X_size = size(X)
-    Y_size = size(Y)
-
-    @show batch_size, X_size, Y_size
-
-    # append zeros if chnks size is less than batch_size
-    # flatten -> merge ((batch_size,), X_size[1], X_size[2]) ==> (batch_size, X_size[1], X_size[2])
-    # Iterators should be collected and made by Tuple
-    nX = zeros(Tuple(collect(Base.Iterators.flatten(((batch_size,), X_size)))))
-    nY = zeros(Tuple(collect(Base.Iterators.flatten(((batch_size,), Y_size)))))
-
-    chnks_size = length(chnks)
-
-    for i in 1:chnks_size
-        nX[i, :, :] = X
-        nY[i, :, :] = Y
-    end
-
-    # (input_size * batch_size) x length(pairs), (output_size) x length(pairs)
-    # Flux.batchseq : pad zero when size is lower than batch_size
-    nX, nY
 end

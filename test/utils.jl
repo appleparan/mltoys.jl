@@ -458,6 +458,7 @@ end
             ([19,20,21,22], [23,24]),
             ([25,26,27,28], [29,30])]
 
+        # batch_size == 2
         minibatch = make_minibatch_DNN(pairs, [1,2], 2)
         @test minibatch == 
             ([1 7; 2 8; 3 9; 4 10], [5 11; 6 12])
@@ -468,6 +469,7 @@ end
         @test minibatch == 
             ([25 0; 26 0; 27 0; 28 0], [29 0; 30 0])
 
+        # batch_size == 3
         minibatch = make_minibatch_DNN(pairs, [1,2,4], 3)
         @test minibatch == 
             ([1 7 19; 2 8 20; 3 9 21; 4 10 22], [5 11 23; 6 12 24])
