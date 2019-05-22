@@ -96,15 +96,15 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     @info "    Valid acc : ", accuracy("valid", valid_set)
     flush(stdout); flush(stderr)
 
-    @info " $(string(ycol)) RMSE for valid  : ", RMSE("test", test_set, model, μσ)
-    @info " $(string(ycol)) RSR for valid   : ", RSR("test", test_set, model, μσ)
-    @info " $(string(ycol)) NSE for valid   : ", NSE("test", test_set, model, μσ)
-    @info " $(string(ycol)) PBIAS for valid : ", PBIAS("test", test_set, model, μσ)
+    @info " $(string(ycol)) RMSE for test   : ", RMSE("test", test_set, model, μσ)
+    @info " $(string(ycol)) RSR for test    : ", RSR("test", test_set, model, μσ)
+    @info " $(string(ycol)) NSE for test    : ", NSE("test", test_set, model, μσ)
+    @info " $(string(ycol)) PBIAS for test  : ", PBIAS("test", test_set, model, μσ)
 
-    @info " $(string(ycol)) RMSE for test  : ", RMSE("valid", valid_set, model, μσ)
-    @info " $(string(ycol)) RSR for test   : ", RSR("valid", valid_set, model, μσ)
-    @info " $(string(ycol)) NSE for test   : ", NSE("valid", valid_set, model, μσ)
-    @info " $(string(ycol)) PBIAS for test : ", PBIAS("valid", valid_set, model, μσ)
+    @info " $(string(ycol)) RMSE for valid  : ", RMSE("valid", valid_set, model, μσ)
+    @info " $(string(ycol)) RSR for valid   : ", RSR("valid", valid_set, model, μσ)
+    @info " $(string(ycol)) NSE for valid   : ", NSE("valid", valid_set, model, μσ)
+    @info " $(string(ycol)) PBIAS for valid : ", PBIAS("valid", valid_set, model, μσ)
 
     table_01h, table_24h = get_prediction_table(df, test_set, model, ycol, total_μ, total_σ, "/mnt/")
     plot_DNN_scatter(table_01h, table_24h, ycol, "/mnt/")
