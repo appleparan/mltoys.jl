@@ -238,6 +238,7 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
     nse_path = output_dir * String(ycol) * "_eval_NSE.png"
     pbias_path = output_dir * String(ycol) * "_eval_PBIAS.png"
     learn_rate_path = output_dir * String(ycol) * "_eval_learning_rate.png"
+    loss_path = output_dir * String(ycol) * "_eval_loss.png"
 
     last_epoch = df[end, :epoch]
 
@@ -245,40 +246,49 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
     pl = Plots.plot(df[:, :epoch], df[:, :RSR],
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR,
+        background_color = BG_COLOR, linewidth=4,
         title="RSR of " * String(ycol),
         xlabel="epoch", ylabel="RSR", legend=false)
-    annotate!([(last_epoch, df[last_epoch, :RSR], text("Value: " *  string(df[last_epoch, :RSR]), 16, :black, :right))])
+    annotate!([(last_epoch, df[last_epoch, :RSR], text("Value: " *  string(df[last_epoch, :RSR]), 18, :black, :right))])
     Plots.png(pl, rsr_path)
 
     gr(size = (2560, 1080))
     pl = Plots.plot(df[:, :epoch], df[:, :NSE],
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR,
+        background_color = BG_COLOR, linewidth=4,
         title="NSE of " * String(ycol),
         xlabel="epoch", ylabel="NSE", legend=false)
-    annotate!([(last_epoch, df[last_epoch, :NSE], text("Value: " *  string(df[last_epoch, :NSE]), 16, :black, :right))])
+    annotate!([(last_epoch, df[last_epoch, :NSE], text("Value: " *  string(df[last_epoch, :NSE]), 18, :black, :right))])
     Plots.png(pl, nse_path)
 
     gr(size = (2560, 1080))
     pl = Plots.plot(df[:, :epoch], df[:, :PBIAS],
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR,
+        background_color = BG_COLOR, linewidth=4,
         title="PBIAS of " * String(ycol),
         xlabel="epoch", ylabel="PBIAS", legend=false)
-    annotate!([(last_epoch, df[last_epoch, :PBIAS], text("Value: " *  string(df[last_epoch, :PBIAS]), 16, :black, :right))])
+    annotate!([(last_epoch, df[last_epoch, :PBIAS], text("Value: " *  string(df[last_epoch, :PBIAS]), 18, :black, :right))])
     Plots.png(pl, pbias_path)
 
     gr(size = (2560, 1080))
     pl = Plots.plot(df[:, :epoch], df[:, :learn_rate],
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR,
+        background_color = BG_COLOR, linewidth=4,
         title="LEARNING RATE of " * String(ycol),
         xlabel="epoch", ylabel="Learning Rate", yscale=:log10, legend=false)
     Plots.png(pl, learn_rate_path)
+
+    gr(size = (2560, 1080))
+    pl = Plots.plot(df[:, :epoch], df[:, :loss],
+        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, linewidth=4,
+        title="LOSS of " * String(ycol),
+        xlabel="epoch", ylabel="Loss", legend=false)
+    Plots.png(pl, loss_path)
 
     nothing
 end

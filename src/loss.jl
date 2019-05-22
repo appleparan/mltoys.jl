@@ -25,7 +25,7 @@ function huber_loss_mean(ŷ, y)
     mean(huber_loss(ŷ, y))
 end
 
-function mse_rnn(x,y)
+function mse_rnn(x, y)
     l = Flux.mse(m(x), y)
     Flux.reset!(m)
     return l
