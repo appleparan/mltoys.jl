@@ -93,8 +93,18 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     df_eval = train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, filename)
 
     # TODO : (current) validation with zscore, (future) validation with original value?
-    @info "    Validation acc : ", accuracy("valid", valid_set)
+    @info "    Valid acc : ", accuracy("valid", valid_set)
     flush(stdout); flush(stderr)
+
+    @info " $(string(ycol)) RMSE for valid  : ", RMSE("test", test_set, model, μσ)
+    @info " $(string(ycol)) RSR for valid   : ", RSR("test", test_set, model, μσ)
+    @info " $(string(ycol)) NSE for valid   : ", NSE("test", test_set, model, μσ)
+    @info " $(string(ycol)) PBIAS for valid : ", PBIAS("test", test_set, model, μσ)
+
+    @info " $(string(ycol)) RMSE for test  : ", RMSE("valid", valid_set, model, μσ)
+    @info " $(string(ycol)) RSR for test   : ", RSR("valid", valid_set, model, μσ)
+    @info " $(string(ycol)) NSE for test   : ", NSE("valid", valid_set, model, μσ)
+    @info " $(string(ycol)) PBIAS for test : ", PBIAS("valid", valid_set, model, μσ)
 
     table_01h, table_24h = get_prediction_table(df, test_set, model, ycol, total_μ, total_σ, "/mnt/")
     plot_DNN_scatter(table_01h, table_24h, ycol, "/mnt/")
@@ -123,7 +133,7 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
     last_improvement = 0
     acc = 0.0
 
-    df_eval = DataFrame(epoch = Int64[], learn_rate = Float64[], loss = Float64[], RSME = Float64[], RSR = Float64[], NSE = Float64[], PBIAS = Float64[])
+    df_eval = DataFrame(epoch = Int64[], learn_rate = Float64[], ACC = Float64[], RMSE = Float64[], RSR = Float64[], NSE = Float64[], PBIAS = Float64[])
 
     Xs, Ys = [], []
     for t in train_set
@@ -147,10 +157,9 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
         rsr = RSR("valid", valid_set, model, μσ)
         nse = NSE("valid", valid_set, model, μσ)
         pbias = PBIAS("valid", valid_set, model, μσ)
-        loss_val = loss(model(Xs), Ys)
         =#
-        rsme, rsr, nse, pbias = evaluations("valid", valid_set, model, μσ, [:RSME, :RSR, :NSE, :PBIAS])
-        push!(df_eval, [epoch_idx opt.eta loss_val rsme rsr nse pbias])
+        rmse, rsr, nse, pbias = evaluations("valid", valid_set, model, μσ, [:RMSE, :RSR, :NSE, :PBIAS])
+        push!(df_eval, [epoch_idx opt.eta acc rmse rsr nse pbias])
 
         # If our accuracy is good enough, quit out.
         if acc < 0.01

@@ -62,7 +62,7 @@ export join_data,
         getX_DNN, getY_DNN, make_pairs_DNN, make_minibatch_DNN, 
         getX_LSTM, getY_LSTM, make_input_LSTM,
 # evaluation
-        evaluations, RSME, RSR, NSE, PBIAS,
+        evaluations, RMSE, RSR, NSE, PBIAS,
 # loss
         huber_loss, huber_loss_mean, mse_rnn,
 # jongro01_DNN

@@ -234,23 +234,23 @@ end
 
 function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
     ENV["GKSwstype"] = "100"
-    rsme_path = output_dir * String(ycol) * "_eval_RSME.png"
+    rmse_path = output_dir * String(ycol) * "_eval_RMSE.png"
     rsr_path = output_dir * String(ycol) * "_eval_RSR.png"
     nse_path = output_dir * String(ycol) * "_eval_NSE.png"
     pbias_path = output_dir * String(ycol) * "_eval_PBIAS.png"
     learn_rate_path = output_dir * String(ycol) * "_eval_learning_rate.png"
-    loss_path = output_dir * String(ycol) * "_eval_loss.png"
+    acc_path = output_dir * String(ycol) * "_eval_acc.png"
 
     last_epoch = df[end, :epoch]
 
     gr(size = (2560, 1080))
-    pl = Plots.plot(df[:, :epoch], df[:, :RSME],
+    pl = Plots.plot(df[:, :epoch], df[:, :RMSE],
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, linewidth=4,
         title="RMSE of " * String(ycol),
         xlabel="epoch", ylabel="RSR", legend=false)
-    annotate!([(last_epoch, df[last_epoch, :RSME], text("Value: " *  string(df[last_epoch, :RSME]), 18, :black, :right))])
+    annotate!([(last_epoch, df[last_epoch, :RMSE], text("Value: " *  string(df[last_epoch, :RMSE]), 18, :black, :right))])
     Plots.png(pl, rmse_path)
 
     gr(size = (2560, 1080))
@@ -297,9 +297,9 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, linewidth=4,
-        title="LOSS of " * String(ycol),
-        xlabel="epoch", ylabel="Loss", legend=false)
-    Plots.png(pl, loss_path)
+        title="ACC of " * String(ycol),
+        xlabel="epoch", ylabel="ACC", legend=false)
+    Plots.png(pl, acc_path)
 
     nothing
 end

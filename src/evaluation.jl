@@ -1,18 +1,3 @@
-function RSME(dataset, model)
-    # RSME
-    acc = 0.0
-
-    for (x, y) in dataset
-        ŷ = model(x |> gpu)
-        @assert size(ŷ) == size(y)
-
-        acc += sqrt(sum(abs2.(ŷ .- y)) / length(y))
-    end
-
-    # acc is incomplete TrackedReal, convert it to pure Real type
-    Flux.Tracker.data(acc / length(dataset))
-end
-
 evaluations(setname::String, dataset, model, μσ, metrics::Array{String}) =
     evaluations(setname, dataset, model, μσ, Symbol.(metrics))
 
@@ -31,12 +16,12 @@ function evaluations(setname::String, dataset, model, μσ, metrics::Array{Symbo
         @assert size(ŷ) == size(y)
 
         for metric in metrics
-            # Expression of metric, i.e. RSR(y, ŷ, μ = _μ)
-            metric_func = :($(metric)($y, $ŷ, $μ = _μ))
+            # Expression of metric, i.e. RSR(y, ŷ, _μ)
+            metric_func = :($(metric)($y, $ŷ, $_μ))
             # Expression of metric array, i.e. RSR_arr
             metric_arr = :($(Symbol(metric, "_arr")))
 
-            # push to metric array, i.e. push!(RSR_arr, RSR(y, ŷ, μ = _μ))
+            # push to metric array, i.e. push!(RSR_arr, RSR(y, ŷ, _μ))
             push!(eval(metric_arr), eval(metric_func))
         end
     end
@@ -62,8 +47,7 @@ function RMSE(setname::String, dataset, model, μσ)
     mean(RSME_arr)
 end
 
-RMSE(y, ŷ, μ=μ) = RMSE(y, ŷ)
-RMSE(y, ŷ) = sqrt(sum(abs2.(y .- Flux.Tracker.data(cpu.(ŷ)))))
+RMSE(y, ŷ, μ=0.0) = sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ))))
 
 # http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.532.2506&rep=rep1&type=pdf
 # MODEL EVALUATION GUIDELINES FOR SYSTEMATIC QUANTIFICATION OF ACCURACY IN WATERSHED SIMULATIONS
@@ -80,13 +64,13 @@ function RSR(setname::String, dataset, model, μσ)
         ŷ = model(x |> gpu)
         @assert size(ŷ) == size(y)
 
-        push!(RSR_arr, RSR(y, ŷ, μ=μ))
+        push!(RSR_arr, RSR(y, ŷ, μ))
     end
 
     mean(RSR_arr)
 end
 
-RSR(y, ŷ; μ) = sqrt(sum(abs2.(y .- Flux.Tracker.data(cpu.(ŷ))))) / sqrt(sum(abs2.(y .- μ)))
+RSR(y, ŷ, μ=0.0) = sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ)))) / sqrt(sum(abs2.(y .- μ)))
 
 # NSE
 #=
@@ -102,13 +86,13 @@ function NSE(setname::String, dataset, model, μσ)
         ŷ = model(x |> gpu)
         @assert size(ŷ) == size(y)
 
-        push!(NSE_arr, NSE(y, ŷ, μ=μ))
+        push!(NSE_arr, NSE(y, ŷ, μ))
     end
 
     mean(NSE_arr)
 end
 
-NSE(y, ŷ; μ) = 1.0 - sqrt(sum(abs2.(y .- Flux.Tracker.data(cpu.(ŷ))))) / sqrt(sum(abs2.(y .- μ)))
+NSE(y, ŷ, μ=0.0) = 1.0 - sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ)))) / sqrt(sum(abs2.(y .- μ)))
 
 #=
 The optimal value of PBIAS is 0.0, with low-magnitude values indicating accurate model simulation. Positive values indicate model underestimation bias, and negative values
@@ -127,5 +111,4 @@ function PBIAS(setname::String, dataset, model, μσ)
     mean(PBIAS_arr)
 end
 
-PBIAS(y, ŷ, μ=μ) = PBIAS(y, ŷ)
-PBIAS(y, ŷ) = sum(y .- Flux.Tracker.data(cpu.(ŷ))) / sum(y) * 100.0
+PBIAS(y, ŷ, μ=0.0) = sum(y .- Flux.Tracker.data(ŷ)) / sum(y) * 100.0
