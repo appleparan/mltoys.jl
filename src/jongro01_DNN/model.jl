@@ -64,7 +64,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     model, loss, accuracy, opt = compile(input_size, batch_size, output_size, μσ)
 
     # create (input(1D), output(1D)) pairs of total dataframe row, it is indepdent by train/valid/test set
-    @info "    Constructing (input, output) pairs for train/valid set..."
+    @info "    Constructing (input, output) pairs for train/test set..."
     p = Progress(length(total_wd_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     input_pairs = [(ProgressMeter.next!(p); make_pairs_DNN(df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in total_wd_idxs]
 
@@ -90,7 +90,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     #train_set = train_set |> gpu
     #valid_set = valid_set |> gpu
 
-    df_eval = train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, filename)
+    df_eval = train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, filename)
 
     # TODO : (current) validation with zscore, (future) validation with original value?
     @info "    Validation acc : ", accuracy("valid", valid_set)
@@ -114,7 +114,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     model, μσ
 end
 
-function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size::Integer, filename::String)
+function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size::Integer, μσ, filename::String)
 
     @info("    Beginning training loop...")
     flush(stdout); flush(stderr)
@@ -123,7 +123,7 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
     last_improvement = 0
     acc = 0.0
 
-    df_eval = DataFrame(epoch = Int64[], RSR = Float64[], NSE = Float64[], PBIAS = Float64[])
+    df_eval = DataFrame(epoch = Int64[], learn_rate = Float64[], RSR = Float64[], NSE = Float64[], PBIAS = Float64[])
 
     for epoch_idx in 1:epoch_size
         best_acc, last_improvement
@@ -136,11 +136,11 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
         flush(stdout); flush(stderr)
 
         # record evaluation 
-        rsr = RSR("valid", valid_set)
-        nse = NSE("valid", valid_set)
-        pbias = PBIAS("valid", valid_set)
+        rsr = RSR("valid", valid_set, model, μσ)
+        nse = NSE("valid", valid_set, model, μσ)
+        pbias = PBIAS("valid", valid_set, model, μσ)
 
-        push!(df_eval, [epoch rsr nse pbias])
+        push!(df_eval, [epoch_idx opt.eta rsr nse pbias])
 
         # If our accuracy is good enough, quit out.
         if acc < 0.01

@@ -237,6 +237,7 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
     rsr_path = output_dir * String(ycol) * "_eval_RSR.png"
     nse_path = output_dir * String(ycol) * "_eval_NSE.png"
     pbias_path = output_dir * String(ycol) * "_eval_PBIAS.png"
+    learn_rate_path = output_dir * String(ycol) * "_eval_learning_rate.png"
 
     last_epoch = df[end, :epoch]
 
@@ -245,7 +246,7 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
-        title="RSR : " * String(ycol),
+        title="RSR of " * String(ycol),
         xlabel="epoch", ylabel="RSR", legend=false)
     annotate!([(last_epoch, df[last_epoch, :RSR], text("Value: " *  string(df[last_epoch, :RSR]), 16, :black, :right))])
     Plots.png(pl, rsr_path)
@@ -255,7 +256,7 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
-        title="NSE : " * String(ycol),
+        title="NSE of " * String(ycol),
         xlabel="epoch", ylabel="NSE", legend=false)
     annotate!([(last_epoch, df[last_epoch, :NSE], text("Value: " *  string(df[last_epoch, :NSE]), 16, :black, :right))])
     Plots.png(pl, nse_path)
@@ -265,10 +266,19 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
         guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
-        title="PBIAS : " * String(ycol),
+        title="PBIAS of " * String(ycol),
         xlabel="epoch", ylabel="PBIAS", legend=false)
     annotate!([(last_epoch, df[last_epoch, :PBIAS], text("Value: " *  string(df[last_epoch, :PBIAS]), 16, :black, :right))])
     Plots.png(pl, pbias_path)
 
+    gr(size = (2560, 1080))
+    pl = Plots.plot(df[:, :epoch], df[:, :learn_rate],
+        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR,
+        title="LEARNING RATE of " * String(ycol),
+        xlabel="epoch", ylabel="Learning Rate", yscale=:log, legend=false)
+    Plots.png(pl, learn_rate_path)
 
+    nothing
 end
