@@ -147,7 +147,7 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
 
         # Calculate accuracy:
         acc = accuracy("valid", valid_set)
-        @info(@sprintf("epoch [%d]: Test accuracy: %.6f Time: %s", epoch_idx, acc, now()))
+        @info(@sprintf("epoch [%d]: Valid accuracy: %.6f Time: %s", epoch_idx, acc, now()))
         flush(stdout); flush(stderr)
 
         # record evaluation 
@@ -160,8 +160,8 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
         push!(df_eval, [epoch_idx opt.eta acc rmse rsr nse pbias])
 
         # If our accuracy is good enough, quit out.
-        if acc < 0.01
-            @info("    -> Early-exiting: We reached our target accuracy (RSR) of 0.01")
+        if acc < 0.1
+            @info("    -> Early-exiting: We reached our target accuracy (RSR) of 0.1")
             break
         end
 

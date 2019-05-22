@@ -41,10 +41,10 @@ function RMSE(setname::String, dataset, model, μσ)
         ŷ = model(x |> gpu)
         @assert size(ŷ) == size(y)
 
-        push!(RSME_arr, RMSE(y, ŷ))
+        push!(RMSE_arr, RMSE(y, ŷ))
     end
 
-    mean(RSME_arr)
+    mean(RMSE_arr)
 end
 
 RMSE(y, ŷ, μ=0.0) = sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ))))

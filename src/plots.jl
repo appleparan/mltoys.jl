@@ -293,7 +293,7 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
     Plots.png(pl, learn_rate_path)
 
     gr(size = (2560, 1080))
-    pl = Plots.plot(df[:, :epoch], df[:, :loss],
+    pl = Plots.plot(df[:, :epoch], df[:, :ACC],
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, linewidth=4,
