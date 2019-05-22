@@ -123,7 +123,14 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
     last_improvement = 0
     acc = 0.0
 
-    df_eval = DataFrame(epoch = Int64[], learn_rate = Float64[], loss = Float64[], RSR = Float64[], NSE = Float64[], PBIAS = Float64[])
+    df_eval = DataFrame(epoch = Int64[], learn_rate = Float64[], loss = Float64[], RSME = Float64[], RSR = Float64[], NSE = Float64[], PBIAS = Float64[])
+
+    Xs, Ys = [], []
+    for t in train_set
+        x, y = t
+        push!(Xs, x)
+        push!(Ys, y)
+    end
 
     for epoch_idx in 1:epoch_size
         best_acc, last_improvement
@@ -136,11 +143,14 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
         flush(stdout); flush(stderr)
 
         # record evaluation 
+        #=
         rsr = RSR("valid", valid_set, model, μσ)
         nse = NSE("valid", valid_set, model, μσ)
         pbias = PBIAS("valid", valid_set, model, μσ)
-        loss_val = loss(collect(train_set)[1], collect(train_set)[2])
-        push!(df_eval, [epoch_idx opt.eta loss_val rsr nse pbias])
+        loss_val = loss(model(Xs), Ys)
+        =#
+        rsme, rsr, nse, pbias = evaluations("valid", valid_set, model, μσ, [:RSME, :RSR, :NSE, :PBIAS])
+        push!(df_eval, [epoch_idx opt.eta loss_val rsme rsr nse pbias])
 
         # If our accuracy is good enough, quit out.
         if acc < 0.01

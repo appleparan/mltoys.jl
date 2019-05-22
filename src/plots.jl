@@ -150,7 +150,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
     pl = Plots.plot(dates_01h[1:len_model], JuliaDB.select(dnn_01h_table, :y),
         ylim = (0.0, maximum(JuliaDB.select(dnn_01h_table, :y))),
         line=:dash, color=:black, label="obs.",
-        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
         title=String(ycol) * " in dates (1h)", 
@@ -166,7 +166,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
     pl = Plots.plot(dates_24h[1:len_model], JuliaDB.select(dnn_24h_table, :y),
         ylim = (0.0, maximum(JuliaDB.select(dnn_24h_table, :y))),
         line=:dash, color=:black, label="obs.",
-        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
         title=String(ycol) * " in dates (24h)", 
@@ -207,7 +207,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime
     pl = Plots.plot(dates_01h[s_01h_idx:f_01h_idx], y_01h_vals[s_01h_idx:f_01h_idx],
         ylim = (0.0, maximum(y_01h_vals[s_01h_idx:f_01h_idx])),
         line=:dash, color=:black, label="obs.",
-        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
         title=String(ycol) * " in dates (1h)", 
@@ -221,7 +221,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime
     pl = Plots.plot(dates_24h[s_24h_idx:f_24h_idx], y_01h_vals[s_24h_idx:f_24h_idx],
         ylim = (0.0, maximum(y_24h_vals[s_24h_idx:f_24h_idx])),
         line=:dash, color=:black, label="obs.",
-        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
         title=String(ycol) * " in dates (24h)", 
@@ -234,6 +234,7 @@ end
 
 function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
     ENV["GKSwstype"] = "100"
+    rsme_path = output_dir * String(ycol) * "_eval_RSME.png"
     rsr_path = output_dir * String(ycol) * "_eval_RSR.png"
     nse_path = output_dir * String(ycol) * "_eval_NSE.png"
     pbias_path = output_dir * String(ycol) * "_eval_PBIAS.png"
@@ -243,8 +244,18 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
     last_epoch = df[end, :epoch]
 
     gr(size = (2560, 1080))
+    pl = Plots.plot(df[:, :epoch], df[:, :RSME],
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, linewidth=4,
+        title="RMSE of " * String(ycol),
+        xlabel="epoch", ylabel="RSR", legend=false)
+    annotate!([(last_epoch, df[last_epoch, :RSME], text("Value: " *  string(df[last_epoch, :RSME]), 18, :black, :right))])
+    Plots.png(pl, rmse_path)
+
+    gr(size = (2560, 1080))
     pl = Plots.plot(df[:, :epoch], df[:, :RSR],
-        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, linewidth=4,
         title="RSR of " * String(ycol),
@@ -254,7 +265,7 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
 
     gr(size = (2560, 1080))
     pl = Plots.plot(df[:, :epoch], df[:, :NSE],
-        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, linewidth=4,
         title="NSE of " * String(ycol),
@@ -264,7 +275,7 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
 
     gr(size = (2560, 1080))
     pl = Plots.plot(df[:, :epoch], df[:, :PBIAS],
-        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, linewidth=4,
         title="PBIAS of " * String(ycol),
@@ -274,7 +285,7 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
 
     gr(size = (2560, 1080))
     pl = Plots.plot(df[:, :epoch], df[:, :learn_rate],
-        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, linewidth=4,
         title="LEARNING RATE of " * String(ycol),
@@ -283,7 +294,7 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
 
     gr(size = (2560, 1080))
     pl = Plots.plot(df[:, :epoch], df[:, :loss],
-        guidefontsize = 12, titlefontsize = 18, tickfontsize = 12, legendfontsize = 12, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, linewidth=4,
         title="LOSS of " * String(ycol),
