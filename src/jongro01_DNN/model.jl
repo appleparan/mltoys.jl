@@ -93,7 +93,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     df_eval = train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, filename)
 
     # TODO : (current) validation with zscore, (future) validation with original value?
-    @info "    Valid acc : ", accuracy("valid", valid_set)
+    @info "    Test ACC : ", accuracy("test", test_set)
     flush(stdout); flush(stderr)
 
     @info " $(string(ycol)) RMSE for test   : ", RMSE("test", test_set, model, μσ)
