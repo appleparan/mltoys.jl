@@ -277,7 +277,7 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR,
         title="LEARNING RATE of " * String(ycol),
-        xlabel="epoch", ylabel="Learning Rate", yscale=:log, legend=false)
+        xlabel="epoch", ylabel="Learning Rate", yscale=:log10, legend=false)
     Plots.png(pl, learn_rate_path)
 
     nothing
