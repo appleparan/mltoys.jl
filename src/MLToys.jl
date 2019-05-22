@@ -54,17 +54,17 @@ include("jongro01_DNN/model.jl")
 include("jongro02_LSTM/model.jl")
 
 # input
-export join_data, 
+export join_data,
 # utils
         mean_and_std_cols, hampel!, zscore!, exclude_elem, split_df, window_df,
         split_sizes3, split_sizes2, create_chunks, create_idxs,
-        getHoursLater, remove_missing_pairs!,
+        getHoursLater, remove_missing_pairs!, is_sparse_Y,
         getX_DNN, getY_DNN, make_pairs_DNN, make_minibatch_DNN, 
-        getX_LSTM, getY_LSTM, make_pairs_LSTM, make_minibatch_LSTM,
+        getX_LSTM, getY_LSTM, make_input_LSTM,
 # evaluation
-        RSME, RSR, NSE, PBIAS
+        RSME, RSR, NSE, PBIAS,
 # loss
-        huber_loss, huber_loss_mean,
+        huber_loss, huber_loss_mean, mse_rnn,
 # jongro01_DNN
         train_all_DNN, filter_jongro, read_jongro,
 # jongro01_DNN

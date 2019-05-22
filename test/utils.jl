@@ -312,38 +312,7 @@ end
     end
 end
 
-@testset "Pairs" begin
-    @testset "getX_DNN" begin
-        df = DataFrame(
-            A = 1:12,
-            B = 13:24,
-            C = 25:36)
-        sample_size = 4
-        idxs = collect(1:4)
-        features = [:A, :B, :C]
-        X = getX_DNN(df, idxs, features, sample_size * length(features))
-        @test X == [1, 2, 3, 4, 13, 14, 15, 16, 25, 26, 27, 28]
-        idxs = collect(3:6)
-        X = getX_DNN(df, idxs, features, sample_size * length(features))
-        @test X == [3, 4, 5, 6, 15, 16, 17, 18, 27, 28, 29, 30]
-    end
-
-    @testset "getX_LSTM" begin
-        df = DataFrame(
-            A = 1:12,
-            B = 13:24,
-            C = 25:36)
-        sample_size = 4
-        idxs = collect(1:4)
-        features = [:A, :B, :C]
-        X = getX_LSTM(df, idxs, features, sample_size)
-        @test X == [[1, 2, 3, 4] [13, 14, 15, 16] [25, 26, 27, 28]]
-
-        idxs = collect(3:6)
-        X = getX_LSTM(df, idxs, features, sample_size)
-        @test X == [[3, 4, 5, 6] [15, 16, 17, 18] [27, 28, 29, 30]]
-    end
-
+@testset "Common Input" begin
     @testset "getHoursLater_1" begin
         date_fmt = Dates.DateFormat("yyyy-mm-dd HH:MM:SSz")
         last_date_str = "2015-01-14 04:00:00+09:00"
@@ -392,7 +361,22 @@ end
     end
 end
 
-@testset "Minibatch" begin
+@testset "DNN Input" begin
+    @testset "getX_DNN" begin
+        df = DataFrame(
+            A = 1:12,
+            B = 13:24,
+            C = 25:36)
+        sample_size = 4
+        idxs = collect(1:4)
+        features = [:A, :B, :C]
+        X = getX_DNN(df, idxs, features, sample_size * length(features))
+        @test X == [1, 2, 3, 4, 13, 14, 15, 16, 25, 26, 27, 28]
+        idxs = collect(3:6)
+        X = getX_DNN(df, idxs, features, sample_size * length(features))
+        @test X == [3, 4, 5, 6, 15, 16, 17, 18, 27, 28, 29, 30]
+    end
+
     @testset "make_pair_DNN" begin
         sample_size = 24
         input_size = sample_size * 2
@@ -418,35 +402,6 @@ end
         @test length(pair[1]) == input_size
         @test length(pair[2]) == output_size
         @test pair[1] == reduce(vcat, [collect(1:sample_size), collect(len_df + 1:len_df + sample_size)])
-        @test pair[2] == collect((sample_size + 2*len_df + 1):(sample_size + 2*len_df + output_size))
-    end
-
-    @testset "make_pair_LSTM" begin
-        sample_size = 24
-        input_size = sample_size * 2
-        output_size = 12
-
-        Jan_2015 = ZonedDateTime(2015, 1, 1, tz"Asia/Seoul")
-        Jan_2015_hours = collect(Jan_2015:Hour(1):Jan_2015 + Day(30))
-        len_df = length(Jan_2015_hours)
-
-        df = DataFrame(
-            date = Jan_2015_hours,
-            A = collect(         1:  len_df),
-            B = collect(  len_df+1:2*len_df),
-            C = collect(2*len_df+1:3*len_df)
-        )
-        idx = collect(1:sample_size)
-        pair = make_pairs_LSTM(df, :C, idx, [:A, :B], sample_size, output_size)
-        #=
-        pair should be..
-
-        ([1,...,24,len_df,...,len_df+24],[2*len_df,...,2*len_df+12])
-        =#
-        @test size(pair[1]) == (sample_size, 2)
-        @test size(pair[2]) == (output_size,)
-        # size(pair[1]) == (batch_size, sample_size, size of selected features)
-        @test pair[1] == [collect(1:sample_size) collect(len_df + 1:len_df + sample_size)]
         @test pair[2] == collect((sample_size + 2*len_df + 1):(sample_size + 2*len_df + output_size))
     end
 
@@ -524,3 +479,98 @@ end
             ([ 7, 8, 9,10], [11,12,13,14,0.0,missing])])
     end
 end
+
+@testset "LSTM input" begin
+    @testset "getX_LSTM" begin
+        df = DataFrame(
+            A = 1:12,
+            B = 13:24,
+            C = 25:36)
+        sample_size = 4
+        idx = 1:4
+        features = [:A, :B, :C]
+        X = getX_LSTM(df, idx, features, sample_size)
+        @test X == [[1, 2, 3, 4] [13, 14, 15, 16] [25, 26, 27, 28]]
+
+        idx = 3:6
+        X = getX_LSTM(df, idx, features, sample_size)
+        @test X == [[3, 4, 5, 6] [15, 16, 17, 18] [27, 28, 29, 30]]
+    end
+
+    @testset "make_input_LSTM" begin
+        sample_size = 24
+        input_size = sample_size * 2
+        output_size = 12
+
+        Jan_2015 = ZonedDateTime(2015, 1, 1, tz"Asia/Seoul")
+        Jan_2015_hours = collect(Jan_2015:Hour(1):Jan_2015 + Day(30))
+        len_df = length(Jan_2015_hours)
+
+        df = DataFrame(
+            date = Jan_2015_hours,
+            A = collect(         1:  len_df),
+            B = collect(  len_df+1:2*len_df),
+            C = collect(2*len_df+1:3*len_df)
+        )
+
+        idx = 1:sample_size
+        X, Y = make_input_LSTM(df, :C, [idx], [:A, :B], sample_size, output_size)
+
+        #=
+        output should be
+        X = [[1,...,24] [len_df,...,len_df+24]]
+        Y = [2*len_df,...,2*len_df+12]
+        =#
+
+        # back to cpu for test
+        X = X |> cpu
+        Y = Y |> cpu
+
+        @test size(X) == (1, sample_size, 2)
+        @test size(Y) == (1, output_size,)
+
+        @test X[1, :, :] == hcat([[collect(1:sample_size)] [collect(len_df + 1:len_df + sample_size)]]...)
+        @test Y[1, :] == collect((sample_size + 2*len_df + 1):(sample_size + 2*len_df + output_size))
+    end
+
+    @testset "is_sparse_Y_only_missings" begin
+        pairs = [
+            [ 5, 6, 7, 8, 9,10],
+            [11,12,13,14,15,missing],
+            [17,18,19,20,missing,missing],
+            [23,24,25,missing,missing,missing],
+            [29,30,missing,missing,missing,missing]]
+
+        m_ratio = 0.5
+        @test is_sparse_Y(pairs[1], m_ratio) == false
+        @test is_sparse_Y(pairs[2], m_ratio) == false
+        @test is_sparse_Y(pairs[3], m_ratio) == false
+        @test is_sparse_Y(pairs[4], m_ratio) == true
+        @test is_sparse_Y(pairs[5], m_ratio) == true
+
+        m_ratio = 0.3
+        @test is_sparse_Y(pairs[1], m_ratio) == false
+        @test is_sparse_Y(pairs[2], m_ratio) == false
+        @test is_sparse_Y(pairs[3], m_ratio) == true
+        @test is_sparse_Y(pairs[4], m_ratio) == true
+        @test is_sparse_Y(pairs[5], m_ratio) == true
+
+    end
+
+    @testset "is_sparse_Y_missings_and_zeros" begin
+        pairs = [
+            [ 5, 6, 7, 8, 9,10],
+            [11,12,13,14,0.0,missing],
+            [17,18,0.0,0.0,missing,missing],
+            [23,24,0.0,missing,missing,missing],
+            [29,30,missing,missing,missing,missing]]
+
+        m_ratio = 0.5
+        @test is_sparse_Y(pairs[1], m_ratio) == false
+        @test is_sparse_Y(pairs[2], m_ratio) == false
+        @test is_sparse_Y(pairs[3], m_ratio) == true
+        @test is_sparse_Y(pairs[4], m_ratio) == true
+        @test is_sparse_Y(pairs[5], m_ratio) == true
+    end
+end
+

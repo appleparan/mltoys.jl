@@ -407,7 +407,7 @@ getX_DNN(df::DataFrame, idxs, features::Array{String,1}) = getX_DNN(df, idxs, Sy
     getY(X::DateFrame, hours)
 get last date of X and construct Y with `hours` range
 """
-function getY(df::DataFrame, idx::Array{I, 1},
+function getY(df::DataFrame, idx,
     ycol::Symbol, sample_size::Integer, output_size::Integer) where I<:Integer
     df_X = df[idx, :]
     last_date_of_X = df_X[sample_size, :date]
@@ -484,7 +484,7 @@ end
 """
     remove_missing_pairs!(pairs, ratio = 0.5)
 """
-function remove_missing_pairs!(pairs, missing_ratio = 0.5, p::Progress = Progress(length(pairs)))
+function remove_missing_pairs!(pairs, missing_ratio=0.5, p::Progress=Progress(length(pairs)))
     @assert 0.0 <= missing_ratio <= 1.0
 
     invalid_idxs = []
@@ -508,43 +508,81 @@ end
     getX_LSTM(df::DataFrame, idxs, features)
 get X in Dataframe and construct X by flattening
 """
-function getX_LSTM(df::DataFrame, idxs::Array{I, 1}, features::Array{Symbol, 1}, input_size::Integer) where I<:Integer
-    X = convert(Matrix, df[collect(idxs), features])
+function getX_LSTM(df::DataFrame, idx, features::Array{Symbol, 1}, input_size::Integer)
+    X = convert(Matrix, df[idx, features])
 
     return X[1:input_size, :]
 end
 
-getX_LSTM(df::DataFrame, idxs, features::Array{String,1}, input_size::Integer) =
-    getX_LSTM(df, idxs, Symbol.(eval.(features)), input_size::Integer)
+getX_LSTM(df::DataFrame, idx, features::Array{String,1}, input_size::Integer) =
+    getX_LSTM(df, idx, Symbol.(eval.(features)), input_size)
 
 """
     getY_LSTM(X::DateFrame, hours)
 get last date of X and construct Y with `hours` range
 """
-getY_LSTM(df::DataFrame, idx::Array{I, 1},
+getY_LSTM(df::DataFrame, idx,
     ycol::Symbol, sample_size::Integer, output_size::Integer) where I<:Integer =
         getY(df, idx, ycol, sample_size, output_size)
 
 """
-    make_pairs_LSTM(df, ycol, idx, features, hours)
+    make_input_LSTM(df, ycol, idx, features, hours)
 create pairs in `df` along with `idx` (row) and `features` (columns)
 output determined by ycol
 pairs doesn't need to consider batch_size
 
-unlike DNN, input part (pair[1]) of
-LSTM pairs must have size as (sample size, num_selected_columns)
+A size of LSTM X input must be (sample size, num_selected_columns)
+A size of LSTM Y output must be (output_size,)
 
+https://machinelearningmastery.com/how-to-develop-lstm-models-for-time-series-forecasting/
 """
 # Bundle images together with labels and group into minibatchess
-function make_pairs_LSTM(df::DataFrame, ycol::Symbol,
-    idx::Array{I, 1}, features::Array{Symbol, 1},
-    sample_size::Integer, output_size::Integer) where I<:Integer
-    X = getX_LSTM(df, idx, features, sample_size)
-    Y = getY_LSTM(df, idx, ycol, sample_size, output_size)
+# idxs would be < Array{Integer, 1} or < Array{UnitRange{Integer}, 1}
+function make_input_LSTM(df::DataFrame, ycol::Symbol,
+    idxs, features::Array{Symbol, 1},
+    sample_size::Integer, output_size::Integer,
+    p::Progress=Progress(length(idxs)))
 
-    # 2D -> 3D
+    X = Array{Real}(undef, 0, sample_size, length(features))
+    Y = Array{Real}(undef, 0, output_size)
+
+    for idx in idxs
+        _X = getX_LSTM(df, idx, features, sample_size)
+        _Y = getY_LSTM(df, idx, ycol, sample_size, output_size)
+
+        @assert size(_X) == (sample_size, length(features))
+        @assert size(_Y) == (output_size,)
+
+        # even sparse, progressmeter should be go on
+        ProgressMeter.next!(p)
+
+        if is_sparse_Y(_Y)
+            continue
+        end
+
+        X = cat(X, reshape(_X, 1, size(_X)[1], size(_X)[2]), dims=1)
+        Y = cat(Y, reshape(_Y, 1, size(_Y)[1]), dims=1)
+    end
+
     X = X |> gpu
     Y = Y |> gpu
 
-    return (X, Y)
+    X, Y
+end
+
+"""
+    is_sparse_Y(input, ratio = 0.5)
+"""
+function is_sparse_Y(Y, missing_ratio=0.5)
+    @assert 0.0 <= missing_ratio <= 1.0
+
+    size_y = length(Y)
+    size_m = length(findall(_y -> ismissing(_y) || _y == 0.0, Y))
+
+    if (size_m / size_y) >= missing_ratio
+        # if use deleteat here, it manipulates pairs while loop and return wrong results
+        return true
+    end
+    
+    false
 end

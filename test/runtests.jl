@@ -4,6 +4,7 @@ using Test
 using DataFrames
 using StatsBase: mean, std, zscore
 using Dates, TimeZones
+using Flux
 
 @testset "MLToys" begin
 
