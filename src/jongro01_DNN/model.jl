@@ -87,13 +87,11 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     # don't construct minibatch for valid & test sets
     valid_set = input_pairs[valid_idxs]
 
-    #train_set = train_set |> gpu
-    #valid_set = valid_set |> gpu
-
     df_eval = train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, filename)
 
     # TODO : (current) validation with zscore, (future) validation with original value?
-    @info "    Test ACC : ", accuracy("test", test_set)
+    @info "    Valid ACC : ", accuracy("valid", valid_set)
+    @info "    Test ACC  : ", accuracy("test", test_set)
     flush(stdout); flush(stderr)
 
     @info " $(string(ycol)) RMSE for test   : ", RMSE("test", test_set, model, μσ)
