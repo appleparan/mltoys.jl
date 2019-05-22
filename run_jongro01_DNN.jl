@@ -37,7 +37,7 @@ function run_model()
     
     sample_size = 72
     output_size = 24
-    epoch_size = 250
+    epoch_size = 200
     batch_size = 128
     @info "feature : " features
     @info "sizes (sample, output, epoch, batch) : ", sample_size, output_size, epoch_size, batch_size
