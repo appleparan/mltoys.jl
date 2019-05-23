@@ -43,8 +43,8 @@ ENV["GKSwstype"] = "100"
 
 # to use Plots in headless system
 # https://github.com/JuliaPlots/Plots.jl/issues/1076#issuecomment-327509819
-include("input.jl")
 include("utils.jl")
+include("input.jl")
 include("loss.jl")
 include("evaluation.jl")
 include("plots.jl")
@@ -61,8 +61,9 @@ export join_data,
         getHoursLater, remove_missing_pairs!, is_sparse_Y,
         getX_DNN, getY_DNN, make_pairs_DNN, make_minibatch_DNN, 
         getX_LSTM, getY_LSTM, make_input_LSTM,
+        WHO_PM10, WHO_PM25,
 # evaluation
-        evaluations, RMSE, RSR, NSE, PBIAS, IOA,
+        evaluations, RMSE, RSR, NSE, PBIAS, IOA, classification,
 # loss
         huber_loss, huber_loss_mean, mse_rnn,
 # jongro01_DNN

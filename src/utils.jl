@@ -586,3 +586,45 @@ function is_sparse_Y(Y, missing_ratio=0.5)
     
     false
 end
+
+"""
+    WHO_PM10(val::Real)
+    return WHO PM10 level
+
+1: Good
+2: Normal
+3: Bad
+4: Very Bad
+"""
+function WHO_PM10(val::Real)
+    if 0 <= val < 31
+        return 1
+    elseif 31 <= val < 81
+        return 2
+    elseif 81 <= val < 151
+        return 3
+    else
+        return 4
+    end
+end
+
+"""
+    WHO_PM25(val::Real)
+    return WHO PM25 level
+
+1: Good
+2: Normal
+3: Bad
+4: Very Bad
+"""
+function WHO_PM25(val::Real)
+    if 0 <= val < 16
+        return 1
+    elseif 16 <= val < 36
+        return 2
+    elseif 36 <= val < 76
+        return 3
+    else
+        return 4
+    end
+end

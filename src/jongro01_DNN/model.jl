@@ -96,15 +96,19 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
 
     @info " $(string(ycol)) RMSE for test   : ", RMSE("test", test_set, model, μσ)
     @info " $(string(ycol)) RSR for test    : ", RSR("test", test_set, model, μσ)
-    @info " $(string(ycol)) NSE for test    : ", NSE("test", test_set, model, μσ)
     @info " $(string(ycol)) PBIAS for test  : ", PBIAS("test", test_set, model, μσ)
+    @info " $(string(ycol)) NSE for test    : ", NSE("test", test_set, model, μσ)
     @info " $(string(ycol)) IOA for test    : ", IOA("test", test_set, model, μσ)
 
     @info " $(string(ycol)) RMSE for valid  : ", RMSE("valid", valid_set, model, μσ)
     @info " $(string(ycol)) RSR for valid   : ", RSR("valid", valid_set, model, μσ)
-    @info " $(string(ycol)) NSE for valid   : ", NSE("valid", valid_set, model, μσ)
     @info " $(string(ycol)) PBIAS for valid : ", PBIAS("valid", valid_set, model, μσ)
+    @info " $(string(ycol)) NSE for valid   : ", NSE("valid", valid_set, model, μσ)
     @info " $(string(ycol)) IOA for valid   : ", IOA("valid", valid_set, model, μσ)
+
+    forecast_all, forecast_high = classification("test", test_set, ycol, model)
+    @info " $(string(ycol)) Forecasting accuracy (all) for test : ", forecast_all
+    @info " $(string(ycol)) Forecasting accuracy (high) for test : ", forecast_high
 
     table_01h, table_24h = get_prediction_table(df, test_set, model, ycol, total_μ, total_σ, "/mnt/")
     plot_DNN_scatter(table_01h, table_24h, ycol, "/mnt/")
@@ -135,13 +139,6 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
 
     df_eval = DataFrame(epoch = Int64[], learn_rate = Float64[], ACC = Float64[],
         RMSE = Float64[], RSR = Float64[], NSE = Float64[], PBIAS = Float64[], IOA = Float64[])
-
-    Xs, Ys = [], []
-    for t in train_set
-        x, y = t
-        push!(Xs, x)
-        push!(Ys, y)
-    end
 
     for epoch_idx in 1:epoch_size
         best_acc, last_improvement
@@ -234,8 +231,6 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
         Dense(input_size, unit_size, leakyrelu), Dropout(0.2),
-
-        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
 
         Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
 

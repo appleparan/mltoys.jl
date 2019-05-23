@@ -129,3 +129,36 @@ end
 
 IOA(y, ŷ, μ=0.0) = 1.0 - sum(abs2.(y .- Flux.Tracker.data(ŷ))) /
     max(sum(abs2.(abs.(Flux.Tracker.data(ŷ) .- mean(Flux.Tracker.data(ŷ))) .+ abs.(Flux.Tracker.data(y) .- mean(Flux.Tracker.data(ŷ))))), eps())
+
+function classification(setname::String,  dataset, ycol::Symbol, model)
+    class_all_arr = []
+    class_high_arr = []
+
+    # TODO : if y is not 24 hour data, adjust them to use daily average
+    for (x, y) in dataset
+        ŷ = model(x |> gpu)
+        @assert size(ŷ) == size(y)
+
+        # daliy average
+        mean_y = mean(y)
+        mean_ŷ = mean(ŷ)
+
+        # construct WHO function
+        func_name = Symbol("WHO_", ycol)
+
+        push!(class_all_arr, classification(mean_y, mean_ŷ, func_name))
+        # push only high level
+        if eval(:($(func_name)($mean_y))) > 2
+            push!(class_high_arr, classification(mean_y, mean_ŷ, func_name))
+        end
+    end
+
+    # length of zeros / array length * 100
+    correct_all = count(x->x==0, class_all_arr) / length(class_all_arr)
+    # length of zeros / array length * 100
+    correct_high = count(x->x==0, class_high_arr) / length(class_high_arr)
+
+    correct_all, correct_high
+end
+
+classification(mean_y, mean_ŷ, f) = abs(eval(:($(f)($mean_y))) - eval(:($(f)($mean_ŷ))))
