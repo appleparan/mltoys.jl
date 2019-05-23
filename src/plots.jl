@@ -11,9 +11,8 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
     # plot histogram
     gr(size=(1920, 1080))
     ht = Plots.histogram(df[ycol], title="Histogram of " * String(ycol),
-        xlabel=String(ycol), ylabel="#", bins=200,
-        margin=15px, legend=false,
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18,
+        xlabel=String(ycol), ylabel="#", bins=200, legend=false,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, fillcolor=[:red], fillalpha=0.2)
     png(ht, hist_path)
@@ -25,7 +24,7 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
         title=String(ycol) * " in dates", xlabel="date", ylabel=String(ycol),
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        margin=15px, background_color = BG_COLOR, linecolor = LN_COLOR, legend=false)
+        background_color = BG_COLOR, linecolor = LN_COLOR, legend=false)
     png(pl, plot_path)
 end
 
@@ -43,8 +42,7 @@ function plot_corr(_df::DataFrame, feas, label_feas, output_dir::String)
         clim = (-1.0, 1.0), c=:blues, legend=true,
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        title="CORR",
-        margin=15px, background_color = BG_COLOR)
+        title="CORR", background_color = BG_COLOR)
 
     Plots.png(crpl, crpl_path)
 
@@ -94,7 +92,7 @@ function plot_DNN_scatter(dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         title="DNN/OBS", xlabel="Observation", ylabel="DNN",
-        margin=15px, background_color = BG_COLOR, markercolor = MK_COLOR)
+        background_color = BG_COLOR, markercolor = MK_COLOR)
     Plots.plot!(0:0.1:lim, 0:0.1:lim, 
         xlim = (0, lim), ylim = (0, lim), legend=false,
         background_color = BG_COLOR, linecolor = LN_COLOR)
@@ -106,7 +104,7 @@ function plot_DNN_scatter(dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         title="DNN/OBS", xlabel="Observation", ylabel="DNN",
-        margin=15px, background_color = BG_COLOR, markercolor = MK_COLOR)
+        background_color = BG_COLOR, markercolor = MK_COLOR)
     Plots.plot!(0:0.1:lim, 0:0.1:lim, 
         xlim = (0, lim), ylim = (0, lim), legend=false,
         background_color = BG_COLOR, linecolor = LN_COLOR)
@@ -122,7 +120,7 @@ function plot_DNN_histogram(dnn_01h_table, dnn_24h_table, ycol::Symbol, output_d
     ht = Plots.histogram(JuliaDB.select(dnn_01h_table, :y), label="obs", 
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        margin=15px, title="Histogram of data", ylabel="#",
+        title="Histogram of data", ylabel="#",
         background_color = BG_COLOR, fillalpha=0.5)
     ht = Plots.histogram!(JuliaDB.select(dnn_01h_table, :ŷ), label="model")
     Plots.png(ht, hs_01h_path)
@@ -131,7 +129,7 @@ function plot_DNN_histogram(dnn_01h_table, dnn_24h_table, ycol::Symbol, output_d
     ht = Plots.histogram(JuliaDB.select(dnn_24h_table, :y), label=["obs", "model"],
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        margin=15px, title="Histogram of data", ylabel="#",
+        title="Histogram of data", ylabel="#",
         background_color = BG_COLOR, fillalpha=0.5)
     ht = Plots.histogram!(JuliaDB.select(dnn_24h_table, :ŷ), label="model")
     Plots.png(ht, hs_24h_path)
