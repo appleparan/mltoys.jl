@@ -112,3 +112,20 @@ function PBIAS(setname::String, dataset, model, μσ)
 end
 
 PBIAS(y, ŷ, μ=0.0) = sum(y .- Flux.Tracker.data(ŷ)) / sum(y) * 100.0
+
+function IOA(setname::String, dataset, model, μσ)
+    IOA_arr = []
+    μ = μσ[setname, "μ"][:value]
+
+    for (x, y) in dataset
+        ŷ = model(x |> gpu)
+        @assert size(ŷ) == size(y)
+
+        push!(IOA_arr, IOA(y, ŷ, μ))
+    end
+
+    mean(IOA_arr)
+end
+
+IOA(y, ŷ, μ=0.0) = 1.0 - sum(abs2.(y .- Flux.Tracker.data(ŷ))) /
+    max(sum(abs2.(abs.(Flux.Tracker.data(ŷ) .- mean(Flux.Tracker.data(ŷ))) .+ abs.(Flux.Tracker.data(y) .- mean(Flux.Tracker.data(ŷ))))), eps())
