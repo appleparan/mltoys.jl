@@ -52,7 +52,7 @@ include("plots.jl")
 
 include("jongro01_DNN/preprocess.jl")
 include("jongro01_DNN/model.jl")
-include("jongro02_LSTM/model.jl")
+#include("jongro02_LSTM/model.jl")
 
 # input
 export join_data,
