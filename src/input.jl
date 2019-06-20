@@ -176,7 +176,7 @@ function parse_aerosols(aes_dir::String, input_dir::String)
             continue
         end
         =#
-        df_raw = DataFrame(CSV.read(_aes))
+        df_raw = CSV.read(_aes, copycols=true)
 
         rename!(df_raw, [:지역 => :region, :측정소코드 => :stationCode, :측정소명 => :stationName, :측정일시 => :date,
                    :주소 => :addr])
@@ -216,7 +216,8 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
 
     p = Progress(length(collect(wea_globs)), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     for _wea in wea_globs
-        df_raw = DataFrame(CSV.read(_wea))
+
+        df_raw = CSV.read(_wea, copycols=true)
 
         rename!(df_raw, [Symbol("일시") => :date,
             Symbol("기온(°C)") => :temp,

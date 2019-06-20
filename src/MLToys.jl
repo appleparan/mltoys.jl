@@ -12,6 +12,7 @@ using CSV
 using DataFrames, Missings, Query
 using DataValues
 using Dates, TimeZones
+using WeakRefStrings
 
 using FileIO
 using Glob
