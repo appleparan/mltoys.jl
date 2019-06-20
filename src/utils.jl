@@ -395,13 +395,13 @@ end
 get X in Dataframe and construct X by flattening
 """
 function getX_DNN(df::DataFrame, idxs::Array{I, 1}, features::Array{Symbol, 1}, input_size::Integer) where I<:Integer
-    X = convert(Matrix, df[collect(idxs), features])
+    X = convert(Matrix, df[idxs, features])
 
     # serialize (2D -> 1D)
     return vec(X[1:input_size])
 end
 
-getX_DNN(df::DataFrame, idxs, features::Array{String,1}) = getX_DNN(df, idxs, Symbol.(eval.(features)))
+getX_DNN(df::DataFrame, idxs, features::Array{String,1}) = getX_DNN(df, idxs, Symbol.(features))
 
 """
     getY(X::DateFrame, hours)

@@ -163,6 +163,9 @@ end
                 collect(ZonedDateTime(year, month, 1, 0,
                     tz"Asia/Seoul"):Hour(1):ZonedDateTime(year, month, 1, 0, tz"Asia/Seoul") + Hour(n - 1))
         )
+
+        @test df[end, :date] == ZonedDateTime(year, month, 31, 23, tz"Asia/Seoul")
+
         sample_size = 12
         output_size = 2
         idxs = window_df(df, sample_size, output_size,
@@ -370,8 +373,10 @@ end
         sample_size = 4
         idxs = collect(1:4)
         features = [:A, :B, :C]
+
         X = getX_DNN(df, idxs, features, sample_size * length(features))
         @test X == [1, 2, 3, 4, 13, 14, 15, 16, 25, 26, 27, 28]
+
         idxs = collect(3:6)
         X = getX_DNN(df, idxs, features, sample_size * length(features))
         @test X == [3, 4, 5, 6, 15, 16, 17, 18, 27, 28, 29, 30]

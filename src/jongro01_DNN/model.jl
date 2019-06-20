@@ -119,10 +119,12 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     # TODO : how to generalize date range? how to split based on test_dates?
     # 1/4 : because train size is 3 days, result should be start from 1/4
     # 12/29 : same reason 1/4, but this results ends with 12/31 00:00 ~ 12/31 23:00
+    #=
     plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 1, 4, 1), DateTime(2018, 3, 31, 23), ycol, "/mnt/")
     plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 4, 1, 1), DateTime(2018, 6, 30, 23), ycol, "/mnt/")
     plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 7, 1, 1), DateTime(2018, 9, 30, 23), ycol, "/mnt/")
     plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 10, 1, 1), DateTime(2018, 12, 27, 23), ycol, "/mnt/")
+    =#
 
     plot_evaluation(df_eval, ycol, "/mnt/")
 
