@@ -53,7 +53,7 @@ function plot_corr(_df::DataFrame, feas, label_feas, output_dir::String)
     CSV.write(crcsv_path, df_cor, writeheader = true)
 end
 
-function get_prediction_table(df, dataset, model, ycol::Symbol, μ::AbstractFloat, σ::AbstractFloat, output_dir::String)
+function compute_prediction(dataset, model, ycol::Symbol, μ::AbstractFloat, σ::AbstractFloat, output_dir::String)
     table_01h_path = output_dir * String(ycol) * "_01h_table.csv"
     table_24h_path = output_dir * String(ycol) * "_24h_table.csv"
 
@@ -80,6 +80,27 @@ function get_prediction_table(df, dataset, model, ycol::Symbol, μ::AbstractFloa
     JuliaDB.save(dnn_24h_table, table_24h_path)
 
     dnn_01h_table, dnn_24h_table
+end
+
+function export2CSV(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String)
+    plotdata_01h_path = output_dir * String(ycol) * "_plotdata_01h.csv"
+    plotdata_24h_path = output_dir * String(ycol) * "_plotdata_24h.csv"
+    dates_01h = dates .+ Dates.Hour(1)
+    dates_24h = dates .+ Dates.Hour(24)
+    len_model = length(JuliaDB.select(dnn_01h_table, :y))
+
+    y_01h_vals = JuliaDB.select(dnn_01h_table, :y)
+    ŷ_01h_vals = JuliaDB.select(dnn_01h_table, :ŷ)
+    y_24h_vals = JuliaDB.select(dnn_24h_table, :y)
+    ŷ_24h_vals = JuliaDB.select(dnn_24h_table, :ŷ)
+
+    df_01h = DataFrame(
+        dates = dates_01h, y = y_01h_vals, yhat = ŷ_01h_vals)
+    df_24h = DataFrame(
+        dates = dates_24h, y = y_24h_vals, yhat = ŷ_24h_vals)
+
+    CSV.write(plotdata_01h_path, df_01h)
+    CSV.write(plotdata_24h_path, df_24h)
 end
 
 function plot_DNN_scatter(dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String)

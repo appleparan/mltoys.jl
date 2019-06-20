@@ -69,11 +69,11 @@ export join_data,
         huber_loss, huber_loss_mean, mse_rnn,
 # jongro01_DNN
         train_all_DNN, filter_jongro, read_jongro,
-# jongro01_DNN
-        train_all_LSTM,
+# jongro02_DNN
+#       train_all_LSTM,
 # plot
         plot_totaldata,
-        get_prediction_table,
+        compute_prediction, export2CSV,
         plot_corr,
         plot_DNN_scatter,
         plot_DNN_histogram,
