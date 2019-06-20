@@ -151,7 +151,8 @@ function parse_obsxlsx(obs_path::String, input_dir::String)
 end
 
 function parse_aerosols(aes_dir::String, input_dir::String)
-    re_aes_fn = r"([0-9]+)년\W*([0-9]+)분기.csv"
+    re_aes_fn = r"([0-9]+)년\W*([0-9]+)분기.(csv|xlsx)"
+    re_ext_fn = r".*.(csv|xlsx)"
     date_str = "yyyymmddHH"
 
     aes_paths = joinpath(input_dir, aes_dir)
@@ -166,7 +167,16 @@ function parse_aerosols(aes_dir::String, input_dir::String)
 
     p = Progress(length(collect(aes_globs)), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     for _aes in aes_globs
-        df_raw = CSV.read(_aes)
+        #=
+        if match(re_ext_fn, _aes)[1] == "csv"
+            df_raw = CSV.read(_aes)
+        elseif match(re_ext_fn, _aes)[1] == "xlsx"
+            df_raw = ExcelReaders.readxlsheet("Filename.xlsx", "Sheet1")
+        else
+            continue
+        end
+        =#
+        df_raw = DataFrame(CSV.read(_aes))
 
         rename!(df_raw, [:지역 => :region, :측정소코드 => :stationCode, :측정소명 => :stationName, :측정일시 => :date,
                    :주소 => :addr])
@@ -206,7 +216,7 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
 
     p = Progress(length(collect(wea_globs)), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     for _wea in wea_globs
-        df_raw = CSV.read(_wea)
+        df_raw = DataFrame(CSV.read(_wea))
 
         rename!(df_raw, [Symbol("일시") => :date,
             Symbol("기온(°C)") => :temp,
