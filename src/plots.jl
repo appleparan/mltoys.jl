@@ -1,7 +1,9 @@
 #const BG_COLOR = RGB(248/255, 247/255, 247/255)
-const BG_COLOR = RGB(255/255, 255/255, 255/255)
-const LN_COLOR = RGB(56/255, 44/255, 80/255)
-const MK_COLOR = RGB(109/255, 117/255, 126/255)
+# BG: 243 250 255 - LN: 67 75 86
+#const BG_COLOR = RGB(243/255, 250/255, 255/255)
+const BG_COLOR = :transparent
+const LN_COLOR = RGB(67/255, 75/255, 86/255)
+const MK_COLOR = RGB(67/255, 75/255, 86/255)
 
 function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
     ENV["GKSwstype"] = "100"
