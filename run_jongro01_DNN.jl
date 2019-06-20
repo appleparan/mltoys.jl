@@ -49,7 +49,7 @@ function run_model()
     train_sdate = ZonedDateTime(2015, 1, 1, 1, tz"Asia/Seoul")
     train_fdate = ZonedDateTime(2017, 12, 31, 23, tz"Asia/Seoul")
     test_sdate = ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul")
-    test_fdate = ZonedDateTime(2018, 12, 31, 22, tz"Asia/Seoul")
+    test_fdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
     # windowsed index
     train_valid_wd_idxs = window_df(df, sample_size, output_size, train_sdate, train_fdate)
     test_wd_idxs = window_df(df, sample_size, output_size, test_sdate, test_fdate)
