@@ -23,7 +23,7 @@ function get_nearjongro(df)
 end
 
 function save_jongro_df(input_path = "/input/input.csv")
-    df = CSV.read(input_path)
+    df = CSV.read(input_path, copycols=true)
     sort!(df, (:date, :stationCode))
     @show first(df, 5)
     j_df = filter_jongro(df)
@@ -36,7 +36,7 @@ function read_jongro(input_path="/input/jongro_single.csv")
         save_jongro_df()
     end
 
-    df = DataFrame(CSV.read(input_path))
+    df = DataFrame(CSV.read(input_path, copycols=true))
     
     @info "Start preprocessing..."
     flush(stdout); flush(stderr)
