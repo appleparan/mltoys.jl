@@ -110,7 +110,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     @info " $(string(ycol)) Forecasting accuracy (all) for test : ", forecast_all
     @info " $(string(ycol)) Forecasting accuracy (high) for test : ", forecast_high
 
-    table_01h, table_24h = compute_prediction(df, test_set, model, ycol, total_μ, total_σ, "/mnt/")
+    table_01h, table_24h = compute_prediction(test_set, model, ycol, total_μ, total_σ, "/mnt/")
     export2CSV(DateTime.(test_dates), table_01h, table_24h, ycol, "/mnt/")
     plot_DNN_scatter(table_01h, table_24h, ycol, "/mnt/")
     plot_DNN_histogram(table_01h, table_24h, ycol, "/mnt/")
