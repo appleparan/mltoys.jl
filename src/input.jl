@@ -151,7 +151,7 @@ function parse_obsxlsx(obs_path::String, input_dir::String)
 end
 
 function parse_aerosols(aes_dir::String, input_dir::String)
-    re_aes_fn = r"([0-9]+)년\W*([0-9]+)분기.(csv|xlsx)"
+    re_aes_fn = r"([0-9]+)년\W*([0-9]+)분기.csv"
     re_ext_fn = r".*.(csv|xlsx)"
     date_str = "yyyymmddHH"
 
@@ -295,11 +295,6 @@ function join_data(input_dir::String, obs_path::String, aes_dir::String, wea_dir
     
     # sort by stationCode and date
     sort!(df, (:stationCode, :date))
-    @show first(df_obs, 5)
-    @show first(df_aes, 5)
-    @show first(df1, 5)
-    @show first(df2, 5)
-    @show first(df, 5)
 
     # check path
     mkpath(input_dir)
