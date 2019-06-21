@@ -8,3 +8,6 @@ deps/deps.jl
 *.out
 *.err
 JS-jongro*
+
+# pyenv
+.python-version
