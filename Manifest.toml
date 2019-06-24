@@ -125,9 +125,9 @@ version = "3.0.1"
 
 [[CUDAnative]]
 deps = ["Adapt", "CUDAapi", "CUDAdrv", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "Logging", "Printf", "TimerOutputs"]
-git-tree-sha1 = "c28bb6d52842b2269fd3a6c5c35772ca677cc180"
+git-tree-sha1 = "37bfdc22482ee0f21456f677c192faf77a755e0a"
 uuid = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
-version = "2.1.3"
+version = "2.2.0"
 
 [[Calculus]]
 deps = ["Compat"]
@@ -218,6 +218,12 @@ deps = ["CategoricalArrays", "Compat", "IteratorInterfaceExtensions", "Missings"
 git-tree-sha1 = "279baa6358fd5e944deccab88434f69c74cfc722"
 uuid = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 version = "0.18.3"
+
+[[DataFramesMeta]]
+deps = ["DataFrames", "Random", "Statistics", "Tables", "Test"]
+git-tree-sha1 = "853109fcd1ac1a31c4fb757401a25f260e827aa1"
+uuid = "1313f7d8-7da2-5740-9ea0-a2ca25f37964"
+version = "0.4.1"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections", "Random", "Serialization", "Test"]
