@@ -46,7 +46,7 @@ function run_model()
     # split into segment
     # sg_idxs = split_df(size(df, 1), sample_size)
     # split into window [[1,2,3,4],[2,3,4,5]...]
-    train_sdate = ZonedDateTime(2008, 1, 1, 1, tz"Asia/Seoul")
+    train_sdate = ZonedDateTime(2012, 1, 1, 1, tz"Asia/Seoul")
     train_fdate = ZonedDateTime(2017, 12, 31, 23, tz"Asia/Seoul")
     test_sdate = ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
@@ -65,6 +65,7 @@ function run_model()
     train_valid_idxs = Random.randperm(train_size + valid_size)
     train_chnk, valid_chnk = create_chunks(train_valid_idxs, train_size, valid_size, batch_size)
     train_idxs, valid_idxs = create_idxs(train_valid_idxs, train_size, valid_size)
+    # TODO: find index by Date
     test_idxs = collect((train_size + valid_size + 1):(train_size + valid_size + test_size))
     flush(stdout); flush(stderr)
 
