@@ -1,3 +1,4 @@
+using DataFramesMeta, TimeZones, Dates
 # https://github.com/vtjnash/Glob.jl/issues/11
 rglob(pat, topdir) = Base.Iterators.flatten(map(d -> glob(pat, d[1]), walkdir(topdir)))
 
@@ -145,8 +146,6 @@ function parse_obsxlsx(obs_path::String, input_dir::String)
     filename = joinpath(input_dir, "msrstn_korea.csv")
     CSV.write(filename, df)
 
-    @show first(df, 5)
-
     df
 end
 
@@ -292,7 +291,7 @@ function join_data(input_dir::String, obs_path::String, aes_dir::String, wea_dir
     df = df2[:, [:stationCode, :date, :lat, :lon,
                    :SO2, :CO, :O3, :NO2, :PM10, :PM25,
                    :temp, :u, :v, :pres, :humid, :prep, :snow]]
-    
+
     # sort by stationCode and date
     sort!(df, (:stationCode, :date))
 

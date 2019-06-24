@@ -385,8 +385,13 @@ function getHoursLater(df::DataFrame, hours::Integer, last_date::ZonedDateTime)
     start_date = last_date
 
     # collect within daterange
-    df_hours = df |> @filter(start_date < _.date <= (start_date + Hour(hours))) |> DataFrame
+    if typeof(df[1, :date]) == DateTime
+        start_date = DateTime(start_date)
+    end
     
+    df_hours = DataFramesMeta.@linq df |>
+                    where(:date .> start_date, :date .<= (start_date + Hour(hours)))
+
     df_hours
 end
 
@@ -411,7 +416,7 @@ function getY(df::DataFrame, idx,
     ycol::Symbol, sample_size::Integer, output_size::Integer) where I<:Integer
     df_X = df[idx, :]
     last_date_of_X = df_X[sample_size, :date]
-    
+
     Y = getHoursLater(df, output_size, last_date_of_X)
 
     Y[:, ycol]
@@ -436,7 +441,6 @@ function make_pairs_DNN(df::DataFrame, ycol::Symbol,
 
     X = X |> gpu
     Y = Y |> gpu
-
     @assert length(X) == sample_size * length(features)
     @assert length(Y) == output_size
     @assert ndims(X) == 1
