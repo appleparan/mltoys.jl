@@ -7,9 +7,13 @@ using Printf
 using Random
 using Statistics
 
-using BSON: @save, @load
+using Flux
+using Flux.Tracker
+using Flux.Tracker: param, back!, grad, data
+
+using BSON
 using CSV
-using DataFrames, Missings, Query
+using DataFrames, DataFramesMeta, Missings, Query
 using DataValues
 using Dates, TimeZones
 
@@ -20,10 +24,6 @@ using JuliaDB
 using MicroLogging
 using ProgressMeter
 using StatsBase: mean, std, mean_and_std, zscore
-
-using Flux
-using Flux.Tracker
-using Flux.Tracker: param, back!, grad, data
 
 using Plots
 using Plots.PlotMeasures
@@ -54,6 +54,7 @@ include("jongro01_DNN/preprocess.jl")
 include("jongro01_DNN/model.jl")
 #include("jongro02_LSTM/model.jl")
 
+include("postprocess/jongro01_DNN.jl")
 # input
 export join_data,
 # utils
@@ -68,9 +69,11 @@ export join_data,
 # loss
         huber_loss, huber_loss_mean, mse_rnn,
 # jongro01_DNN
-        train_all_DNN, filter_jongro, read_jongro,
+        train_all_DNN, filter_jongro, read_jongro, filter_station, read_station,
 # jongro02_DNN
 #       train_all_LSTM,
+# post processing
+        test_features, test_station,
 # plot
         plot_totaldata,
         compute_prediction, export2CSV,

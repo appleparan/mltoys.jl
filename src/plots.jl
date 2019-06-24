@@ -82,9 +82,9 @@ function compute_prediction(dataset, model, ycol::Symbol, μ::AbstractFloat, σ:
     dnn_01h_table, dnn_24h_table
 end
 
-function export2CSV(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String)
-    plotdata_01h_path = output_dir * String(ycol) * "_plotdata_01h.csv"
-    plotdata_24h_path = output_dir * String(ycol) * "_plotdata_24h.csv"
+function export2CSV(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String, output_prefix::String)
+    plotdata_01h_path = output_dir * output_prefix * "plotdata_01h.csv"
+    plotdata_24h_path = output_dir * output_prefix * "plotdata_24h.csv"
     dates_01h = dates .+ Dates.Hour(1)
     dates_24h = dates .+ Dates.Hour(24)
 
@@ -103,6 +103,8 @@ function export2CSV(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, output_di
 
     CSV.write(plotdata_01h_path, df_01h)
     CSV.write(plotdata_24h_path, df_24h)
+
+    return y_01h_vals, ŷ_01h_vals, y_24h_vals, ŷ_24h_vals
 end
 
 function plot_DNN_scatter(dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String)
@@ -183,7 +185,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
         line=:solid, color=:red, label="model")
     Plots.png(pl, line_01h_path)
 
-    @info "Correlation in 01H results: ", Statistics.cor(JuliaDB.select(dnn_01h_table, :y), JuliaDB.select(dnn_01h_table, :ŷ))
+    #@info "Correlation in 01H results: ", Statistics.cor(JuliaDB.select(dnn_01h_table, :y), JuliaDB.select(dnn_01h_table, :ŷ))
 
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_24h[1:len_model], JuliaDB.select(dnn_24h_table, :y),
@@ -199,7 +201,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
         line=:solid, color=:red, label="model")
     Plots.png(pl, line_24h_path)
 
-    @info "Correlation in 24H results: ", Statistics.cor(JuliaDB.select(dnn_24h_table, :y), JuliaDB.select(dnn_24h_table, :ŷ))
+    #@info "Correlation in 24H results: ", Statistics.cor(JuliaDB.select(dnn_24h_table, :y), JuliaDB.select(dnn_24h_table, :ŷ))
 end
 
 function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime, f_date::DateTime, ycol::Symbol, output_dir::String)

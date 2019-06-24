@@ -111,10 +111,17 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     @info " $(string(ycol)) Forecasting accuracy (high) for test : ", forecast_high
 
     table_01h, table_24h = compute_prediction(test_set, model, ycol, total_μ, total_σ, "/mnt/")
-    export2CSV(DateTime.(test_dates), table_01h, table_24h, ycol, "/mnt/")
+    y_01h_vals, ŷ_01h_vals, y_24h_vals, ŷ_24h_vals =
+        export2CSV(DateTime.(test_dates), table_01h, table_24h, ycol, "/mnt/", string(ycol) * "_")
     plot_DNN_scatter(table_01h, table_24h, ycol, "/mnt/")
     plot_DNN_histogram(table_01h, table_24h, ycol, "/mnt/")
     plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, ycol, "/mnt/")
+
+    _corr_01h = Statistics.cor(y_01h_vals, ŷ_01h_vals)
+    _corr_24h = Statistics.cor(y_24h_vals, ŷ_24h_vals)
+    @info " $(string(ycol)) Corr(01H)   : ", _corr_01h
+    @info " $(string(ycol)) Corr(24H)   : ", _corr_24h
+
     # 3 months plot
     # TODO : how to generalize date range? how to split based on test_dates?
     # 1/4 : because train size is 3 days, result should be start from 1/4
@@ -176,7 +183,7 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
             cpu_model = model |> cpu
             # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
-            @save filepath cpu_model epoch_idx acc
+            BSON.@save filepath cpu_model epoch_idx acc
             best_acc = acc
             last_improvement = epoch_idx
         end
