@@ -83,8 +83,8 @@ function compute_prediction(dataset, model, ycol::Symbol, μ::AbstractFloat, σ:
 end
 
 function export2CSV(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String, output_prefix::String)
-    plotdata_01h_path = output_dir * output_prefix * "plotdata_01h.csv"
-    plotdata_24h_path = output_dir * output_prefix * "plotdata_24h.csv"
+    plotdata_01h_path = output_dir * output_prefix * "_plotdata_01h.csv"
+    plotdata_24h_path = output_dir * output_prefix * "_plotdata_24h.csv"
     dates_01h = dates .+ Dates.Hour(1)
     dates_24h = dates .+ Dates.Hour(24)
 
@@ -162,7 +162,7 @@ function plot_DNN_histogram(dnn_01h_table, dnn_24h_table, ycol::Symbol, output_d
     Plots.png(ht, hs_24h_path)
 end
 
-function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String)
+function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String, output_prefix::String)
     ENV["GKSwstype"] = "100"
     line_01h_path = output_dir * String(ycol) * "_01h_line.png"
     line_24h_path = output_dir * String(ycol) * "_24h_line.png"
@@ -204,14 +204,11 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
     #@info "Correlation in 24H results: ", Statistics.cor(JuliaDB.select(dnn_24h_table, :y), JuliaDB.select(dnn_24h_table, :ŷ))
 end
 
-function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime, f_date::DateTime, ycol::Symbol, output_dir::String)
+function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime, f_date::DateTime, ycol::Symbol, output_dir::String, output_prefix::String)
     ENV["GKSwstype"] = "100"
-    fmt = @dateformat_str "yyyymmddHH"
 
-    s_date_str = Dates.format(s_date, fmt)
-    f_date_str = Dates.format(f_date, fmt)
-    line_01h_path = output_dir * String(ycol) * "_" * s_date_str * "_" * f_date_str * "_01h_line.png"
-    line_24h_path = output_dir * String(ycol) * "_" * s_date_str * "_" * f_date_str * "_24h_line.png"
+    line_01h_path = output_dir * output_prefix * "_01h_line.png"
+    line_24h_path = output_dir * output_prefix * "_24h_line.png"
     dates_01h = dates .+ Dates.Hour(1)
     dates_24h = dates .+ Dates.Hour(24)
     len_model = length(JuliaDB.select(dnn_01h_table, :y))

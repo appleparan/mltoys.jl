@@ -14,7 +14,7 @@ end
 
 function test_station(modelpath::String, stn_df::DataFrame, ycol::Symbol, stn_code::Integer, stn_name::String,
     sample_size::Integer, output_size::Integer,
-    output_dir::String, output_name::String,
+    output_dir::String, output_prefix::String,
     test_sdate::ZonedDateTime=ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul"),
     test_fdate::ZonedDateTime=ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul"))
     
@@ -58,7 +58,6 @@ function test_station(modelpath::String, stn_df::DataFrame, ycol::Symbol, stn_co
         dataset = ["test", "test"],
         type = ["μ", "σ"]),
         (value = [test_μ, test_σ],))
-    @show sample_size, output_size
 
     #@info "    Constructing (input, output) pairs for test set (another station)..."
     #p = Progress(length(test_wd_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
@@ -74,7 +73,13 @@ function test_station(modelpath::String, stn_df::DataFrame, ycol::Symbol, stn_co
     test_dates = collect(test_sdate:Hour(1):test_fdate)
     table_01h, table_24h = compute_prediction(test_set, model, ycol, total_μ, total_σ, "/mnt/")
     ycol_str = string(ycol)
-    y_01h_vals, ŷ_01h_vals, y_24h_vals, ŷ_24h_vals = export2CSV(DateTime.(test_dates), table_01h, table_24h, ycol, output_dir, output_name)
+    y_01h_vals, ŷ_01h_vals, y_24h_vals, ŷ_24h_vals = export2CSV(DateTime.(test_dates), table_01h, table_24h, ycol, output_dir, output_prefix)
+
+    plot_datefmt = @dateformat_str "yyyymmddHH"
+    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h,
+        DateTime(2018, 7, 1, 1), DateTime(2018, 7, 7, 23), ycol,
+        output_dir, output_prefix)
+        #output_dir, string(ycol) * "_" * stn_name * "_" * Dates.format(DateTime(2018, 7, 1, 1), plot_datefmt) * "_" * Dates.format(DateTime(2018, 7, 7, 23), plot_datefmt))
 
     _corr_01h = Statistics.cor(y_01h_vals, ŷ_01h_vals)
     _corr_24h = Statistics.cor(y_24h_vals, ŷ_24h_vals)

@@ -115,7 +115,9 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
         export2CSV(DateTime.(test_dates), table_01h, table_24h, ycol, "/mnt/", string(ycol) * "_")
     plot_DNN_scatter(table_01h, table_24h, ycol, "/mnt/")
     plot_DNN_histogram(table_01h, table_24h, ycol, "/mnt/")
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, ycol, "/mnt/")
+
+    plot_datefmt = @dateformat_str "yyyymmddHH"
+    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, ycol, "/mnt/", String(ycol))
 
     _corr_01h = Statistics.cor(y_01h_vals, ŷ_01h_vals)
     _corr_24h = Statistics.cor(y_24h_vals, ŷ_24h_vals)
@@ -126,11 +128,20 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     # TODO : how to generalize date range? how to split based on test_dates?
     # 1/4 : because train size is 3 days, result should be start from 1/4
     # 12/29 : same reason 1/4, but this results ends with 12/31 00:00 ~ 12/31 23:00
+
     #=
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 1, 4, 1), DateTime(2018, 3, 31, 23), ycol, "/mnt/")
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 4, 1, 1), DateTime(2018, 6, 30, 23), ycol, "/mnt/")
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 7, 1, 1), DateTime(2018, 9, 30, 23), ycol, "/mnt/")
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, DateTime(2018, 10, 1, 1), DateTime(2018, 12, 27, 23), ycol, "/mnt/")
+    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, 
+        DateTime(2018, 1, 4, 1), DateTime(2018, 3, 31, 23), ycol,
+        "/mnt/", string(ycol) * "_" * Dates.format(DateTime(2018, 1, 4, 1), plot_datefmt) * "_" * Dates.format(DateTime(2018, 3, 31, 1), plot_datefmt))
+    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h,
+        DateTime(2018, 4, 1, 1), DateTime(2018, 6, 30, 23), ycol,
+        "/mnt/", string(ycol) * "_" * Dates.format(DateTime(2018, 4, 1, 1), plot_datefmt) * "_" * Dates.format(DateTime(2018, 6, 30, 1), plot_datefmt))
+    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h,
+        DateTime(2018, 7, 1, 1), DateTime(2018, 9, 30, 23), ycol,
+        "/mnt/", string(ycol) * "_" * Dates.format(DateTime(2018, 7, 1, 1), plot_datefmt) * "_" * Dates.format(DateTime(2018, 9, 30, 1), plot_datefmt))
+    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h,
+        DateTime(2018, 10, 1, 1), DateTime(2018, 12, 27, 23), ycol,
+        "/mnt/", string(ycol) * "_" * Dates.format(DateTime(2018, 10, 1, 1), plot_datefmt) * "_" * Dates.format(DateTime(2018, 12, 31, 1), plot_datefmt))
     =#
 
     plot_evaluation(df_eval, ycol, "/mnt/")
