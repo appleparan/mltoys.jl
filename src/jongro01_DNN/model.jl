@@ -224,7 +224,7 @@ end
 function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
-    unit_size = Int(round(input_size * 3/3))
+    unit_size = min(Int(round(input_size * 3/3)), 768)
     @show "Unit size in PM10: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
@@ -248,7 +248,7 @@ end
 function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
-    unit_size = Int(round(input_size * 2/3))
+    unit_size = min(Int(round(input_size * 2/3)), 512)
     @show "Unit size in PM25: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
