@@ -192,9 +192,10 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
             flush(stdout)
 
             cpu_model = model |> cpu
+            weights = Tracker.data.(params(cpu_model))
             # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
-            BSON.@save filepath cpu_model epoch_idx acc
+            BSON.@save filepath cpu_model weights epoch_idx acc
             best_acc = acc
             last_improvement = epoch_idx
         end
