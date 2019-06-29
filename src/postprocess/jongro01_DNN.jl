@@ -12,25 +12,27 @@ function findrow(df::DataFrame, col::Symbol, val)
     idx
 end
 
-function test_station(modelpath::String, stn_df::DataFrame, ycol::Symbol, stn_code::Integer, stn_name::String,
+function test_station(model_path::String, stn_df::DataFrame, ycol::Symbol, stn_code::Integer, stn_name::String,
     sample_size::Integer, output_size::Integer,
     output_dir::String, output_prefix::String,
     test_sdate::ZonedDateTime=ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul"),
-    test_fdate::ZonedDateTime=ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul"))
+    test_fdate::ZonedDateTime=ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul"),
+    is_zscored::Bool=false)
     
-    filepath = modelpath * string(ycol) * ".bson"
-    #res = BSON.load(filepath)
-    #model = res[:cpu_model]
+    filepath = model_path * string(ycol) * ".bson"
 
-    BSON.@load filepath cpu_model
+    BSON.@load filepath cpu_model weights
+    Flux.loadparams!(cpu_model, weights)
     model = cpu_model |> gpu
 
     # create dataset
     features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
     norm_prefix = "norm_"
     _norm_feas = [Symbol(eval(norm_prefix * String(f))) for f in features]
-    
-    zscore!(stn_df, features, _norm_feas)
+
+    if (is_zscored == false)
+        zscore!(stn_df, features, _norm_feas)
+    end
 
     # remove target (ycol)
     norm_ycol = Symbol(norm_prefix, ycol)
@@ -63,7 +65,7 @@ function test_station(modelpath::String, stn_df::DataFrame, ycol::Symbol, stn_co
     #p = Progress(length(test_wd_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     #test_set = [(ProgressMeter.next!(p); make_pairs_DNN(stn_df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
     test_set = [(make_pairs_DNN(stn_df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
-    
+
     _RMSE = RMSE("test", test_set, model, μσ)
     _RSR = RSR("test", test_set, model, μσ)
     _PBIAS = PBIAS("test", test_set, model, μσ)
@@ -79,7 +81,6 @@ function test_station(modelpath::String, stn_df::DataFrame, ycol::Symbol, stn_co
     plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h,
         DateTime(2018, 7, 1, 1), DateTime(2018, 7, 7, 23), ycol,
         output_dir, output_prefix)
-        #output_dir, string(ycol) * "_" * stn_name * "_" * Dates.format(DateTime(2018, 7, 1, 1), plot_datefmt) * "_" * Dates.format(DateTime(2018, 7, 7, 23), plot_datefmt))
 
     _corr_01h = Statistics.cor(y_01h_vals, ŷ_01h_vals)
     _corr_24h = Statistics.cor(y_24h_vals, ŷ_24h_vals)
@@ -93,6 +94,8 @@ function test_station(modelpath::String, stn_df::DataFrame, ycol::Symbol, stn_co
     @info " $(string(ycol)) Corr(01H)   : ", _corr_01h
     @info " $(string(ycol)) Corr(24H)   : ", _corr_24h
 
-    return [stn_code, stn_name, string(ycol),
+    stn_lat = stn_df[1, :lat]
+    stn_lon = stn_df[1, :lon]
+    return [stn_code, stn_name, stn_lat, stn_lon, string(ycol),
         _RMSE, _RSR, _PBIAS, _NSE, _IOA, _corr_01h, _corr_24h]
 end

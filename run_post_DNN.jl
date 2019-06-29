@@ -1,6 +1,7 @@
 using Dates, TimeZones
+using DelimitedFiles
 using CSV, DataFrames
-using Flux
+using Flux, Flux.Tracker
 using MicroLogging
 using ProgressMeter
 
@@ -23,6 +24,8 @@ function post_station(input_path::String, model_path::String, res_dir::String,
     stn_stats_df = DataFrame(
         code = Int64[],
         name = String[],
+        lat = Real[],
+        lon = Real[],
         colname = String[],
         RMSE = Real[],
         RSR = Real[],
@@ -56,6 +59,8 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
     fea_stats_df = DataFrame(
         code = Int64[],
         name = String[],
+        lat = Real[],
+        lon = Real[],
         colname = String[],
         RMSE = Real[],
         RSR = Real[],
@@ -82,11 +87,22 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
             rmf_df[:, r_f] = 0.0
         end
 
+        features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
+        norm_prefix = "norm_"
+        _norm_feas = [Symbol(eval(norm_prefix * String(f))) for f in features]
+        zscore!(rmf_df, features, _norm_feas)
+
+        for r_f in r_fea
+            norm_r_fea = Symbol(norm_prefix, string(r_f))
+            # replace NaN to zero at r_f column (necessary when testing removing some features)
+            rmf_df[findall(x -> isnan(x), rmf_df[:, norm_r_fea]), norm_r_fea] = 0.0
+        end
+
         row_PM10 = test_station(model_path, rmf_df, :PM10, stn_code, stn_name,
-            sample_size, output_size, res_dir, "PM10_rm_$(r_fea_str)", test_sdate, test_fdate)
+            sample_size, output_size, res_dir, "PM10_rm_$(r_fea_str)", test_sdate, test_fdate, true)
         row_PM25 = test_station(model_path, rmf_df, :PM25, stn_code, stn_name,
-            sample_size, output_size, res_dir, "PM25_rm_$(r_fea_str)", test_sdate, test_fdate)
-        
+            sample_size, output_size, res_dir, "PM25_rm_$(r_fea_str)", test_sdate, test_fdate, true)
+
         push!(fea_stats_df, row_PM10)
         push!(fea_stats_df, row_PM25)
         ProgressMeter.next!(p);
@@ -105,14 +121,18 @@ function run()
     test_sdate = ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
 
+    @info "Postprocessing per station"
     res_dir = "/mnt/post/station/"
     Base.Filesystem.mkpath(res_dir)
     post_station(input_path, model_path, res_dir,
         sample_size, output_size, test_sdate, test_fdate)
+
+    @info "Postprocessing per feature removing"
     res_dir = "/mnt/post/feature/"
     Base.Filesystem.mkpath(res_dir)
     post_feature(input_path, model_path, res_dir,
         sample_size, output_size, test_sdate, test_fdate)
+
 end
 
 run()
