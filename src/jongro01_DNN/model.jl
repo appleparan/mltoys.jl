@@ -64,7 +64,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     model, loss, accuracy, opt = compile(input_size, batch_size, output_size, μσ)
 
     # create (input(1D), output(1D)) pairs of total dataframe row, it is indepdent by train/valid/test set
-    @info "    Constructing (input, output) pairs for train/test set..."
+    @info "    Constructing (input, output) pairs for train/valid set..."
     p = Progress(length(total_wd_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     input_pairs = [(ProgressMeter.next!(p); make_pairs_DNN(df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in total_wd_idxs]
 

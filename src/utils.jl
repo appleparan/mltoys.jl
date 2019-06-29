@@ -242,7 +242,7 @@ function window_df(df::DataFrame, sample_size::Integer, output_size::Integer, _s
     if Dates.Hour(end_date - start_date).value < sample_size + output_size
         throw(BoundsError("sample size($sample_size) is smaller than date range: $start_date ~ $end_date"))
     end
-    
+
     new_df = df[(df.date .>= start_date) .& (df.date .<= end_date), :]
     # offset for subDataFrame
     offset = Dates.Hour(start_date - df.date[1]).value

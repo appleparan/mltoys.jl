@@ -37,7 +37,7 @@ function run_model()
     
     sample_size = 72
     output_size = 24
-    epoch_size = 200
+    epoch_size = 500
     batch_size = 128
     @info "feature : " features
     @info "sizes (sample, output, epoch, batch) : ", sample_size, output_size, epoch_size, batch_size
@@ -46,7 +46,7 @@ function run_model()
     # split into segment
     # sg_idxs = split_df(size(df, 1), sample_size)
     # split into window [[1,2,3,4],[2,3,4,5]...]
-    train_sdate = ZonedDateTime(2012, 1, 1, 1, tz"Asia/Seoul")
+    train_sdate = ZonedDateTime(2008, 1, 1, 1, tz"Asia/Seoul")
     train_fdate = ZonedDateTime(2017, 12, 31, 23, tz"Asia/Seoul")
     test_sdate = ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
