@@ -68,18 +68,20 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
         NSE = Real[],
         IOA = Real[],
         corr_1h = Real[],
-        corr_24h = Real[])
+        corr_24h = Real[],
+        rm_fea = String[])
     
     stn_code = 111123
     stn_name = "jongro"
 
     stn_df = read_station(input_path, stn_code)
     rm_features = [[:SO2], [:CO], [:O3], [:NO2], [:temp], [:u, :v], [:pres], [:humid], [:prep, :snow]]
+    rm_features_str = ["SO2", "CO", "O3", "NO2", "temp", "u_v", "pres", "humid", "prep_snow"]
     
     @info "    Test with removed featuers"
     p = Progress(length(rm_features), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
 
-    for r_fea in rm_features
+    for (idx, r_fea) in enumerate(rm_features)
         r_fea_str = join(string.(r_fea))
 
         rmf_df = copy(stn_df)
@@ -103,12 +105,25 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
         row_PM25 = test_station(model_path, rmf_df, :PM25, stn_code, stn_name,
             sample_size, output_size, res_dir, "PM25_rm_$(r_fea_str)", test_sdate, test_fdate, true)
 
+        push!(row_PM10, rm_features_str[idx])
+        push!(row_PM25, rm_features_str[idx])
+
         push!(fea_stats_df, row_PM10)
         push!(fea_stats_df, row_PM25)
         ProgressMeter.next!(p);
     end
 
+    row_PM10 = test_station(model_path, stn_df, :PM10, stn_code, stn_name,
+            sample_size, output_size, res_dir, "PM10_rm_FULL", test_sdate, test_fdate, false)
+    row_PM25 = test_station(model_path, stn_df, :PM25, stn_code, stn_name,
+        sample_size, output_size, res_dir, "PM25_rm_FULL", test_sdate, test_fdate, false)
+
+    push!(row_PM10, "FULL")
+    push!(row_PM25, "FULL")
+    push!(fea_stats_df, row_PM10)
+    push!(fea_stats_df, row_PM25)
     CSV.write(res_dir * "feature_stats.csv", fea_stats_df)
+
 end
 
 function run()
@@ -121,11 +136,13 @@ function run()
     test_sdate = ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
 
+    #=
     @info "Postprocessing per station"
     res_dir = "/mnt/post/station/"
     Base.Filesystem.mkpath(res_dir)
     post_station(input_path, model_path, res_dir,
         sample_size, output_size, test_sdate, test_fdate)
+    =#
 
     @info "Postprocessing per feature removing"
     res_dir = "/mnt/post/feature/"
