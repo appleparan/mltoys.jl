@@ -4,6 +4,10 @@
 const BG_COLOR = RGB(255/255, 255/255, 255/255)
 const LN_COLOR = RGB(67/255, 75/255, 86/255)
 const MK_COLOR = RGB(67/255, 75/255, 86/255)
+const LN01_COLOR = RGB(202/255,0/255,32/255)
+const LN02_COLOR = RGB(5/255,113/255,176/255)
+const FL01_COLOR = RGB(239/255, 138/255, 98/255)
+const FL02_COLOR = RGB(103/255, 169/255, 207/255)
 
 function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
     ENV["GKSwstype"] = "100"
@@ -16,7 +20,7 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
         xlabel=String(ycol), ylabel="#", bins=200, legend=false,
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR, fillcolor=[:red], fillalpha=0.2)
+        background_color = BG_COLOR, fillcolor = FL01_COLOR, fillalpha=0.2)
     png(ht, hist_path)
 
     # plot in dates
@@ -26,7 +30,7 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
         title=String(ycol) * " in dates", xlabel="date", ylabel=String(ycol),
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR, linecolor = LN_COLOR, legend=false)
+        background_color = BG_COLOR, linecolor = LN01_COLOR, legend=false)
     png(pl, plot_path)
 end
 
@@ -173,32 +177,32 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, ou
     # plot in dates
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_01h[1:len_model], JuliaDB.select(dnn_01h_table, :y),
-        ylim = (0.0, maximum(JuliaDB.select(dnn_01h_table, :y))),
-        line=:dash, color=:black, linewidth=6, label="obs.",
+        ylim = (0.0,
+            max(maximum(JuliaDB.select(dnn_01h_table, :y)), maximum(JuliaDB.select(dnn_01h_table, :ŷ)))),
+        line=:solid, linewidth=5, label="obs.",
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR,
-        title=String(ycol) * " in dates (1h)", 
-        xlabel="date", ylabel=String(ycol), legend=true)
+        background_color = BG_COLOR, color=LN01_COLOR,
+        title=String(ycol) * " in dates (01h) at " * stn_name, 
+        xlabel="date", ylabel=String(ycol), legend=:best)
     pl = Plots.plot!(dates_01h[1:len_model], JuliaDB.select(dnn_01h_table, :ŷ),
-        ylim = (0.0, maximum(JuliaDB.select(dnn_01h_table, :ŷ))),
-        line=:solid, color=:red, label="model")
+        line=:solid, linewidth=5, color=LN02_COLOR, label="model")
     Plots.png(pl, line_01h_path)
 
     #@info "Correlation in 01H results: ", Statistics.cor(JuliaDB.select(dnn_01h_table, :y), JuliaDB.select(dnn_01h_table, :ŷ))
 
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_24h[1:len_model], JuliaDB.select(dnn_24h_table, :y),
-        ylim = (0.0, maximum(JuliaDB.select(dnn_24h_table, :y))),
-        line=:dash, color=:black, linewidth=6, label="obs.",
+        ylim = (0.0,
+            max(maximum(JuliaDB.select(dnn_24h_table, :y)), maximum(JuliaDB.select(dnn_24h_table, :ŷ)))),
+        line=:solid, linewidth=5, label="obs.",
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR,
-        title=String(ycol) * " in dates (24h)", 
-        xlabel="date", ylabel=String(ycol), legend=true)
+        background_color = BG_COLOR, color=LN01_COLOR,
+        title=String(ycol) * " in dates (24h) at " * stn_name, 
+        xlabel="date", ylabel=String(ycol), legend=:best)
     pl = Plots.plot!(dates_24h[1:len_model], JuliaDB.select(dnn_24h_table, :ŷ),
-        ylim = (0.0, maximum(JuliaDB.select(dnn_01h_table, :ŷ))),
-        line=:solid, color=:red, label="model")
+        line=:solid, linewidth=5, color=LN02_COLOR, label="model")
     Plots.png(pl, line_24h_path)
 
     #@info "Correlation in 24H results: ", Statistics.cor(JuliaDB.select(dnn_24h_table, :y), JuliaDB.select(dnn_24h_table, :ŷ))
@@ -227,30 +231,30 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime
     # plot in dates
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_01h[s_01h_idx:f_01h_idx], y_01h_vals[s_01h_idx:f_01h_idx],
-        ylim = (0.0, maximum(y_01h_vals[s_01h_idx:f_01h_idx])),
-        line=:dash, color=:black, linewidth=6, label="obs.",
+        ylim = (0.0,
+            max(maximum(y_01h_vals[s_01h_idx:f_01h_idx]), maximum(ŷ_01h_vals[s_01h_idx:f_01h_idx]))),
+        line=:solid, linewidth=5, label="obs.",
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR,
-        title=String(ycol) * " in dates (1h)", 
-        xlabel="date", ylabel=String(ycol), legend=true)
+        background_color = BG_COLOR, color=LN01_COLOR,
+        title=String(ycol) * " in dates (01h) at " * stn_name, 
+        xlabel="date", ylabel=String(ycol), legend=:best)
     pl = Plots.plot!(dates_01h[s_01h_idx:f_01h_idx], ŷ_01h_vals[s_01h_idx:f_01h_idx],
-        ylim = (0.0, maximum(ŷ_01h_vals[s_01h_idx:f_01h_idx])),
-        line=:solid, color=:red, label="model")
+        line=:solid, linewidth=5, color=LN02_COLOR, label="model")
     Plots.png(pl, line_01h_path)
 
     gr(size = (2560, 1080))
     pl = Plots.plot(dates_24h[s_24h_idx:f_24h_idx], y_01h_vals[s_24h_idx:f_24h_idx],
-        ylim = (0.0, maximum(y_24h_vals[s_24h_idx:f_24h_idx])),
-        line=:dash, color=:black, linewidth=6, label="obs.",
+        ylim = (0.0,
+            max(maximum(y_24h_vals[s_24h_idx:f_24h_idx]), maximum(ŷ_24h_vals[s_24h_idx:f_24h_idx]))),
+        line=:solid, linewidth=5, label="obs.",
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR,
-        title=String(ycol) * " in dates (24h)", 
-        xlabel="date", ylabel=String(ycol), legend=true)
+        background_color = BG_COLOR, color=LN01_COLOR,
+        title=String(ycol) * " in dates (24h) at " * stn_name, 
+        xlabel="date", ylabel=String(ycol), legend=:best)
     pl = Plots.plot!(dates_24h[s_24h_idx:f_24h_idx], ŷ_01h_vals[s_24h_idx:f_24h_idx],
-        ylim = (0.0, maximum(ŷ_24h_vals[s_24h_idx:f_24h_idx])),
-        line=:solid, color=:red, label="model")
+        line=:solid, linewidth=5, color=LN02_COLOR, label="model")
     Plots.png(pl, line_24h_path)
 end
 
