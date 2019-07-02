@@ -38,7 +38,7 @@ function test_station(model_path::String, stn_df::DataFrame, ycol::Symbol, stn_c
     norm_ycol = Symbol(norm_prefix, ycol)
     norm_feas = copy(_norm_feas)
     # remove ycol itself
-    deleteat!(norm_feas, findall(x -> x == norm_ycol, norm_feas))
+    # deleteat!(norm_feas, findall(x -> x == norm_ycol, norm_feas))
 
     test_wd_idxs = window_df(stn_df, sample_size, output_size, test_sdate, test_fdate)
     sidx = findrow(stn_df, :date, test_sdate)
@@ -214,7 +214,7 @@ function test_classification(model_path::String, stn_df::DataFrame, ycol::Symbol
     norm_ycol = Symbol(norm_prefix, ycol)
     norm_feas = copy(_norm_feas)
     # remove ycol itself
-    deleteat!(norm_feas, findall(x -> x == norm_ycol, norm_feas))
+    # deleteat!(norm_feas, findall(x -> x == norm_ycol, norm_feas))
 
     test_wd_idxs = window_df(stn_df, sample_size, output_size, test_sdate, test_fdate)
     sidx = findrow(stn_df, :date, test_sdate)
