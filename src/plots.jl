@@ -237,7 +237,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, color=LN01_COLOR,
-        title=String(ycol) * " in dates (01h) at " * stn_name, 
+        title=String(ycol) * " in dates (01h) at ", 
         xlabel="date", ylabel=String(ycol), legend=:best)
     pl = Plots.plot!(dates_01h[s_01h_idx:f_01h_idx], ŷ_01h_vals[s_01h_idx:f_01h_idx],
         line=:solid, linewidth=5, color=LN02_COLOR, label="model")
@@ -251,7 +251,7 @@ function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, color=LN01_COLOR,
-        title=String(ycol) * " in dates (24h) at " * stn_name, 
+        title=String(ycol) * " in dates (24h) at ", 
         xlabel="date", ylabel=String(ycol), legend=:best)
     pl = Plots.plot!(dates_24h[s_24h_idx:f_24h_idx], ŷ_01h_vals[s_24h_idx:f_24h_idx],
         line=:solid, linewidth=5, color=LN02_COLOR, label="model")
