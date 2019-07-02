@@ -450,6 +450,32 @@ function make_pairs_DNN(df::DataFrame, ycol::Symbol,
 end
 
 """
+    make_pairs(df, ycol, idx, features, hours)
+create pairs in `df` along with `idx` (row) and `features` (columns)
+output determined by ycol
+
+input_size = sample size * num_selected_columns
+
+"""
+# Bundle images together with labels and group into minibatchess
+function make_pairs_DNN(df_in::DataFrame, df_out::DataFrame, ycol::Symbol,
+    idx::Array{I, 1}, features::Array{Symbol, 1},
+    sample_size::Integer, output_size::Integer) where I<:Integer
+    X = getX_DNN(df_in, idx, features, sample_size * length(features))
+    Y = getY_DNN(df_out, idx, ycol, sample_size, output_size)
+
+    X = X |> gpu
+    Y = Y |> gpu
+    @assert length(X) == sample_size * length(features)
+    @assert length(Y) == output_size
+    @assert ndims(X) == 1
+    @assert ndims(Y) == 1
+
+    return (X, Y)
+end
+
+
+"""
     make_minibatch(input_pairs, batch_size, train_idx, valid_idx, test_idx)
 make batch by sampling. size of batch (input_size, batch_size) 
 

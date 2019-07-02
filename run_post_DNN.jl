@@ -77,9 +77,18 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
     stn_df = read_station(input_path, stn_code)
     rm_features = [[:SO2], [:CO], [:O3], [:NO2],[:PM10], [:PM25],  [:temp], [:u, :v], [:pres], [:humid], [:prep, :snow]]
     rm_features_str = ["SO2", "CO", "O3", "NO2", "PM10", "PM25", "temp", "u_v", "pres", "humid", "prep_snow"]
+
+    rm_features = [[:PM10], [:PM25]]
+    rm_features_str = ["PM10", "PM25"]
     
     @info "    Test with removed featuers"
     p = Progress(length(rm_features), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
+
+    features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
+    norm_prefix = "norm_"
+    _norm_feas = [Symbol(eval(norm_prefix * String(f))) for f in features]
+    stn_df2 = copy(stn_df)
+    zscore!(stn_df2, features, _norm_feas)
 
     for (idx, r_fea) in enumerate(rm_features)
         r_fea_str = join(string.(r_fea))
@@ -100,25 +109,16 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
             rmf_df[findall(x -> isnan(x), rmf_df[:, norm_r_fea]), norm_r_fea] = 0.0
         end
 
-        if r_fea[1] != :PM10
-            row_PM10 = test_station(model_path, rmf_df, :PM10, stn_code, stn_name,
-                sample_size, output_size, res_dir, "PM10_rm_$(r_fea_str)", test_sdate, test_fdate, true)
-            push!(row_PM10, rm_features_str[idx])
-        end
+        row_PM10 = test_station(model_path, rmf_df, stn_df2, :PM10, stn_code, stn_name,
+            sample_size, output_size, res_dir, "PM10_rm_$(r_fea_str)", test_sdate, test_fdate, true)
+        row_PM25 = test_station(model_path, rmf_df, stn_df2, :PM25, stn_code, stn_name,
+            sample_size, output_size, res_dir, "PM25_rm_$(r_fea_str)", test_sdate, test_fdate, true)
 
-        if r_fea[1] != :PM25
-            row_PM25 = test_station(model_path, rmf_df, :PM25, stn_code, stn_name,
-                sample_size, output_size, res_dir, "PM25_rm_$(r_fea_str)", test_sdate, test_fdate, true)
-            push!(row_PM25, rm_features_str[idx])
-        end
+        push!(row_PM10, rm_features_str[idx])
+        push!(row_PM25, rm_features_str[idx])
 
-        if r_fea[1] != :PM10
-            push!(fea_stats_df, row_PM10)
-        end
-
-        if r_fea[1] != :PM25
-            push!(fea_stats_df, row_PM25)
-        end
+        push!(fea_stats_df, row_PM10)
+        push!(fea_stats_df, row_PM25)
 
         ProgressMeter.next!(p);
     end
@@ -188,26 +188,23 @@ function run()
     test_sdate = ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
 
-    #=
     @info "Postprocessing per station"
     res_dir = "/mnt/post/station/"
     Base.Filesystem.mkpath(res_dir)
     post_station(input_path, model_path, res_dir,
         sample_size, output_size, test_sdate, test_fdate)
-    
+
     @info "Postprocessing per feature removing"
     res_dir = "/mnt/post/feature/"
     Base.Filesystem.mkpath(res_dir)
     post_feature(input_path, model_path, res_dir,
         sample_size, output_size, test_sdate, test_fdate)
-    =#
-
+    
     @info "Postprocessing for forecasting"
     res_dir = "/mnt/post/forecast/"
     Base.Filesystem.mkpath(res_dir)
     post_forecast(input_path, model_path, res_dir,
         sample_size, output_size, test_sdate, test_fdate)
-
 end
 
 run()
