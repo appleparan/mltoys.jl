@@ -42,7 +42,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     norm_ycol = Symbol(norm_prefix, ycol)
     norm_feas = copy(_norm_feas)
     # remove ycol itself
-    deleteat!(norm_feas, findall(x -> x == norm_ycol, norm_feas))
+    #deleteat!(norm_feas, findall(x -> x == norm_ycol, norm_feas))
 
     # extract from ndsparse
     total_μ = μσs[String(ycol), "μ"].value
@@ -224,7 +224,8 @@ end
 function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
-    unit_size = min(Int(round(input_size * 3/3)), 768)
+    #unit_size = min(Int(round(input_size * 3/3)), 768)
+    unit_size = Int(round(input_size * 3/3))
     @show "Unit size in PM10: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
@@ -248,7 +249,8 @@ end
 function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
-    unit_size = min(Int(round(input_size * 2/3)), 512)
+    #unit_size = min(Int(round(input_size * 2/3)), 512)
+    unit_size = Int(round(input_size * 2/3))
     @show "Unit size in PM25: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
