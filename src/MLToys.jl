@@ -73,7 +73,7 @@ export join_data,
 # jongro02_DNN
 #       train_all_LSTM,
 # post processing
-        test_features, test_station,
+        test_features, test_station, test_classification,
 # plot
         plot_totaldata,
         compute_prediction, export2CSV,
