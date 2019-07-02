@@ -75,8 +75,8 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
     stn_name = "jongro"
 
     stn_df = read_station(input_path, stn_code)
-    rm_features = [[:SO2], [:CO], [:O3], [:NO2], [:temp], [:u, :v], [:pres], [:humid], [:prep, :snow]]
-    rm_features_str = ["SO2", "CO", "O3", "NO2", "temp", "u_v", "pres", "humid", "prep_snow"]
+    rm_features = [[:SO2], [:CO], [:O3], [:NO2],[:PM10], [:PM25],  [:temp], [:u, :v], [:pres], [:humid], [:prep, :snow]]
+    rm_features_str = ["SO2", "CO", "O3", "NO2", "PM10", "PM25", "temp", "u_v", "pres", "humid", "prep_snow"]
     
     @info "    Test with removed featuers"
     p = Progress(length(rm_features), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
@@ -100,16 +100,26 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
             rmf_df[findall(x -> isnan(x), rmf_df[:, norm_r_fea]), norm_r_fea] = 0.0
         end
 
-        row_PM10 = test_station(model_path, rmf_df, :PM10, stn_code, stn_name,
-            sample_size, output_size, res_dir, "PM10_rm_$(r_fea_str)", test_sdate, test_fdate, true)
-        row_PM25 = test_station(model_path, rmf_df, :PM25, stn_code, stn_name,
-            sample_size, output_size, res_dir, "PM25_rm_$(r_fea_str)", test_sdate, test_fdate, true)
+        if r_fea[1] != :PM10
+            row_PM10 = test_station(model_path, rmf_df, :PM10, stn_code, stn_name,
+                sample_size, output_size, res_dir, "PM10_rm_$(r_fea_str)", test_sdate, test_fdate, true)
+            push!(row_PM10, rm_features_str[idx])
+        end
 
-        push!(row_PM10, rm_features_str[idx])
-        push!(row_PM25, rm_features_str[idx])
+        if r_fea[1] != :PM25
+            row_PM25 = test_station(model_path, rmf_df, :PM25, stn_code, stn_name,
+                sample_size, output_size, res_dir, "PM25_rm_$(r_fea_str)", test_sdate, test_fdate, true)
+            push!(row_PM25, rm_features_str[idx])
+        end
 
-        push!(fea_stats_df, row_PM10)
-        push!(fea_stats_df, row_PM25)
+        if r_fea[1] != :PM10
+            push!(fea_stats_df, row_PM10)
+        end
+
+        if r_fea[1] != :PM25
+            push!(fea_stats_df, row_PM25)
+        end
+
         ProgressMeter.next!(p);
     end
 
@@ -124,6 +134,48 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
     push!(fea_stats_df, row_PM25)
     CSV.write(res_dir * "feature_stats.csv", fea_stats_df)
 
+end
+
+function post_forecast(input_path::String, model_path::String, res_dir::String,
+    sample_size::Integer, output_size::Integer, test_sdate::ZonedDateTime, test_fdate::ZonedDateTime)
+    
+    stn_codes = [111121, 111123, 111131, 111141, 111142,
+        111151, 111152, 111161, 111171, 111181,
+        111191, 111201, 111212, 111221, 111231,
+        111241, 111251, 111261, 111262, 111273,
+        111274, 111281, 111291, 111301, 111311]
+    stn_names = ["중구", "종로구", "용산구", "광진구", "성동구",
+        "중랑구", "동대문구", "성북구", "도봉구", "은평구",
+        "서대문구", "마포구", "강서구", "구로구", "영등포구",
+        "동작구", "관악구", "강남구", "서초구", "송파구",
+        "강동구", "금천구", "강북구", "양천구", "노원구"]
+
+    fore_stats_df = DataFrame(
+        code = Int64[],
+        name = String[],
+        lat = Real[],
+        lon = Real[],
+        colname = String[],
+        fore_all = Real[],
+        fore_high = Real[])
+    
+    @info "    Test with other station"
+    p = Progress(length(stn_codes), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
+
+    for (stn_code, stn_name) in Base.Iterators.zip(stn_codes, stn_names)        
+        stn_df = read_station(input_path, stn_code)
+
+        row_PM10 = test_classification(model_path, stn_df, :PM10, stn_code, stn_name,
+            sample_size, output_size, res_dir, "PM10_" * string(stn_code) * "_$(stn_name)", test_sdate, test_fdate)
+        row_PM25 = test_classification(model_path, stn_df, :PM25, stn_code, stn_name,
+            sample_size, output_size, res_dir, "PM25_" * string(stn_code) * "_$(stn_name)", test_sdate, test_fdate)
+
+        push!(fore_stats_df, row_PM10)
+        push!(fore_stats_df, row_PM25)
+        ProgressMeter.next!(p);
+    end
+    
+    CSV.write(res_dir * "forecast_stats.csv", fore_stats_df)
 end
 
 function run()
@@ -142,12 +194,18 @@ function run()
     Base.Filesystem.mkpath(res_dir)
     post_station(input_path, model_path, res_dir,
         sample_size, output_size, test_sdate, test_fdate)
-    =#
-
+    
     @info "Postprocessing per feature removing"
     res_dir = "/mnt/post/feature/"
     Base.Filesystem.mkpath(res_dir)
     post_feature(input_path, model_path, res_dir,
+        sample_size, output_size, test_sdate, test_fdate)
+    =#
+
+    @info "Postprocessing for forecasting"
+    res_dir = "/mnt/post/forecast/"
+    Base.Filesystem.mkpath(res_dir)
+    post_forecast(input_path, model_path, res_dir,
         sample_size, output_size, test_sdate, test_fdate)
 
 end
