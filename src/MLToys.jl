@@ -19,6 +19,7 @@ using Dates, TimeZones
 
 using ArgParse
 using FileIO
+using Formatting
 using Glob
 using JuliaDB
 using MicroLogging

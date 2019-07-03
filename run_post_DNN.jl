@@ -78,8 +78,8 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
     rm_features = [[:SO2], [:CO], [:O3], [:NO2],[:PM10], [:PM25],  [:temp], [:u, :v], [:pres], [:humid], [:prep, :snow]]
     rm_features_str = ["SO2", "CO", "O3", "NO2", "PM10", "PM25", "temp", "u_v", "pres", "humid", "prep_snow"]
 
-    rm_features = [[:PM10], [:PM25]]
-    rm_features_str = ["PM10", "PM25"]
+    #rm_features = [[:PM10], [:PM25]]
+    #rm_features_str = ["PM10", "PM25"]
     
     @info "    Test with removed featuers"
     p = Progress(length(rm_features), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
@@ -188,12 +188,13 @@ function run()
     test_sdate = ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
 
+    #=
     @info "Postprocessing per station"
     res_dir = "/mnt/post/station/"
     Base.Filesystem.mkpath(res_dir)
     post_station(input_path, model_path, res_dir,
         sample_size, output_size, test_sdate, test_fdate)
-
+    =#
     @info "Postprocessing per feature removing"
     res_dir = "/mnt/post/feature/"
     Base.Filesystem.mkpath(res_dir)

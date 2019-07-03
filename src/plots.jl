@@ -37,20 +37,29 @@ end
 function plot_corr(_df::DataFrame, feas, label_feas, output_dir::String)
     ENV["GKSwstype"] = "100"
 
-    crpl_path = output_dir * "pearson_corr.png"
+    crpl_path = output_dir * "pearson_corr"
     crcsv_path = output_dir * "pearson_corr.csv"
 
     dfM = convert(Matrix, _df[:, feas])
 
     dfm_cor = Statistics.cor(dfM)
 
+    ann = []
+    for i in 1:length(feas)
+    for j in 1:length(feas)
+        _ann = (i - 0.5, j - 0.5, Plots.text(format(_df[i, j], precision=2), 18, :white))
+        push!(ann, _ann)
+    end
+    end
+
     crpl = Plots.heatmap(string.(label_feas), string.(label_feas), dfm_cor,
-        clim = (-1.0, 1.0), c=:blues, legend=true,
+        clim = (-1.0, 1.0), c=:blues, legend=true, annotations = ann,
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         title="CORR", background_color = BG_COLOR)
 
-    Plots.png(crpl, crpl_path)
+    Plots.png(crpl, crpl_path * ".csv")
+    Plots.svg(crpl, crpl_path * ".svg")
 
     df_cor = DataFrame(dfm_cor)
     names!(df_cor, Symbol.(label_feas))
