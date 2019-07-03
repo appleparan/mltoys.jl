@@ -47,7 +47,7 @@ function plot_corr(_df::DataFrame, feas, label_feas, output_dir::String)
     ann = []
     for i in 1:length(feas)
     for j in 1:length(feas)
-        _ann = (i - 0.5, j - 0.5, Plots.text(format(_df[i, j], precision=2), 18, :white))
+        _ann = (i - 0.5, j - 0.5, Plots.text(Formatting.format(dfm_cor[i, j], precision=2), 18, :white))
         push!(ann, _ann)
     end
     end

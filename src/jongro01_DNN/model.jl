@@ -78,7 +78,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
 
     # |> gpu doesn't work to *_set directly
     # construct minibatch for train_set
-    # https://github.com/FluxML/Flux.jl/issues/704    
+    # https://github.com/FluxML/Flux.jl/issues/704
     @info "    Constructing minibatch..."
     p = Progress(length(train_chnk), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     # total_wd_idxs[chnk] = get list of pair indexes -> i.e. [1, 2, 3, 4]
