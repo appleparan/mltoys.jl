@@ -1,0 +1,34 @@
+{
+  "name": "MLToys.jl",
+  "version": "1.0.0",
+  "description": "[![Build Status](https://travis-ci.org/appleparan/MLToys.jl.svg?branch=master)](https://travis-ci.org/appleparan/MLToys.jl)",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/appleparan/MLToys.jl.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/appleparan/MLToys.jl/issues"
+  },
+  "homepage": "https://github.com/appleparan/MLToys.jl#readme",
+  "dependencies": {
+    "d3": "^5.9.7",
+    "dataframe-js": "^1.4.1",
+    "ijavascript-plotly": "0.0.1",
+    "jquery": "^3.4.1",
+    "jsdom": "^15.1.1",
+    "leaflet": "^1.5.1",
+    "plotly-notebook-js": "^0.1.2",
+    "plotly.js-dist": "^1.48.3",
+    "requirejs": "^2.3.6"
+  }
+}
