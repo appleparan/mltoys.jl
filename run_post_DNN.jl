@@ -35,6 +35,9 @@ function post_station(input_path::String, model_path::String, res_dir::String,
         corr_1h = Real[],
         corr_24h = Real[])
     
+    #stn_codes = [ 111123, 111142, 111161, 111273]
+    #stn_names = ["종로구", "성동구", "성북구", "송파구"]
+
     @info "    Test with other station"
     p = Progress(length(stn_codes), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
 
@@ -188,13 +191,12 @@ function run()
     test_sdate = ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
 
-    #=
     @info "Postprocessing per station"
     res_dir = "/mnt/post/station/"
     Base.Filesystem.mkpath(res_dir)
     post_station(input_path, model_path, res_dir,
         sample_size, output_size, test_sdate, test_fdate)
-    =#
+
     @info "Postprocessing per feature removing"
     res_dir = "/mnt/post/feature/"
     Base.Filesystem.mkpath(res_dir)

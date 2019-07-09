@@ -1,28 +1,3 @@
-function train_all_DNN(df::DataFrame, norm_feas::Array{Symbol}, norm_prefix::String,
-    sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
-    total_wd_idxs::Array{Any, 1}, test_wd_idxs::Array{Any, 1}, train_chnk::Array{T, 1}, valid_idxs::Array{I, 1}, test_idxs::Array{I, 1},
-    μσs::AbstractNDSparse, test_dates::Array{ZonedDateTime,1}) where T <: Array{I, 1} where I <: Integer
-
-    @info "PM10 Training..."
-    flush(stdout); flush(stderr)
-
-    # free minibatch after training because of memory usage
-    PM10_model, PM10_μσ = train_DNN(df, :PM10, norm_prefix, norm_feas,
-    sample_size, input_size, batch_size, output_size, epoch_size,
-    total_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs,
-    "PM10", test_dates)
-
-    @info "PM25 Training..."
-    flush(stdout); flush(stderr)
-
-    PM25_model, PM25_μσ = train_DNN(df, :PM25, norm_prefix, norm_feas,
-    sample_size, input_size, batch_size, output_size, epoch_size,
-    total_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs,
-    "PM25", test_dates)
-
-    nothing
-end
-
 """
     train(df, ycol, norm_prefix, norm_feas,
         sample_size, input_size, batch_size, output_size, epoch_size,
@@ -105,10 +80,11 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     @info " $(string(ycol)) PBIAS for valid : ", PBIAS("valid", valid_set, model, μσ)
     @info " $(string(ycol)) NSE for valid   : ", NSE("valid", valid_set, model, μσ)
     @info " $(string(ycol)) IOA for valid   : ", IOA("valid", valid_set, model, μσ)
-
-    forecast_all, forecast_high = classification("test", test_set, ycol, model)
-    @info " $(string(ycol)) Forecasting accuracy (all) for test : ", forecast_all
-    @info " $(string(ycol)) Forecasting accuracy (high) for test : ", forecast_high
+    if ycol == :PM10 || ycol == :PM25
+        forecast_all, forecast_high = classification("test", test_set, ycol, model)
+        @info " $(string(ycol)) Forecasting accuracy (all) for test : ", forecast_all
+        @info " $(string(ycol)) Forecasting accuracy (high) for test : ", forecast_high
+    end
 
     table_01h, table_24h = compute_prediction(test_set, model, ycol, total_μ, total_σ, "/mnt/")
     y_01h_vals, ŷ_01h_vals, y_24h_vals, ŷ_24h_vals =
@@ -252,6 +228,77 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     #unit_size = min(Int(round(input_size * 2/3)), 512)
     unit_size = Int(round(input_size * 2/3))
     @show "Unit size in PM25: ", unit_size
+    # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
+    model = Chain(
+        Dense(input_size, unit_size, leakyrelu), Dropout(0.2),
+
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
+
+        Dense(unit_size, output_size)
+    ) |> gpu
+
+    loss(x, y) = Flux.mse(model(x), y)
+    #loss(x, y) = huber_loss_mean(model(x), y)
+    accuracy(setname, data) = RSR(setname, data, model, μσ)
+    opt = Flux.ADAM()
+
+    model, loss, accuracy, opt
+end
+
+function compile_SO2_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
+    @info("    Compiling model...")
+    # answer from SO: https://stats.stackexchange.com/a/180052
+    #unit_size = min(Int(round(input_size * 2/3)), 512)
+    unit_size = Int(round(input_size * 2/3))
+    @show "Unit size in SO2: ", unit_size
+    # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
+    model = Chain(
+        Dense(input_size, unit_size, leakyrelu), Dropout(0.2),
+
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
+
+        Dense(unit_size, output_size)
+    ) |> gpu
+
+    loss(x, y) = Flux.mse(model(x), y)
+    #loss(x, y) = huber_loss_mean(model(x), y)
+    accuracy(setname, data) = RSR(setname, data, model, μσ)
+    opt = Flux.ADAM()
+
+    model, loss, accuracy, opt
+end
+
+
+function compile_NO2_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
+    @info("    Compiling model...")
+    # answer from SO: https://stats.stackexchange.com/a/180052
+    #unit_size = min(Int(round(input_size * 2/3)), 512)
+    unit_size = Int(round(input_size * 2/3))
+    @show "Unit size in NO2: ", unit_size
+    # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
+    model = Chain(
+        Dense(input_size, unit_size, leakyrelu), Dropout(0.2),
+
+        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
+
+        Dense(unit_size, output_size)
+    ) |> gpu
+
+    loss(x, y) = Flux.mse(model(x), y)
+    #loss(x, y) = huber_loss_mean(model(x), y)
+    accuracy(setname, data) = RSR(setname, data, model, μσ)
+    opt = Flux.ADAM()
+
+    model, loss, accuracy, opt
+end
+
+
+function compile_CO_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
+    @info("    Compiling model...")
+    # answer from SO: https://stats.stackexchange.com/a/180052
+    #unit_size = min(Int(round(input_size * 2/3)), 512)
+    unit_size = Int(round(input_size * 2/3))
+    @show "Unit size in CO: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
         Dense(input_size, unit_size, leakyrelu), Dropout(0.2),

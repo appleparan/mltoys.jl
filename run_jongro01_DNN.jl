@@ -65,15 +65,66 @@ function run_model()
     train_valid_idxs = Random.randperm(train_size + valid_size)
     train_chnk, valid_chnk = create_chunks(train_valid_idxs, train_size, valid_size, batch_size)
     train_idxs, valid_idxs = create_idxs(train_valid_idxs, train_size, valid_size)
+
     # TODO: find index by Date
     test_idxs = collect((train_size + valid_size + 1):(train_size + valid_size + test_size))
     flush(stdout); flush(stderr)
 
     test_dates = collect(test_sdate:Hour(1):test_fdate)
 
-    # to use zscroed data, use norm_features
-    train_all_DNN(df, norm_features, norm_prefix, sample_size, sample_size * length(features), batch_size, output_size, epoch_size,
-        train_valid_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs, test_dates)
+    @show findrow(df, :date, train_fdate)
+    train_end_idx = findrow(df, :date, train_fdate)
+
+    for idx in test_idxs
+        if idx > train_end_idx
+            @show "WTF: ", idx, train_end_idx
+        end
+    end
+
+    input_size = sample_size * length(features)
+
+    @info "PM10 Training..."
+    flush(stdout); flush(stderr)
+
+    # free minibatch after training because of memory usage
+    PM10_model, PM10_μσ = train_DNN(df, :PM10, norm_prefix, norm_features,
+    sample_size, input_size, batch_size, output_size, epoch_size,
+    train_valid_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs,
+    "PM10", test_dates)
+
+    @info "PM25 Training..."
+    flush(stdout); flush(stderr)
+
+    PM25_model, PM25_μσ = train_DNN(df, :PM25, norm_prefix, norm_features,
+    sample_size, input_size, batch_size, output_size, epoch_size,
+    train_valid_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs,
+    "PM25", test_dates)
+
+    @info "SO2 Training..."
+    flush(stdout); flush(stderr)
+
+    # free minibatch after training because of memory usage
+    SO2_model, SO2_μσ = train_DNN(df, :SO2, norm_prefix, norm_features,
+    sample_size, input_size, batch_size, output_size, epoch_size,
+    train_valid_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs,
+    "SO2", test_dates)
+
+    @info "CO Training..."
+    flush(stdout); flush(stderr)
+
+    # free minibatch after training because of memory usage
+    CO_model, CO_μσ = train_DNN(df, :CO, norm_prefix, norm_features,
+    sample_size, input_size, batch_size, output_size, epoch_size,
+    train_valid_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs,
+    "CO", test_dates)
+
+    @info "NO2 Training..."
+    flush(stdout); flush(stderr)
+
+    NO2_model, NO2_μσ = train_DNN(df, :NO2, norm_prefix, norm_features,
+    sample_size, input_size, batch_size, output_size, epoch_size,
+    train_valid_wd_idxs, test_wd_idxs, train_chnk, valid_idxs, test_idxs, μσs,
+    "NO2", test_dates)
 end
 
 run_model()

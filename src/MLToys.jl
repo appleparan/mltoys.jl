@@ -16,6 +16,7 @@ using CSV
 using DataFrames, DataFramesMeta, Missings, Query
 using DataValues
 using Dates, TimeZones
+using DelimitedFiles
 
 using ArgParse
 using FileIO
@@ -57,20 +58,20 @@ include("jongro01_DNN/model.jl")
 
 include("postprocess/jongro01_DNN.jl")
 # input
-export join_data,
+export join_data, filter_jongro, read_jongro, filter_station, read_station,
 # utils
         mean_and_std_cols, hampel!, zscore!, exclude_elem, split_df, window_df,
         split_sizes3, split_sizes2, create_chunks, create_idxs,
         getHoursLater, remove_missing_pairs!, is_sparse_Y,
         getX_DNN, getY_DNN, make_pairs_DNN, make_minibatch_DNN, 
-        getX_LSTM, getY_LSTM, make_input_LSTM,
+        getX_LSTM, getY_LSTM, make_input_LSTM, findrow,
         WHO_PM10, WHO_PM25,
 # evaluation
         evaluations, RMSE, RSR, NSE, PBIAS, IOA, classification,
 # loss
         huber_loss, huber_loss_mean, mse_rnn,
 # jongro01_DNN
-        train_all_DNN, filter_jongro, read_jongro, filter_station, read_station,
+        train_DNN,
 # jongro02_DNN
 #       train_all_LSTM,
 # post processing

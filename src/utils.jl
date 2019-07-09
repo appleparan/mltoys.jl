@@ -617,6 +617,20 @@ function is_sparse_Y(Y, missing_ratio=0.5)
     false
 end
 
+function findrow(df::DataFrame, col::Symbol, val)
+    idx = 0
+    for row in eachrow(df)
+        idx += 1
+        if (row[col] == val)
+            return idx
+        end
+    end
+
+    idx = 0
+
+    idx
+end
+
 """
     WHO_PM10(val::Real)
     return WHO PM10 level
