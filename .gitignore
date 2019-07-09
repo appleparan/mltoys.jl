@@ -12,3 +12,6 @@ JS-jongro*
 
 # pyenv
 .python-version
+
+# node
+node_modules
