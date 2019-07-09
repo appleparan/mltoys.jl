@@ -1,4 +1,4 @@
-using MLToys
+using Mise
 using Test
 
 using DataFrames
@@ -6,7 +6,7 @@ using StatsBase: mean, std, zscore
 using Dates, TimeZones
 using Flux
 
-@testset "MLToys" begin
+@testset "Mise" begin
 
 include("utils.jl")
 include("evaluation.jl")

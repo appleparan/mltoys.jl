@@ -3,7 +3,7 @@ using Random
 using Dates, TimeZones
 using MicroLogging
 
-using MLToys
+using Mise
 
 function run_model()
     @info "Start Model"

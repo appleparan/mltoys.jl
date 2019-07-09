@@ -1,4 +1,4 @@
-module MLToys
+module Mise
 
 using Base.Filesystem
 using Base.Iterators: partition, zip

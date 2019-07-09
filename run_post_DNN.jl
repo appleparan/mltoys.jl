@@ -5,7 +5,7 @@ using Flux, Flux.Tracker
 using MicroLogging
 using ProgressMeter
 
-using MLToys
+using Mise
 
 function post_station(input_path::String, model_path::String, res_dir::String,
     sample_size::Integer, output_size::Integer, test_sdate::ZonedDateTime, test_fdate::ZonedDateTime)

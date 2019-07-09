@@ -1,4 +1,5 @@
-[![Build Status](https://travis-ci.org/appleparan/MLToys.jl.svg?branch=master)](https://travis-ci.org/appleparan/MLToys.jl)
+[![Build Status](https://travis-ci.org/appleparan/Mise.jl.svg?branch=master)](https://travis-ci.org/appleparan/Mise.jl)
 
-# MLToys.jl
-personal simple codes for machine learning (Flux.jl)
+# Mise.jl
+
+Personal project for predicting particulate matter using machine learning technique

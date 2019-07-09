@@ -1,17 +1,3 @@
-function findrow(df::DataFrame, col::Symbol, val)
-    idx = 0
-    for row in eachrow(df)
-        idx += 1
-        if (row[col] == val)
-            return idx
-        end
-    end 
-
-    idx = 0
-
-    idx
-end
-
 function test_station(model_path::String, stn_df::DataFrame, ycol::Symbol, stn_code::Integer, stn_name::String,
     sample_size::Integer, output_size::Integer,
     output_dir::String, output_prefix::String,
