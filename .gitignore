@@ -15,3 +15,9 @@ JS-jongro*
 
 # node
 node_modules
+
+# chrome driver
+chrome*
+
+# remove generated data files
+*.png
