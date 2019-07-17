@@ -120,7 +120,7 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
         Flux.train!(loss, params(model), train_set, opt)
 
         # Calculate accuracy:
-        acc = accuracy("valid", valid_set)
+        acc = accuracy(valid_set)
         @info(@sprintf("epoch [%d]: Valid accuracy: %.6f Time: %s", epoch_idx, acc, now()))
         flush(stdout); flush(stderr)
 
