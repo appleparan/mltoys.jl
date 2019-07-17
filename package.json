@@ -22,7 +22,7 @@
   "homepage": "https://github.com/appleparan/MLToys.jl#readme",
   "dependencies": {
     "d3": "^5.9.7",
-    "dataframe-js": "^1.4.1",
+    "dataframe-js": "^1.4.2",
     "ijavascript-plotly": "0.0.1",
     "jquery": "^3.4.1",
     "jsdom": "^15.1.1",
