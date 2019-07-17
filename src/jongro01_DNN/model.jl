@@ -40,7 +40,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     p = Progress(length(train_chnk), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
 
     train_set = [(ProgressMeter.next!(p);
-        make_batch_DNN(df, ycol, chnk, norm_feas,
+        make_batch_DNN(df, norm_ycol, chnk, norm_feas,
         sample_size, output_size, batch_size, 0.5, default_FloatType)) for chnk in train_chnk]
 
     # don't construct minibatch for valid & test sets
@@ -134,8 +134,8 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
         push!(df_eval, [epoch_idx opt.eta acc rmse rsr nse pbias ioa])
 
         # If our accuracy is good enough, quit out.
-        if acc < 0.1
-            @info("    -> Early-exiting: We reached our target accuracy (RSR) of 0.1")
+        if acc < 0.0001
+            @info("    -> Early-exiting: We reached our target accuracy (RSR) of 0.0001")
             break
         end
 
@@ -178,15 +178,15 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
     #unit_size = min(Int(round(input_size * 3/3)), 768)
-    unit_size = Int(round(input_size * 3/3))
+    unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM10: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
-        Dense(input_size, unit_size, leakyrelu), Dropout(0.2),
+        Dense(input_size, unit_size, leakyrelu),
 
-        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
-
-        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
+        Dense(unit_size, unit_size, leakyrelu),
+        
+        Dense(unit_size, unit_size, leakyrelu),
 
         Dense(unit_size, output_size)
     ) |> gpu
@@ -203,7 +203,7 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
     #unit_size = min(Int(round(input_size * 2/3)), 512)
-    unit_size = Int(round(input_size * 2/3))
+    unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM25: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(

@@ -22,7 +22,7 @@ function run_model()
     =#
     features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
     # For GPU
-    default_FloatType::DataType = Float32
+    default_FloatType::DataType = Float64
 
     norm_prefix = "norm_"
     norm_features = [Symbol(eval(norm_prefix * String(f))) for f in features]
