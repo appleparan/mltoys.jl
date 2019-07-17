@@ -18,20 +18,12 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
 
     norm_ycol = Symbol(norm_prefix, ycol)
     norm_feas = copy(_norm_feas)
-    # remove ycol itself
-    #deleteat!(norm_feas, findall(x -> x == norm_ycol, norm_feas))
 
     # extract from ndsparse
     total_μ = μσs[String(ycol), "μ"].value
     total_σ = μσs[String(ycol), "σ"].value
 
     # compute mean and std by each train/valid/test set
-    # merge chunks and get rows in df : https://discourse.julialang.org/t/very-best-way-to-concatenate-an-array-of-arrays/8672/17
-    #=
-    train_μ, train_σ = mean_and_std(df[train_idxs, norm_ycol])
-    valid_μ, valid_σ = mean_and_std(df[valid_idxs, norm_ycol])
-    test_μ, test_σ = mean_and_std(df[test_idxs, norm_ycol])
-    =#
     μσ = ndsparse((
         dataset = ["total", "total"],
         type = ["μ", "σ"]),
@@ -46,7 +38,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     # https://github.com/FluxML/Flux.jl/issues/704
     @info "    Construct Training Set batch..."
     p = Progress(length(train_chnk), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    # total_wd_idxs[chnk] = get list of pair indexes -> i.e. [1, 2, 3, 4]
+
     train_set = [(ProgressMeter.next!(p);
         make_batch_DNN(df, ycol, chnk, norm_feas,
         sample_size, output_size, batch_size, 0.5, default_FloatType)) for chnk in train_chnk]
@@ -61,7 +53,6 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     p = Progress(length(test_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     test_set = [(ProgressMeter.next!(p);
         make_pair_DNN(df, norm_ycol, idx, norm_feas, sample_size, output_size)) for idx in test_idxs]
-    #@show typeof(train_set), typeof(valid_set), typeof(test_set)
 
     df_evals = train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, filename)
     
@@ -105,21 +96,6 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     # TODO : how to generalize date range? how to split based on test_dates?
     # 1/4 : because train size is 3 days, result should be start from 1/4
     # 12/29 : same reason 1/4, but this results ends with 12/31 00:00 ~ 12/31 23:00
-
-    #=
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, 
-        DateTime(2018, 1, 4, 1), DateTime(2018, 3, 31, 23), ycol,
-        "/mnt/", string(ycol) * "_" * Dates.format(DateTime(2018, 1, 4, 1), plot_datefmt) * "_" * Dates.format(DateTime(2018, 3, 31, 1), plot_datefmt))
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h,
-        DateTime(2018, 4, 1, 1), DateTime(2018, 6, 30, 23), ycol,
-        "/mnt/", string(ycol) * "_" * Dates.format(DateTime(2018, 4, 1, 1), plot_datefmt) * "_" * Dates.format(DateTime(2018, 6, 30, 1), plot_datefmt))
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h,
-        DateTime(2018, 7, 1, 1), DateTime(2018, 9, 30, 23), ycol,
-        "/mnt/", string(ycol) * "_" * Dates.format(DateTime(2018, 7, 1, 1), plot_datefmt) * "_" * Dates.format(DateTime(2018, 9, 30, 1), plot_datefmt))
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h,
-        DateTime(2018, 10, 1, 1), DateTime(2018, 12, 27, 23), ycol,
-        "/mnt/", string(ycol) * "_" * Dates.format(DateTime(2018, 10, 1, 1), plot_datefmt) * "_" * Dates.format(DateTime(2018, 12, 31, 1), plot_datefmt))
-    =#
 
     plot_evaluation(df_evals, ycol, "/mnt/")
 

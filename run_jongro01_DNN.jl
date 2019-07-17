@@ -48,7 +48,7 @@ function run_model()
     sample_size = 72
     output_size = 24
     epoch_size = 500
-    batch_size = 128
+    batch_size = 32
     @info "feature : " features
     @info "sizes (sample, output, epoch, batch) : ", sample_size, output_size, epoch_size, batch_size
 
@@ -70,16 +70,7 @@ function run_model()
     test_wd_size = length(test_wd_idxs)
     train_size, valid_size = split_sizes2(length(train_valid_wd_idxs), batch_size)
     test_size = length(test_wd_idxs)
-    #=
-    for idxs in train_valid_wd_idxs
-        _dates = df[collect(idxs), :date]
-        for _date in _dates
-            if _date > test_sdate
-                @show "WTF: ", idxs, _date
-            end
-        end
-    end
-    =#
+
     # random permutation train_valid_wd_idxs itself for splitting train/valid set
     rng = MersenneTwister()
     Random.shuffle!(rng, train_valid_wd_idxs)
