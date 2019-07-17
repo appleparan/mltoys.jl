@@ -193,7 +193,7 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(setname, data) = RSR(data, model, μσ)
+    accuracy(data) = RSR(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -216,7 +216,7 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(setname, data) = RSR(data, model, μσ)
+    accuracy(data) = RSR(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -239,7 +239,7 @@ function compile_SO2_DNN(input_size::Integer, batch_size::Integer, output_size::
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(setname, data) = RSR(data, model, μσ)
+    accuracy(data) = RSR(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -263,7 +263,7 @@ function compile_NO2_DNN(input_size::Integer, batch_size::Integer, output_size::
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(setname, data) = RSR(data, model, μσ)
+    accuracy(data) = RSR(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -287,7 +287,7 @@ function compile_CO_DNN(input_size::Integer, batch_size::Integer, output_size::I
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(setname, data) = RSR(data, model, μσ)
+    accuracy(data) = RSR(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
