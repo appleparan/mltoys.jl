@@ -22,7 +22,7 @@ using ArgParse
 using FileIO
 using Formatting
 using Glob
-using IndexedTables
+using JuliaDB
 using MicroLogging
 using ProgressMeter
 using StatsBase: mean, std, mean_and_std, zscore
