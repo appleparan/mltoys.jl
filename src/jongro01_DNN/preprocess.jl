@@ -7,7 +7,7 @@ function filter_station(df, stn_code)
 
     cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid]
     for col in cols
-        stn_df[col] = Missings.coalesce.(stn_df[!, col], 0.0)
+        stn_df[!, col] = Missings.coalesce.(stn_df[!, col], 0.0)
     end
 
     stn_df
@@ -31,7 +31,7 @@ function read_station(input_path::String, stn_code::Integer)
 
     DataFrames.allowmissing!(stn_df, cols)
     for col in [:prep, :snow]
-        stn_df[!, col] = Missings.coalesce.(stn_df[col], 0.0)
+        stn_df[!, col] = Missings.coalesce.(stn_df[!, col], 0.0)
     end
 
     for col in airkorea_cols
@@ -40,7 +40,7 @@ function read_station(input_path::String, stn_code::Integer)
 
     # check remaining missing values
     for col in names(stn_df)
-        @assert size(stn_df, 1) == size(collect(skipmissing(stn_df[col])), 1)
+        @assert size(stn_df, 1) == size(collect(skipmissing(stn_df[!, col])), 1)
     end
     dropmissing!(stn_df, cols, disallowmissing=true)
 
