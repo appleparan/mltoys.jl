@@ -16,7 +16,7 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
 
     # plot histogram
     gr(size=(1920, 1080))
-    ht = Plots.histogram(df[ycol], title="Histogram of " * String(ycol),
+    ht = Plots.histogram(df[!, ycol], title="Histogram of " * String(ycol),
         xlabel=String(ycol), ylabel="#", bins=200, legend=false,
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
@@ -24,9 +24,9 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
     png(ht, hist_path)
 
     # plot in dates
-    dates = DateTime.(df[:date])
+    dates = DateTime.(df[!, :date])
     gr(size=(1920, 1080))
-    pl = Plots.plot(dates, df[ycol],
+    pl = Plots.plot(dates, df[!, ycol],
         title=String(ycol) * " in dates", xlabel="date", ylabel=String(ycol),
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,

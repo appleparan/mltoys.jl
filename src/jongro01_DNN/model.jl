@@ -8,9 +8,11 @@
 """
 function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas::Array{Symbol},
     sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
-    total_wd_idxs::Array{Any, 1}, test_wd_idxs::Array{Any, 1}, 
-    train_chnk::Array{T, 1}, valid_idxs::Array{I, 1}, test_idxs::Array{I, 1},
-    μσs::AbstractNDSparse, filename::String, test_dates::Array{ZonedDateTime,1}) where T <: Array{I, 1} where I <: Integer
+    default_FloatType::DataType,
+    train_valid_wd_idxs::Array{<:UnitRange{I}, 1}, test_wd_idxs::Array{<:UnitRange{I}, 1},
+    train_chnk::Array{<:Array{<:UnitRange{I}, 1}, 1},
+    train_idxs::Array{<:UnitRange{I}, 1}, valid_idxs::Array{<:UnitRange{I}, 1}, test_idxs::Array{<:UnitRange{I}, 1},
+    μσs::AbstractNDSparse, filename::String, test_dates::Array{ZonedDateTime,1}) where I <: Integer
 
     @info "DNN training starts.."
 
@@ -25,63 +27,62 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
 
     # compute mean and std by each train/valid/test set
     # merge chunks and get rows in df : https://discourse.julialang.org/t/very-best-way-to-concatenate-an-array-of-arrays/8672/17
-    train_μ, train_σ = mean_and_std(df[reduce(vcat, train_chnk), norm_ycol])
+    #=
+    train_μ, train_σ = mean_and_std(df[train_idxs, norm_ycol])
     valid_μ, valid_σ = mean_and_std(df[valid_idxs, norm_ycol])
     test_μ, test_σ = mean_and_std(df[test_idxs, norm_ycol])
-
+    =#
     μσ = ndsparse((
-        dataset = ["train", "train", "valid", "valid", "test", "test"],
-        type = ["μ", "σ", "μ", "σ", "μ", "σ"]),
-        (value = [train_μ, train_σ, valid_μ, valid_σ, test_μ, test_σ],))
+        dataset = ["total", "total"],
+        type = ["μ", "σ"]),
+        (value = [total_μ, total_σ],))
 
     # construct compile function symbol
     compile = eval(Symbol(:compile, "_", ycol, "_DNN"))
     model, loss, accuracy, opt = compile(input_size, batch_size, output_size, μσ)
 
-    # create (input(1D), output(1D)) pairs of total dataframe row, it is indepdent by train/valid/test set
-    @info "    Constructing (input, output) pairs for train/valid set..."
-    p = Progress(length(total_wd_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    input_pairs = [(ProgressMeter.next!(p); make_pairs_DNN(df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in total_wd_idxs]
-
-    @info "    Constructing (input, output) pairs for test set..."
-    p = Progress(length(test_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    test_set = [(ProgressMeter.next!(p); make_pairs_DNN(df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
-
-    @info "    Removing sparse datas..."
-    p = Progress(length(input_pairs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    remove_missing_pairs!(input_pairs, 0.5, p)
-
     # |> gpu doesn't work to *_set directly
     # construct minibatch for train_set
     # https://github.com/FluxML/Flux.jl/issues/704
-    @info "    Constructing minibatch..."
+    @info "    Construct Training Set batch..."
     p = Progress(length(train_chnk), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     # total_wd_idxs[chnk] = get list of pair indexes -> i.e. [1, 2, 3, 4]
-    train_set = [(ProgressMeter.next!(p); make_minibatch_DNN(input_pairs, chnk, batch_size)) for chnk in train_chnk]
+    train_set = [(ProgressMeter.next!(p);
+        make_batch_DNN(df, ycol, chnk, norm_feas,
+        sample_size, output_size, batch_size, 0.5, default_FloatType)) for chnk in train_chnk]
 
     # don't construct minibatch for valid & test sets
-    valid_set = input_pairs[valid_idxs]
+    @info "    Construct Valid Set..."
+    p = Progress(length(valid_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
+    valid_set = [(ProgressMeter.next!(p);
+        make_pair_DNN(df, norm_ycol, idx, norm_feas, sample_size, output_size)) for idx in valid_idxs]
 
-    df_eval = train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, filename)
+    @info "    Construct Test Set..."
+    p = Progress(length(test_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
+    test_set = [(ProgressMeter.next!(p);
+        make_pair_DNN(df, norm_ycol, idx, norm_feas, sample_size, output_size)) for idx in test_idxs]
+    #@show typeof(train_set), typeof(valid_set), typeof(test_set)
 
+    df_evals = train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, filename)
+    
     # TODO : (current) validation with zscore, (future) validation with original value?
-    @info "    Valid ACC : ", accuracy("valid", valid_set)
-    @info "    Test ACC  : ", accuracy("test", test_set)
+    @info "    Test ACC  : ", accuracy(test_set)
+    @info "    Valid ACC : ", accuracy(valid_set)
     flush(stdout); flush(stderr)
 
-    @info " $(string(ycol)) RMSE for test   : ", RMSE("test", test_set, model, μσ)
-    @info " $(string(ycol)) RSR for test    : ", RSR("test", test_set, model, μσ)
-    @info " $(string(ycol)) PBIAS for test  : ", PBIAS("test", test_set, model, μσ)
-    @info " $(string(ycol)) NSE for test    : ", NSE("test", test_set, model, μσ)
-    @info " $(string(ycol)) IOA for test    : ", IOA("test", test_set, model, μσ)
+    @info " $(string(ycol)) RMSE for test   : ", RMSE(test_set, model, μσ)
+    @info " $(string(ycol)) RSR for test    : ", RSR(test_set, model, μσ)
+    @info " $(string(ycol)) PBIAS for test  : ", PBIAS(test_set, model, μσ)
+    @info " $(string(ycol)) NSE for test    : ", NSE(test_set, model, μσ)
+    @info " $(string(ycol)) IOA for test    : ", IOA(test_set, model, μσ)
 
-    @info " $(string(ycol)) RMSE for valid  : ", RMSE("valid", valid_set, model, μσ)
-    @info " $(string(ycol)) RSR for valid   : ", RSR("valid", valid_set, model, μσ)
-    @info " $(string(ycol)) PBIAS for valid : ", PBIAS("valid", valid_set, model, μσ)
-    @info " $(string(ycol)) NSE for valid   : ", NSE("valid", valid_set, model, μσ)
-    @info " $(string(ycol)) IOA for valid   : ", IOA("valid", valid_set, model, μσ)
+    @info " $(string(ycol)) RMSE for valid  : ", RMSE(valid_set, model, μσ)
+    @info " $(string(ycol)) RSR for valid   : ", RSR(valid_set, model, μσ)
+    @info " $(string(ycol)) PBIAS for valid : ", PBIAS(valid_set, model, μσ)
+    @info " $(string(ycol)) NSE for valid   : ", NSE(valid_set, model, μσ)
+    @info " $(string(ycol)) IOA for valid   : ", IOA(valid_set, model, μσ)
     if ycol == :PM10 || ycol == :PM25
-        forecast_all, forecast_high = classification("test", test_set, ycol, model)
+        forecast_all, forecast_high = classification(test_set, model, ycol)
         @info " $(string(ycol)) Forecasting accuracy (all) for test : ", forecast_all
         @info " $(string(ycol)) Forecasting accuracy (high) for test : ", forecast_high
     end
@@ -120,7 +121,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
         "/mnt/", string(ycol) * "_" * Dates.format(DateTime(2018, 10, 1, 1), plot_datefmt) * "_" * Dates.format(DateTime(2018, 12, 31, 1), plot_datefmt))
     =#
 
-    plot_evaluation(df_eval, ycol, "/mnt/")
+    plot_evaluation(df_evals, ycol, "/mnt/")
 
     model, μσ
 end
@@ -153,7 +154,7 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
         nse = NSE("valid", valid_set, model, μσ)
         pbias = PBIAS("valid", valid_set, model, μσ)
         =#
-        rmse, rsr, nse, pbias, ioa = evaluations("valid", valid_set, model, μσ, [:RMSE, :RSR, :NSE, :PBIAS, :IOA])
+        rmse, rsr, nse, pbias, ioa = evaluations(valid_set, model, μσ, [:RMSE, :RSR, :NSE, :PBIAS, :IOA])
         push!(df_eval, [epoch_idx opt.eta acc rmse rsr nse pbias ioa])
 
         # If our accuracy is good enough, quit out.
@@ -216,7 +217,7 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(setname, data) = RSR(setname, data, model, μσ)
+    accuracy(setname, data) = RSR(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -239,7 +240,7 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(setname, data) = RSR(setname, data, model, μσ)
+    accuracy(setname, data) = RSR(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -262,7 +263,7 @@ function compile_SO2_DNN(input_size::Integer, batch_size::Integer, output_size::
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(setname, data) = RSR(setname, data, model, μσ)
+    accuracy(setname, data) = RSR(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -286,7 +287,7 @@ function compile_NO2_DNN(input_size::Integer, batch_size::Integer, output_size::
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(setname, data) = RSR(setname, data, model, μσ)
+    accuracy(setname, data) = RSR(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -310,7 +311,7 @@ function compile_CO_DNN(input_size::Integer, batch_size::Integer, output_size::I
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(setname, data) = RSR(setname, data, model, μσ)
+    accuracy(setname, data) = RSR(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt

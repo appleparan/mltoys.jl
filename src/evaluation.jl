@@ -1,8 +1,8 @@
-evaluations(setname::String, dataset, model, μσ, metrics::Array{String}) =
-    evaluations(setname, dataset, model, μσ, Symbol.(metrics))
+evaluations(dataset, model::F, μσ, metrics::Array{String}) where F <: Flux.Chain =
+    evaluations(dataset, model, μσ, Symbol.(metrics))
 
-function evaluations(setname::String, dataset, model, μσ, metrics::Array{Symbol})
-    _μ = μσ[setname, "μ"][:value]
+function evaluations(dataset, model::F, μσ, metrics::Array{Symbol}) where F <: Flux.Chain
+    _μ = μσ["total", "μ"][:value]
 
     # initialize array per metric, i.e. RSR_arr
     for metric in metrics
@@ -34,7 +34,7 @@ end
 #=
 RMSE-observations standard deviation ratio 
 =#
-function RMSE(setname::String, dataset, model, μσ)
+function RMSE(dataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
     RMSE_arr = []
 
     for (x, y) in dataset
@@ -47,7 +47,7 @@ function RMSE(setname::String, dataset, model, μσ)
     mean(RMSE_arr)
 end
 
-RMSE(y, ŷ, μ=0.0) = sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ))))
+RMSE(y, ŷ, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ))))
 
 # http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.532.2506&rep=rep1&type=pdf
 # MODEL EVALUATION GUIDELINES FOR SYSTEMATIC QUANTIFICATION OF ACCURACY IN WATERSHED SIMULATIONS
@@ -56,9 +56,9 @@ RMSE(y, ŷ, μ=0.0) = sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ))))
 #=
 RMSE-observations standard deviation ratio 
 =#
-function RSR(setname::String, dataset, model, μσ)
+function RSR(dataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
     RSR_arr = []
-    μ = μσ[setname, "μ"][:value]
+    μ = μσ["total", "μ"][:value]
 
     for (x, y) in dataset
         ŷ = model(x |> gpu)
@@ -70,7 +70,7 @@ function RSR(setname::String, dataset, model, μσ)
     mean(RSR_arr)
 end
 
-RSR(y, ŷ, μ=0.0) = sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ)))) / sqrt(sum(abs2.(y .- μ)))
+RSR(y, ŷ, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ)))) / sqrt(sum(abs2.(y .- μ)))
 
 # NSE
 #=
@@ -78,9 +78,9 @@ normalized statistic that determines the
 relative magnitude of the residual variance (“noise”)
 compared to the measured data variance (“information”
 =#
-function NSE(setname::String, dataset, model, μσ)
+function NSE(dataset, model::Flux.Chain, μσ::AbstractNDSparse) where F <: Flux.Chain
     NSE_arr = []
-    μ = μσ[setname, "μ"][:value]
+    μ = μσ["total", "μ"][:value]
 
     for (x, y) in dataset
         ŷ = model(x |> gpu)
@@ -92,13 +92,13 @@ function NSE(setname::String, dataset, model, μσ)
     mean(NSE_arr)
 end
 
-NSE(y, ŷ, μ=0.0) = 1.0 - sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ)))) / sqrt(sum(abs2.(y .- μ)))
+NSE(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ)))) / sqrt(sum(abs2.(y .- μ)))
 
 #=
 The optimal value of PBIAS is 0.0, with low-magnitude values indicating accurate model simulation. Positive values indicate model underestimation bias, and negative values
 indicate model overestimation bias (Gupta et al., 1999)
 =#
-function PBIAS(setname::String, dataset, model, μσ)
+function PBIAS(dataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
     PBIAS_arr = []
 
     for (x, y) in dataset
@@ -111,11 +111,11 @@ function PBIAS(setname::String, dataset, model, μσ)
     mean(PBIAS_arr)
 end
 
-PBIAS(y, ŷ, μ=0.0) = sum(y .- Flux.Tracker.data(ŷ)) / sum(y) * 100.0
+PBIAS(y, ŷ, μ::Real=zero(AbstractFloat)) = sum(y .- Flux.Tracker.data(ŷ)) / sum(y) * 100.0
 
-function IOA(setname::String, dataset, model, μσ)
+function IOA(dataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
     IOA_arr = []
-    μ = μσ[setname, "μ"][:value]
+    μ = μσ["total", "μ"][:value]
 
     for (x, y) in dataset
         ŷ = model(x |> gpu)
@@ -127,10 +127,10 @@ function IOA(setname::String, dataset, model, μσ)
     mean(IOA_arr)
 end
 
-IOA(y, ŷ, μ=0.0) = 1.0 - sum(abs2.(y .- Flux.Tracker.data(ŷ))) /
+IOA(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- Flux.Tracker.data(ŷ))) /
     max(sum(abs2.(abs.(Flux.Tracker.data(ŷ) .- mean(Flux.Tracker.data(ŷ))) .+ abs.(Flux.Tracker.data(y) .- mean(Flux.Tracker.data(ŷ))))), eps())
 
-function classification(setname::String,  dataset, ycol::Symbol, model)
+function classification(dataset, model::F, ycol::Symbol) where F <: Flux.Chain
     class_all_arr = []
     class_high_arr = []
 

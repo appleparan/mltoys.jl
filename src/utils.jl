@@ -1,9 +1,15 @@
+"""
+    mean_and_std_cols(df, cols)
+
+find mean and std value in df[:, col]
+"""
 function mean_and_std_cols(df::DataFrame, cols::Array{Symbol, 1})
+    
     syms = []
     types = []
     vals = []
     for col in cols
-        μ, σ = mean_and_std(df[col])
+        μ, σ = mean_and_std(df[!, col])
 
         push!(syms, String(col))
         push!(types, "μ")
@@ -24,6 +30,7 @@ end
 
 """
     hampel!([Z], X, μ, σ)
+
 Compute the Hampel estimator of an array `X` with mean `μ` and standard deviation `σ`.
 Hampel estimator formula follows as ``1/2*{tanh(0.01*((x - μ) / σ))+1.0}``.
 If a destination array `Z` is provided, the scores are stored
@@ -32,6 +39,7 @@ in `Z` and it must have the same shape as `X`. Otherwise `X` is overwritten.
 Detailed implementation structure is from `zscore` in `StatsBase` package
 """
 function _hampel!(Z::AbstractArray, X::AbstractArray, μ::Real, σ::Real)
+    
     # Z and X are assumed to have the same size
     iσ = inv(σ)
 
@@ -109,8 +117,8 @@ hampel(X::AbstractArray{<:Real}, dim::Int) = ((μ, σ) = mean_and_std(X, dim); h
 Apply hampel estimators to dataframe `df`
 """
 function hampel!(df::DataFrame, col::Symbol, new_col::Symbol)
-    to_be_normalized = df[col]
-    df[new_col] = hampel(to_be_normalized)
+    to_be_normalized = df[!, col]
+    df[!, new_col] = hampel(to_be_normalized)
 end
 
 function hampel!(df::DataFrame, cols::Array{String, 1}, new_cols::Array{String, 1})
@@ -125,39 +133,40 @@ function hampel!(df::DataFrame, cols::Array{Symbol, 1}, new_cols::Array{Symbol, 
     end
 end
 
-hampel!(df::DataFrame, col::Symbol, new_col::String) = hampel!(df, col, Symbol(eval(new_col)))
-hampel!(df::DataFrame, col::String, new_col::String) = hampel!(df, Symbol(eval(col)), Symbol(eval(new_col)))
+hampel!(df::DataFrame, col::Symbol, new_col::String) = hampel!(df, col, Symbol(new_col))
+hampel!(df::DataFrame, col::String, new_col::String) = hampel!(df, Symbol(col), Symbol(new_col))
 hampel!(df::DataFrame, col::Symbol) = hampel!(df, col, col)
 hampel!(df::DataFrame, col::String) = hampel!(df, Symbol(col))
 
-hampel!(df::DataFrame, col::Symbol, new_col::String, μ::Real, σ::Real) = hampel!(df, col, Symbol(eval(new_col)), μ, σ)
-hampel!(df::DataFrame, col::String, new_col::String, μ::Real, σ::Real) = hampel!(df, Symbol(eval(col)), Symbol(eval(new_col)), μ, σ)
+hampel!(df::DataFrame, col::Symbol, new_col::String, μ::Real, σ::Real) = hampel!(df, col, Symbol(new_col), μ, σ)
+hampel!(df::DataFrame, col::String, new_col::String, μ::Real, σ::Real) = hampel!(df, Symbol(col), Symbol(new_col), μ, σ)
 hampel!(df::DataFrame, col::Symbol, μ::Real, σ::Real) = hampel!(df, col, col, μ, σ)
 hampel!(df::DataFrame, col::String, μ::Real, σ::Real) = hampel!(df, Symbol(col), μ, σ)
 
 # TODO : How to pass optional argument to nested function?
 """
     zscore!(df, col, new_col)
+
 Apply zscore (normalization) to dataframe `df`
 TODO: how to make μ and σ optional?
 """
 function zscore!(df::DataFrame, col::Symbol, new_col::Symbol)
-    to_be_normalized = df[col]
-    df[new_col] = zscore(to_be_normalized)
+    to_be_normalized = df[!, col]
+    df[!, new_col] = zscore(to_be_normalized)
 end
 
 function zscore!(df::DataFrame, col::Symbol, new_col::Symbol, μ::Real, σ::Real)
-    to_be_normalized = df[col]
-    df[new_col] = zscore(to_be_normalized, μ, σ)
+    to_be_normalized = df[!, col]
+    df[!, new_col] = zscore(to_be_normalized, μ, σ)
 end
 
-zscore!(df::DataFrame, col::Symbol, new_col::String) = zscore!(df, col, Symbol(eval(new_col)))
-zscore!(df::DataFrame, col::String, new_col::String) = zscore!(df, Symbol(eval(col)), Symbol(eval(new_col)))
+zscore!(df::DataFrame, col::Symbol, new_col::String) = zscore!(df, col, Symbol(new_col))
+zscore!(df::DataFrame, col::String, new_col::String) = zscore!(df, Symbol(col), Symbol(new_col))
 zscore!(df::DataFrame, col::Symbol) = zscore!(df, col, col)
 zscore!(df::DataFrame, col::String) = zscore!(df, Symbol(col))
 
-zscore!(df::DataFrame, col::Symbol, new_col::String, μ::Real, σ::Real) = zscore!(df, col, Symbol(eval(new_col)), μ, σ)
-zscore!(df::DataFrame, col::String, new_col::String, μ::Real, σ::Real) = zscore!(df, Symbol(eval(col)), Symbol(eval(new_col)), μ, σ)
+zscore!(df::DataFrame, col::Symbol, new_col::String, μ::Real, σ::Real) = zscore!(df, col, Symbol(new_col), μ, σ)
+zscore!(df::DataFrame, col::String, new_col::String, μ::Real, σ::Real) = zscore!(df, Symbol(col), Symbol(new_col), μ, σ)
 zscore!(df::DataFrame, col::Symbol, μ::Real, σ::Real) = zscore!(df, col, col, μ, σ)
 zscore!(df::DataFrame, col::String, μ::Real, σ::Real) = zscore!(df, Symbol(col), μ, σ)
 
@@ -187,7 +196,8 @@ end
 
 """
     exclude_elem(cols, target_col)
-exclude element and return new splited array
+
+Exclude element and return new splited array
 """
 function exclude_elem(cols, target_col)
     new_cols = copy(cols)
@@ -198,7 +208,8 @@ end
 
 """
     split_df(df, sample_size)
-split to `sample_size`d DataFrame 
+
+Split Dataframe df `sample_size`d  
 """
 function split_df(df::DataFrame, sample_size::Integer)
     idxs = partition(1:size(df, 1), sample_size)
@@ -209,14 +220,17 @@ end
 
 """
     window_df(df, sample_size)
-create list of overlapped windowe index range 
+
+Create list of overlapped windowe index range 
 """
-function window_df(df::DataFrame, sample_size::Integer, output_size::Integer, offset::Integer = 0)
+function window_df(df::DataFrame, sample_size::I, output_size::I,
+    offset::I = zero(I)) where I <: Integer
+
     # start index for window
     # sample_size + hours (hours for Y , < sample_size) should be avalable
     start_idxs = collect(1:(size(df, 1) - sample_size - output_size + 1))
     final_idxs = start_idxs .+ (sample_size + output_size - 1)
-    idxs = []
+    idxs = UnitRange{I}[]
     for (si, fi) in zip(start_idxs, final_idxs)
         push!(idxs, (si+offset):(fi+offset))
     end
@@ -226,14 +240,17 @@ end
 
 """
     window_df(df, sample_size, start_date, end_date)
-create list of overlapped windowe index range within date range
+
+Create list of overlapped windowe index range within date range
 """
-function window_df(df::DataFrame, sample_size::Integer, output_size::Integer, _start_date::ZonedDateTime, _end_date::ZonedDateTime)
+function window_df(df::DataFrame, sample_size::I, output_size::I,
+    _start_date::ZonedDateTime, _end_date::ZonedDateTime)  where I <: Integer
+
     # start index for window
     # sample_size + hours (hours for Y , < sample_size) should be avalable
     # moreover,I should to round time to 1 hour unit
     start_date = ceil(max(_start_date, df.date[1]), Dates.Hour(1))
-    end_date = floor(_end_date, Dates.Hour(1))
+    end_date = floor(min(_end_date, df.date[end]), Dates.Hour(1))
     if start_date > end_date
         throw(ArgumentError("invalid date range: $start_date ~ $end_date"))
     end
@@ -252,7 +269,8 @@ end
 
 """
     window_df(df, sample_size, end_date)
-create list of overlapped window index range within date range starts with 1970. 1. 1.
+
+Create list of overlapped window index range within date range starts with 1970. 1. 1.
 """
 function window_df(df::DataFrame, sample_size::Integer, output_size::Integer, end_date::ZonedDateTime)
     start_date = ZonedDateTime(1970, 1, 1, tz"Asia/Seoul")
@@ -262,75 +280,285 @@ end
 
 """
     split_sizes3(total_size, batch_size)
-split `total_size` for train/valid/test set (0.64:0.16:0.20)
+
+Split `total_size`for train/valid/test set with size checking compared to `batch_size`
+
+# Examples
+```julia-repl
+julia> split_sizes3(100, 10)
+(64, 16, 20)
+
+julia> split_sizes3(10, 20)
+ERROR: AssertionError: train_size >= batch_size
+Stacktrace:
+ [1] split_sizes3(::Int64, ::Int64) at ./REPL[85]:5
+ [2] top-level scope at none:0
+````
 """
-function split_sizes3(total_size::Integer, batch_size::Integer)
-    # (train + valid) : test = 0.8 : 0.2
-    # train : valid = 0.8 : 0.2
-    # train : valid : test = 0.64 : 0.16 : 0.20
-    train_size = round(total_size * 0.64)
-    valid_size = round(total_size * 0.16)
-    test_size = total_size - (train_size + valid_size)
+function split_sizes3(total_size::I, batch_size::I) where I <: Integer
+    train_size, valid_size, test_size = split_sizes3(total_size)
 
     # at least contains single batch
     @assert train_size >= batch_size
 
-    Int(train_size), Int(valid_size), Int(test_size)
+    train_size, valid_size, test_size
+end
+
+"""
+    split_sizes3(total_size)
+
+Split `total_size` for train/valid/test set (0.64:0.16:0.20)
+
+# Default ratios
+(train + valid) : test = 0.8 : 0.2
+train : valid = 0.8 : 0.2
+train : valid : test = 0.64 : 0.16 : 0.20
+
+# Examples
+```julia-repl
+julia> split_sizes3(100)
+(64, 16, 20)
+```
+"""
+function split_sizes3(total_size::I,
+    train_ratio::AbstractFloat = 0.64,
+    valid_ratio::AbstractFloat = 0.16) where I <: Integer
+
+    train_size = round(total_size * train_ratio)
+    valid_size = round(total_size * valid_ratio)
+    test_size = total_size - (train_size + valid_size)
+
+    @assert train_size + valid_size + test_size == total_size
+
+    I(train_size), I(valid_size), I(test_size)
 end
 
 """
     split_sizes2(total_size, batch_size)
-split `total_size` for train/valid set (0.8:0.2)
+
+Split `total_size` for train/valid set with size checking compared to `batch_size`
+
+# Default ratios
+train : valid = 0.8 : 0.2
+
+# Examples
+```julia-repl
+julia> split_sizes2(100)
+(80, 20)
+
+julia> split_sizes2(10, 20)
+ERROR: AssertionError: train_size >= batch_size
+Stacktrace:
+ [1] split_sizes2(::Int64, ::Int64) at ./REPL[85]:5
+ [2] top-level scope at none:0
+```
 """
-function split_sizes2(total_size::Integer, batch_size::Integer)
-    # (train + valid) : test = 0.8 : 0.2
-    # train : valid = 0.8 : 0.2
-    # train : valid : test = 0.64 : 0.16 : 0.20
-    train_size = round(total_size * 0.8)
-    valid_size = round(total_size * 0.2)
+function split_sizes2(total_size::I, batch_size::I) where I <: Integer
+
+    train_size, valid_size = split_sizes2(total_size)
 
     # at least contains single batch
     @assert train_size >= batch_size
 
-    Int(train_size), Int(valid_size)
+    train_size, valid_size
 end
 
-create_chunk(xs, n) = collect(Iterators.partition(xs, n))
 """
-    create_chunks(tot_size, train_size, valid_size, test_size, batch_size)
-create chunks for train/valid/test set that indicates index of sg_idxs or wd_idxs
-# of each chunk is `batch_size`.
+    split_sizes2(total_size)
 
-`chunks` are used for training.
+Split `total_size` for train/valid set (0.8:0.2)
 
-expected sample result of chunks
-    [[1, 2]
-    [3, 4],
-    [5]]
+# Default ratios
+train : valid = 0.8 : 0.2
+
+# Examples
+```julia-repl
+julia> split_sizes2(100)
+(80, 20)
+```
 """
-function create_chunks(total_idx::Array{I, 1},
-    train_size::Integer, valid_size::Integer, test_size::Integer, batch_size::Integer) where I<:Integer
+function split_sizes2(total_size::I,
+    train_ratio::AbstractFloat = 0.8) where I <: Integer
 
-    train_chnks = create_chunk(total_idx[1:train_size], batch_size)
-    valid_chnks = create_chunk(total_idx[(train_size + 1):(train_size + valid_size)], batch_size)
-    test_chnks = create_chunk(total_idx[(train_size + valid_size + 1):(train_size + valid_size + test_size)], batch_size)
+    train_size = round(total_size * train_ratio)
+    valid_size = total_size - train_size
+
+    @assert train_size + valid_size == total_size
+
+    I(train_size), I(valid_size)
+end
+
+"""
+    create_idxs(total_idxs, train_size, valid_size, test_size)
+
+Split `total_idxs` to train/valid/test set to indicate indices of window
+
+# Examples
+```julia-repl
+julia> total_size = 10; window_size = 12; total_idxs = [i:(i+window_size-1) for i in 1:total_size]
+10-element Array{UnitRange{Int64},1}:
+ 1:12
+ 2:13
+ 3:14
+ 4:15
+ 5:16
+ 6:17
+ 7:18
+ 8:19
+ 9:20
+ 10:21
+
+julia> create_idxs(total_idxs, 6, 2, 2)
+(UnitRange{Int64}[1:12, 2:13, 3:14, 4:15, 5:16, 6:17], UnitRange{Int64}[7:18, 8:19], UnitRange{Int64}[9:20, 10:21])
+```
+"""
+function create_idxs(total_idxs::Array{<:UnitRange{I}, 1},
+    train_size::I, valid_size::I, test_size::I) where I <: Integer
+
+    train_idxs = total_idxs[1:train_size]
+    valid_idxs = total_idxs[(train_size + 1):(train_size + valid_size)]
+    test_idxs = total_idxs[(train_size + valid_size + 1):(train_size + valid_size + test_size)]
+
+    train_idxs, valid_idxs, test_idxs
+end
+
+"""
+    create_idxs(total_idxs, train_size, valid_size)
+
+Split `total_idxs` to train/valid set to indicate indices of window
+
+# Examples
+```julia-repl
+julia> total_size = 10; window_size = 12; total_idxs = [i:(i+window_size-1) for i in 1:total_size]
+10-element Array{UnitRange{Int64},1}:
+ 1:12
+ 2:13
+ 3:14
+ 4:15
+ 5:16
+ 6:17
+ 7:18
+ 8:19
+ 9:20
+ 10:21
+
+julia> create_idxs(total_idxs, 8, 2)
+(UnitRange{Int64}[1:12, 2:13, 3:14, 4:15, 5:16, 6:17, 7:18, 8:19], UnitRange{Int64}[9:20, 10:21])
+```
+"""
+function create_idxs(total_idxs::Array{<:UnitRange{I}, 1},
+    train_size::I, valid_size::I) where I <: Integer
+
+    train_idxs = total_idxs[1:train_size]
+    valid_idxs = total_idxs[(train_size + 1):(train_size + valid_size)]
+
+    train_idxs, valid_idxs
+end
+
+"""
+    create_idxs(total_idxs, test_size)
+
+`total_idxs` to test set to indicate indices of window
+
+# Examples
+```julia-repl
+julia> total_size = 10; window_size = 12; total_idxs = [i:(i+window_size-1) for i in 1:total_size]
+10-element Array{UnitRange{Int64},1}:
+ 1:12
+ 2:13
+ 3:14
+ 4:15
+ 5:16
+ 6:17
+ 7:18
+ 8:19
+ 9:20
+ 10:21
+
+julia> create_idxs(total_idxs, 2)
+2-element Array{UnitRange{Int64},1}:
+ 1:12
+ 2:13
+```
+"""
+function create_idxs(total_idxs::Array{<:UnitRange{I}, 1},
+    test_size::I) where I <: Integer
+
+    test_idxs = total_idxs[1:test_size]
+
+    test_idxs
+end
+
+"""
+    create_chunks(total_idxs, train_size, valid_size, test_size, batch_size)
+
+Create chunks which size is `batch_size` of train/valid/test set using in minibatch
+
+See also: [`split_sizes3`](@ref)
+
+# Example
+```julia-repl
+julia> total_size = 10; window_size = 4; batch_size = 3; total_idxs = [i:(i+window_size-1) for i in 1:total_size]
+10-element Array{UnitRange{Int64},1}:
+ 1:4
+ 2:5
+ 3:6
+ 4:7
+ 5:8
+ 6:9
+ 7:10
+ 8:11
+ 9:12
+ 10:13
+
+julia> train_size, valid_size, test_size = split_sizes3(total_size, batch_size)
+(6, 2, 2)
+
+julia> create_chunks(total_idxs, train_size, valid_size, test_size, batch_size)
+(Array{UnitRange{Int64},1}[[1:4, 2:5, 3:6], [4:7, 5:8, 6:9]], Array{UnitRange{Int64},1}[[7:10, 8:11]], Array{UnitRange{Int64},1}[[9:12, 10:13]])
+```
+"""
+function create_chunks(total_idxs::Array{<:UnitRange{I}, 1},
+    train_size::I, valid_size::I, test_size::I, batch_size::I) where I <: Integer
+
+    train_chnks = create_chunk(total_idxs[1:train_size], batch_size)
+    valid_chnks = create_chunk(total_idxs[(train_size + 1):(train_size + valid_size)], batch_size)
+    test_chnks = create_chunk(total_idxs[(train_size + valid_size + 1):(train_size + valid_size + test_size)], batch_size)
 
     train_chnks, valid_chnks, test_chnks
 end
 
 """
-    create_chunks(tot_size, train_size, valid_size, batch_size)
-create chunks for train/valid set that indicates index of sg_idxs or wd_idxs
-# of each chunk is `batch_size`.
+    create_chunks(total_idxs, train_size, valid_size, batch_size)
 
-`chunks` are used for training.
+Create chunks which size is `batch_size` of train/valid set using in minibatch
 
-expected sample result of chunks
-    [[1, 2]
-    [3]]
+See also: [`split_sizes2`](@ref)
+
+# Example
+```julia-repl
+julia> total_size = 10; window_size = 4; batch_size = 3; total_idxs = [i:(i+window_size-1) for i in 1:total_size]
+10-element Array{UnitRange{Int64},1}:
+ 1:4
+ 2:5
+ 3:6
+ 4:7
+ 5:8
+ 6:9
+ 7:10
+ 8:11
+ 9:12
+ 10:13
+
+julia> train_size, valid_size = split_sizes2(total_size, batch_size)
+(8, 2)
+
+julia> create_chunks(total_idxs, train_size, valid_size, batch_size)
+(Array{UnitRange{Int64},1}[[1:4, 2:5, 3:6], [4:7, 5:8, 6:9], [7:10, 8:11]], Array{UnitRange{Int64},1}[[9:12, 10:13]])
+```
 """
-function create_chunks(total_idx::Array{I, 1},
-    train_size::Integer, valid_size::Integer, batch_size::Integer) where I<:Integer
+function create_chunks(total_idx::Array{<:UnitRange{I}, 1},
+    train_size::I, valid_size::I, batch_size::I) where I <: Integer
 
     train_chnks = create_chunk(total_idx[1:train_size], batch_size)
     valid_chnks = create_chunk(total_idx[(train_size + 1):(train_size + valid_size)], batch_size)
@@ -339,41 +567,36 @@ function create_chunks(total_idx::Array{I, 1},
 end
 
 """
-    create_idxs(tot_idx, train_size, valid_size, test_size)
-split tot_idx to train/valid/test set that indicates index of sg_idxs or wd_idxs
+    create_chunk(xs, n)
 
-`idxs` are used for more general purpose
+Simply split xs by n, basic function of create_chunks
 
-expected sample result of idxs
-    [1, 2, 3, 4, 5], [6, 7], [8, 9, 10]
+See also: [`create_chunks`](@ref)
+# Example
+```julia-repl
+julia> create_chunk(collect(1:10), 2)
+5-element Array{Array{Int64,1},1}:
+ [1, 2]
+ [3, 4]
+ [5, 6]
+ [7, 8]
+ [9, 10]
+
+julia> create_chunk(collect(1:10), 3)
+4-element Array{Array{Int64,1},1}:
+ [1, 2, 3]
+ [4, 5, 6]
+ [7, 8, 9]
+ [10]
+```
 """
-function create_idxs(tot_idx::Array{I, 1}, train_size::Integer, valid_size::Integer, test_size::Integer) where I<:Integer
-    train_idxs = tot_idx[1:train_size]
-    valid_idxs = tot_idx[(train_size + 1):(train_size + valid_size)]
-    test_idxs = tot_idx[(train_size + valid_size + 1):(train_size + valid_size + test_size)]
-
-    train_idxs, valid_idxs, test_idxs
-end
-
-"""
-    create_idxs(tot_idx, train_size, valid_size)
-split tot_idx to train/valid set that indicates index of sg_idxs or wd_idxs
-
-`idxs` are used for more general purpose
-
-expected sample result of idxs
-    [1, 2, 3, 4, 5], [6, 7]
-"""
-function create_idxs(tot_idx::Array{I, 1}, train_size::Integer, valid_size::Integer) where I<:Integer
-    train_idxs = tot_idx[1:train_size]
-    valid_idxs = tot_idx[(train_size + 1):(train_size + valid_size)]
-
-    train_idxs, valid_idxs
-end
+create_chunk(xs, n) = collect(Iterators.partition(xs, n))
 
 """
     getHoursLater(df, hours, last_date_str, date_fmt)
-get `hours` rows of DataFrame `df` after given `date`, String will be automatically  conveted to ZonedDateTime Object
+
+Get `hours` rows of DataFrame `df` after given `last_date`.
+Date String will be automatically conveted to ZonedDateTime Object
 """
 function getHoursLater(df::DataFrame, hours::Integer, last_date_str::String, date_fmt::Dates.DateFormat=Dates.DateFormat("yyyy-mm-dd HH:MM:SSz"))
     last_date = ZonedDateTime(last_date_str, date_fmt)
@@ -381,6 +604,11 @@ function getHoursLater(df::DataFrame, hours::Integer, last_date_str::String, dat
     return getHoursLater(df, hours, last_date)
 end
 
+"""
+    getHoursLater(df, hours, last_date)
+
+Get `hours` rows of DataFrame `df` after given `last_date`
+"""
 function getHoursLater(df::DataFrame, hours::Integer, last_date::ZonedDateTime)
     start_date = last_date
 
@@ -395,169 +623,174 @@ function getHoursLater(df::DataFrame, hours::Integer, last_date::ZonedDateTime)
     df_hours
 end
 
-"""
-    getX_DNN(df::DataFrame, idxs, features, input_size)
-get X in Dataframe and construct X by flattening
-"""
-function getX_DNN(df::DataFrame, idxs::Array{I, 1}, features::Array{Symbol, 1}, input_size::Integer) where I<:Integer
-    X = convert(Matrix, df[idxs, features])
 
-    # serialize (2D -> 1D)
-    return vec(X[1:input_size])
+"""
+    remove_sparse_input!(X, Y, ratio = 0.5)
+
+Remove this pair if sparse ratio is greather than given `ratio`.
+"""
+function remove_sparse_input!(X, Y, missing_ratio=0.5)
+    @assert 0.0 <= missing_ratio <= 1.0
+
+    invalid_idxs = UnitRange[]
+    size_y = length(Y)
+    size_m = length(findall(_y -> ismissing(_y) || _y == zero(_y), Y))
+    
+    if (size_m / size_y) >= missing_ratio
+        # set X and Y to zeros
+        X = fill!(X, zero(X[1, 1]))
+        Y = fill!(Y, zero(Y[1, 1]))
+    end
+
+    nothing
 end
 
-getX_DNN(df::DataFrame, idxs, features::Array{String,1}) = getX_DNN(df, idxs, Symbol.(features))
 
 """
-    getY(X::DateFrame, hours)
-get last date of X and construct Y with `hours` range
+    getX_DNN(df::DataFrame, idx, features, sample_size)
+
+Get 2D input X from DataFrame by idx
 """
-function getY(df::DataFrame, idx,
-    ycol::Symbol, sample_size::Integer, output_size::Integer) where I<:Integer
+function getX(df::DataFrame, idx::UnitRange{I}, features::Array{Symbol, 1}, sample_size::I) where I <: Integer
+    X = convert(Matrix, df[idx, features])
+
+    Matrix(X[1:sample_size, :])
+end
+
+"""
+    getY(df, idx, ycol, sample_size, output_size)
+
+Get last date of X and retrive Y after `last_date`
+The size of Y should be output_size
+"""
+function getY(df::DataFrame, idx::UnitRange{I},
+    ycol::Symbol, sample_size::I, output_size::I) where I <: Integer
+
     df_X = df[idx, :]
     last_date_of_X = df_X[sample_size, :date]
 
     Y = getHoursLater(df, output_size, last_date_of_X)
 
-    Y[:, ycol]
+    Array(Y[:, ycol])
 end
 
-getY_DNN(df::DataFrame, idx, ycol::Symbol, sample_size, output_size) =
-    getY(df, idx, ycol, sample_size, output_size)
 """
-    make_pairs(df, ycol, idx, features, hours)
-create pairs in `df` along with `idx` (row) and `features` (columns)
+    make_pair_DNN(df, ycol, idx, features, hours)
+
+Create single pair in `df` along with `idx` (row) and `features` (columns)
 output determined by ycol
 
 input_size = sample size * num_selected_columns
 
 """
 # Bundle images together with labels and group into minibatchess
-function make_pairs_DNN(df::DataFrame, ycol::Symbol,
-    idx::Array{I, 1}, features::Array{Symbol, 1},
-    sample_size::Integer, output_size::Integer) where I<:Integer
-    X = getX_DNN(df, idx, features, sample_size * length(features))
-    Y = getY_DNN(df, idx, ycol, sample_size, output_size)
+function make_pair_DNN(df::DataFrame, ycol::Symbol,
+    idx::UnitRange{I}, features::Array{Symbol, 1},
+    sample_size::I, output_size::I) where I <: Integer
+    _X = getX(df, idx, features, sample_size)
+    _Y = getY(df, idx, ycol, sample_size, output_size)
 
-    X = X |> gpu
-    Y = Y |> gpu
-    @assert length(X) == sample_size * length(features)
-    @assert length(Y) == output_size
-    @assert ndims(X) == 1
-    @assert ndims(Y) == 1
+    # 2D matrix to 1D array
+    _X = vec(_X) |> gpu
+    _Y = _Y |> gpu
+    @assert length(_X) == sample_size * length(features)
+    @assert length(_Y) == output_size
+    @assert ndims(_X) == 1
+    @assert ndims(_Y) == 1
 
-    return (X, Y)
+    return (_X, _Y)
 end
 
 """
-    make_pairs(df, ycol, idx, features, hours)
-create pairs in `df` along with `idx` (row) and `features` (columns)
-output determined by ycol
+    make_minibatch_DNN(df, ycol, chnks, features, sample_size, output_size, batch_size, Float32)
 
-input_size = sample size * num_selected_columns
+Create batch consists of pairs in `df` along with `idx` (row) and `features` (columns)
+The batch is higher dimensional input consists of multiple pairs
 
-"""
-# Bundle images together with labels and group into minibatchess
-function make_pairs_DNN(df_in::DataFrame, df_out::DataFrame, ycol::Symbol,
-    idx::Array{I, 1}, features::Array{Symbol, 1},
-    sample_size::Integer, output_size::Integer) where I<:Integer
-    X = getX_DNN(df_in, idx, features, sample_size * length(features))
-    Y = getY_DNN(df_out, idx, ycol, sample_size, output_size)
-
-    X = X |> gpu
-    Y = Y |> gpu
-    @assert length(X) == sample_size * length(features)
-    @assert length(Y) == output_size
-    @assert ndims(X) == 1
-    @assert ndims(Y) == 1
-
-    return (X, Y)
-end
-
-
-"""
-    make_minibatch(input_pairs, batch_size, train_idx, valid_idx, test_idx)
-make batch by sampling. size of batch (input_size, batch_size) 
+single pairs to multiple 
+pairs = [(X_1, Y_1), (X_2, Y_2), ...]
 
 [(input_single, output_single)...] =>
 [   
-    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // single batch
-    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // single batch
-    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // single batch
+    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // minibatch
+    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // minibatch
+    ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // minibatch
 ]
 
-do this for train_set, valid_set, test_set
-each single batch is column stacked
+and make pairs to be column stacked
 
+# Example
+
+
+batch_size = 5
+pairs = [
+            ([ 1, 2, 3, 4], [ 5, 6]),
+            ([ 7, 8, 9,10], [11,12]),
+            ([13,14,15,16], [17,18]),
+            ([19,20,21,22], [23,24]),
+            ([25,26,27,28], [29,30])]
+
+become
+
+([1,  7, 13, 19, 25;
+  2,  8, 14, 20, 26;
+  3,  9, 15, 21, 27;
+  4, 10, 16, 22, 28], 
+ [5, 11, 17, 23, 29;
+  6, 12, 18, 24, 30])
 """
-function make_minibatch_DNN(input_pairs::Array{T},
-    chnks::Array{I, 1}, batch_size::Integer) where I<:Integer where T<:Tuple
+function make_batch_DNN(df::DataFrame, ycol::Symbol,
+    chnks::Array{<:UnitRange{I}, 1}, features::Array{Symbol, 1},
+    sample_size::I, output_size::I, batch_size::I,
+    missing_ratio::AbstractFloat=0.5, T::DataType=Float32) where I <: Integer
+
+    X = zeros(T, sample_size * length(features), batch_size)
+    Y = zeros(T, output_size, batch_size)
+
     # input_pairs Array{Tuple{Array{Int64,1},Array{Int64,1}},1}
-    X = [pair[1] for pair in input_pairs[chnks]]
-    Y = [pair[2] for pair in input_pairs[chnks]]
-    X_size = length(X[1])
-    Y_size = length(Y[1])
-    # append zeros if chnks size is less than batch_size
-    chnks_size = length(chnks)
-    if chnks_size < batch_size
-        for i in chnks_size+1:batch_size
-            append!(X, [zeros(X_size)])
-            append!(Y, [zeros(Y_size)])
-        end
+    for (i, idx) in enumerate(chnks)
+        _X = vec(getX(df, idx, features, sample_size))
+        _Y = getY(df, idx, ycol, sample_size, output_size)
+
+        # fill zeros if data is too sparse (too many misisngs)
+        # only in training
+        remove_sparse_input!(_X, _Y)
+
+        # make X & Y as column stacked batch
+        X[:, i] = _X
+        Y[:, i] = _Y
     end
 
-    # (input_size * batch_size) x length(pairs), (output_size) x length(pairs)
-    # Flux.batchseq : pad zero when size is lower than batch_size
-    (Flux.batch(X), Flux.batch(Y))
+    X = X |> gpu
+    Y = Y |> gpu
+
+    (X, Y)
 end
 
 """
-    remove_missing_pairs!(pairs, ratio = 0.5)
+    is_sparse_Y(Y, ratio = 0.5)
+
+Check Y is sparse, 0s are more than `raito`
 """
-function remove_missing_pairs!(pairs, missing_ratio=0.5, p::Progress=Progress(length(pairs)))
+function is_sparse_Y(Y, missing_ratio=0.5)
+
     @assert 0.0 <= missing_ratio <= 1.0
 
-    invalid_idxs = []
-    for (idx, (x, y)) in enumerate(pairs)
-        size_y = length(y)
-        size_m = length(findall(_y -> ismissing(_y) || _y == 0.0, y))
+    size_y = length(Y)
+    size_m = length(findall(_y -> ismissing(_y) || _y == 0.0, Y))
 
-        if (size_m / size_y) >= missing_ratio
-            # if use deleteat here, it manipulates pairs while loop and return wrong results
-            push!(invalid_idxs, idx)
-        end
-        ProgressMeter.next!(p)
+    if (size_m / size_y) >= missing_ratio
+        # if use deleteat here, it manipulates pairs while loop and return wrong results
+        return true
     end
-
-    deleteat!(pairs, invalid_idxs)
-
-    nothing
+    
+    false
 end
-
-"""
-    getX_LSTM(df::DataFrame, idxs, features)
-get X in Dataframe and construct X by flattening
-"""
-function getX_LSTM(df::DataFrame, idx, features::Array{Symbol, 1}, input_size::Integer)
-    X = convert(Matrix, df[idx, features])
-
-    return X[1:input_size, :]
-end
-
-getX_LSTM(df::DataFrame, idx, features::Array{String,1}, input_size::Integer) =
-    getX_LSTM(df, idx, Symbol.(eval.(features)), input_size)
-
-"""
-    getY_LSTM(X::DateFrame, hours)
-get last date of X and construct Y with `hours` range
-"""
-getY_LSTM(df::DataFrame, idx,
-    ycol::Symbol, sample_size::Integer, output_size::Integer) where I<:Integer =
-        getY(df, idx, ycol, sample_size, output_size)
 
 """
     make_input_LSTM(df, ycol, idx, features, hours)
-create pairs in `df` along with `idx` (row) and `features` (columns)
+
+Create pairs in `df` along with `idx` (row) and `features` (columns)
 output determined by ycol
 pairs doesn't need to consider batch_size
 
@@ -569,16 +802,16 @@ https://machinelearningmastery.com/how-to-develop-lstm-models-for-time-series-fo
 # Bundle images together with labels and group into minibatchess
 # idxs would be < Array{Integer, 1} or < Array{UnitRange{Integer}, 1}
 function make_input_LSTM(df::DataFrame, ycol::Symbol,
-    idxs, features::Array{Symbol, 1},
-    sample_size::Integer, output_size::Integer,
-    p::Progress=Progress(length(idxs)))
+    idxs::Array{<:UnitRange{I}, 1}, features::Array{Symbol, 1},
+    sample_size::I, output_size::I,
+    p::Progress=Progress(length(idxs))) where I <: Integer
 
     X = Array{Real}(undef, 0, sample_size, length(features))
     Y = Array{Real}(undef, 0, output_size)
 
     for idx in idxs
-        _X = getX_LSTM(df, idx, features, sample_size)
-        _Y = getY_LSTM(df, idx, ycol, sample_size, output_size)
+        _X = getX(df, idx, features, sample_size)
+        _Y = getY(df, idx, ycol, sample_size, output_size)
 
         @assert size(_X) == (sample_size, length(features))
         @assert size(_Y) == (output_size,)
@@ -601,24 +834,13 @@ function make_input_LSTM(df::DataFrame, ycol::Symbol,
 end
 
 """
-    is_sparse_Y(input, ratio = 0.5)
+    findrow(df, col, val)
+
+Find fist row number in df[:, `col`] as `val` by brute-force
 """
-function is_sparse_Y(Y, missing_ratio=0.5)
-    @assert 0.0 <= missing_ratio <= 1.0
-
-    size_y = length(Y)
-    size_m = length(findall(_y -> ismissing(_y) || _y == 0.0, Y))
-
-    if (size_m / size_y) >= missing_ratio
-        # if use deleteat here, it manipulates pairs while loop and return wrong results
-        return true
-    end
+function findrow(df::DataFrame, col::Symbol, val::T) where T <: Real
     
-    false
-end
-
-function findrow(df::DataFrame, col::Symbol, val)
-    idx = 0
+    idx = zero(T)
     for row in eachrow(df)
         idx += 1
         if (row[col] == val)

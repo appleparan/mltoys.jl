@@ -7,7 +7,7 @@ function filter_station(df, stn_code)
 
     cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid]
     for col in cols
-        stn_df[col] = Missings.coalesce.(stn_df[col], 0.0)
+        stn_df[col] = Missings.coalesce.(stn_df[!, col], 0.0)
     end
 
     stn_df
@@ -19,10 +19,10 @@ function read_station(input_path::String, stn_code::Integer)
 
     @info "Start preprocessing..."
     flush(stdout); flush(stderr)
-    stn_df[:date] = ZonedDateTime.(stn_df[:date])
+    stn_df[!, :date] = ZonedDateTime.(stn_df[!, :date])
 
     # no and staitonCode must not have missing value
-    @assert size(collect(skipmissing(stn_df[:stationCode])), 1) == size(stn_df, 1)
+    @assert size(collect(skipmissing(stn_df[!, :stationCode])), 1) == size(stn_df, 1)
 
     DataFrames.dropmissing!(stn_df, [:stationCode])
     cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
@@ -31,11 +31,11 @@ function read_station(input_path::String, stn_code::Integer)
 
     DataFrames.allowmissing!(stn_df, cols)
     for col in [:prep, :snow]
-        stn_df[col] = Missings.coalesce.(stn_df[col], 0.0)
+        stn_df[!, col] = Missings.coalesce.(stn_df[col], 0.0)
     end
 
     for col in airkorea_cols
-        replace!(stn_df[col], -999 => missing)
+        replace!(stn_df[!, col], -999 => missing)
     end
 
     # check remaining missing values
@@ -87,10 +87,10 @@ function read_jongro(input_path="/input/jongro_single.csv")
     
     @info "Start preprocessing..."
     flush(stdout); flush(stderr)
-    df[:date] = ZonedDateTime.(df[:date])
+    df[!, :date] = ZonedDateTime.(df[!, :date])
 
     # no and staitonCode must not have missing value
-    @assert size(collect(skipmissing(df[:stationCode])), 1) == size(df, 1)
+    @assert size(collect(skipmissing(df[!, :stationCode])), 1) == size(df, 1)
 
     DataFrames.dropmissing!(df, [:stationCode])
     cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
@@ -103,16 +103,16 @@ function read_jongro(input_path="/input/jongro_single.csv")
 
     DataFrames.allowmissing!(df, cols)
     for col in [:prep, :snow]
-        df[col] = Missings.coalesce.(df[col], 0.0)
+        df[!, col] = Missings.coalesce.(df[!, col], 0.0)
     end
 
     for col in airkorea_cols
-        replace!(df[col], -999 => missing)
+        replace!(df[!, col], -999 => missing)
     end
 
     # check remaining missing values
     for col in names(df)
-        @assert size(df, 1) == size(collect(skipmissing(df[col])), 1)
+        @assert size(df, 1) == size(collect(skipmissing(df[!, col])), 1)
     end
     dropmissing!(df, cols, disallowmissing=true)
 

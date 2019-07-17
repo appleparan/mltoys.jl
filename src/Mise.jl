@@ -22,7 +22,7 @@ using ArgParse
 using FileIO
 using Formatting
 using Glob
-using JuliaDB
+using IndexedTables
 using MicroLogging
 using ProgressMeter
 using StatsBase: mean, std, mean_and_std, zscore
@@ -62,8 +62,8 @@ export join_data, filter_jongro, read_jongro, filter_station, read_station,
 # utils
         mean_and_std_cols, hampel!, zscore!, exclude_elem, split_df, window_df,
         split_sizes3, split_sizes2, create_chunks, create_idxs,
-        getHoursLater, remove_missing_pairs!, is_sparse_Y,
-        getX_DNN, getY_DNN, make_pairs_DNN, make_minibatch_DNN, 
+        getHoursLater, remove_sparse_input!, is_sparse_Y,
+        getX, getY, make_pair_DNN, make_batch_DNN, 
         getX_LSTM, getY_LSTM, make_input_LSTM, findrow,
         WHO_PM10, WHO_PM25,
 # evaluation
