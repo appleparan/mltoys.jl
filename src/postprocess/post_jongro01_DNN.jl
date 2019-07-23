@@ -1,3 +1,16 @@
+function compute_corr(dnn_table::Array{IndexedTable, 1}, output_size::Integer)
+
+    corr = zeros(output_size)
+
+    for i = 1:output_size
+        corr[i] = Statistics.cor(JuliaDB.select(dnn_table[i], :y), JuliaDB.select(dnn_table[i], :ŷ))
+    end
+
+    df = DataFrame(hour = collect(1:output_size), corr = corr)
+
+    df
+end
+
 function test_station(model_path::String, stn_df::DataFrame, ycol::Symbol, stn_code::Integer, stn_name::String,
     sample_size::Integer, output_size::Integer,
     output_dir::String, output_prefix::String,

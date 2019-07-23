@@ -78,31 +78,43 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
         @info " $(string(ycol)) Forecasting accuracy (high) for test : ", forecast_high
     end
 
-    table_01h, table_24h = compute_prediction(test_set, model, ycol, total_μ, total_σ, "/mnt/")
-    y_01h_vals, ŷ_01h_vals, y_24h_vals, ŷ_24h_vals =
-        export2CSV(DateTime.(test_dates), table_01h, table_24h, ycol, "/mnt/", string(ycol) * "_")
-    plot_DNN_scatter(table_01h, table_24h, ycol, "/mnt/")
-    plot_DNN_histogram(table_01h, table_24h, ycol, "/mnt/")
+    # create directory per each time
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        Base.Filesystem.mkpath("/mnt/$(i_pad)/")
+    end
+
+    dnn_table = predict_model(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/")
+    dfs_out = export_CSV(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", string(ycol))
+    df_corr = compute_corr(dnn_table, output_size)
+
+    plot_DNN_scatter(dnn_table, ycol, output_size, "/mnt/", String(ycol))
+    plot_DNN_histogram(dnn_table, ycol, output_size, "/mnt/", String(ycol))
 
     plot_datefmt = @dateformat_str "yyyymmddHH"
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h, ycol, "/mnt/", String(ycol))
 
-    _corr_01h = Statistics.cor(y_01h_vals, ŷ_01h_vals)
-    _corr_24h = Statistics.cor(y_24h_vals, ŷ_24h_vals)
-    @info " $(string(ycol)) Corr(01H)   : ", _corr_01h
-    @info " $(string(ycol)) Corr(24H)   : ", _corr_24h
+    plot_DNN_lineplot(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", String(ycol))
+    plot_corr(df_corr, output_size, "/mnt/", String(ycol))
+
+    #_corr_01h = Statistics.cor(y_01h_vals, ŷ_01h_vals)
+    #_corr_24h = Statistics.cor(y_24h_vals, ŷ_24h_vals)
+    #@info " $(string(ycol)) Corr(01H)   : ", _corr_01h
+    #@info " $(string(ycol)) Corr(24H)   : ", _corr_24h
 
     # 3 months plot
     # TODO : how to generalize date range? how to split based on test_dates?
     # 1/4 : because train size is 3 days, result should be start from 1/4
     # 12/29 : same reason 1/4, but this results ends with 12/31 00:00 ~ 12/31 23:00
-
     plot_evaluation(df_evals, ycol, "/mnt/")
 
     model, μσ
 end
 
-function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size::Integer, μσ, filename::String)
+function train_DNN!(model::C,
+    train_set::Array{T2, 1}, valid_set::Array{T1, 1},
+    loss, accuracy, opt,
+    epoch_size::Integer, μσ::AbstractNDSparse,
+    filename::String) where C <: Flux.Chain where T2 <: Tuple{AbstractArray{F, 2}, AbstractArray{F, 2}} where T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}}  where F <: AbstractFloat
 
     @info("    Beginning training loop...")
     flush(stdout); flush(stderr)
@@ -170,7 +182,7 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
     df_eval
 end
 
-function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
+function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
     #unit_size = min(Int(round(input_size * 3/3)), 768)
@@ -195,7 +207,7 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     model, loss, accuracy, opt
 end
 
-function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
+function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
     #unit_size = min(Int(round(input_size * 2/3)), 512)
@@ -218,7 +230,7 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     model, loss, accuracy, opt
 end
 
-function compile_SO2_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
+function compile_SO2_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
     #unit_size = min(Int(round(input_size * 2/3)), 512)
@@ -242,7 +254,7 @@ function compile_SO2_DNN(input_size::Integer, batch_size::Integer, output_size::
 end
 
 
-function compile_NO2_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
+function compile_NO2_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
     #unit_size = min(Int(round(input_size * 2/3)), 512)
@@ -266,7 +278,7 @@ function compile_NO2_DNN(input_size::Integer, batch_size::Integer, output_size::
 end
 
 
-function compile_CO_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ)
+function compile_CO_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
     #unit_size = min(Int(round(input_size * 2/3)), 512)

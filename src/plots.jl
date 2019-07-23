@@ -34,7 +34,7 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
     png(pl, plot_path)
 end
 
-function plot_corr(_df::DataFrame, feas, label_feas, output_dir::String)
+function plot_pcorr(_df::DataFrame, feas::AbstractArray, label_feas::AbstractArray, output_dir::String)
     ENV["GKSwstype"] = "100"
 
     crpl_path = output_dir * "pearson_corr"
@@ -66,209 +66,154 @@ function plot_corr(_df::DataFrame, feas, label_feas, output_dir::String)
     CSV.write(crcsv_path, df_cor, writeheader = true)
 end
 
-function compute_prediction(dataset, model, ycol::Symbol, μ::AbstractFloat, σ::AbstractFloat, output_dir::String)
-    table_01h_path = output_dir * String(ycol) * "_01h_table.csv"
-    table_24h_path = output_dir * String(ycol) * "_24h_table.csv"
+function plot_corr(df_corr::DataFrame, output_size::Integer, output_dir::String, output_prefix::String)
 
-    dnn_01h_table = table((y = [], ŷ = [],))
-    dnn_24h_table = table((y = [], ŷ = [],))
+    ENV["GKSwstype"] = "100"
 
-    for (x, y) in dataset
-        ŷ = model(x |> gpu)
+    plot_path = output_dir * output_prefix * "corr_hourly"
 
-        cpu_y = y |> cpu
-        cpu_ŷ = ŷ |> cpu
+    gr(size=(1920, 1080))
+    pl = Plots.plot(df_corr[!, :hour], df_corr[!, :corr],
+        title="Correlation on hourly prediction", xlabel="hour", ylabel="corr",
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, linecolor = LN01_COLOR, legend=false)
 
-        org_y = cpu_y .* σ .+ μ
-        org_ŷ = Flux.Tracker.data(cpu_ŷ) .* σ .+ μ
-        
-        tmp_table = table((y = [org_y[1]], ŷ = [org_ŷ[1]],))
-        dnn_01h_table = merge(dnn_01h_table, tmp_table)
+    png(pl, plot_path)
 
-        tmp_table = table((y = [org_y[24]], ŷ = [org_ŷ[24]],))
-        dnn_24h_table = merge(dnn_24h_table, tmp_table)
+    nothing
+end
+
+function plot_DNN_scatter(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
+    output_size::Integer, output_dir::String, output_prefix::String)
+
+    ENV["GKSwstype"] = "100"
+
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        sc_path = output_dir * "$(i_pad)/" * "$(output_prefix)_scatter_$(i_pad))h.png"
+
+        lim = max(maximum(JuliaDB.select(dnn_table[i], :y)),
+                maximum(JuliaDB.select(dnn_table[i], :ŷ)))
+        gr(size=(1080, 1080))
+        sc = Plots.scatter(JuliaDB.select(dnn_table[i], :y), JuliaDB.select(dnn_table[i], :ŷ), 
+            xlim = (0, lim), ylim = (0, lim), legend=false,
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+            guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+            title="DNN/OBS ($(i_pad)h)", xlabel="OBS", ylabel="DNN",
+            background_color = BG_COLOR, markercolor = MK_COLOR)
+        # diagonal line (corr = 1)
+        Plots.plot!(0:0.1:lim, 0:0.1:lim, 
+            xlim = (0, lim), ylim = (0, lim), legend=false,
+            background_color = BG_COLOR, linecolor = LN_COLOR)
+        Plots.png(sc, sc_path)
     end
 
-    JuliaDB.save(dnn_01h_table, table_01h_path)
-    JuliaDB.save(dnn_24h_table, table_24h_path)
-
-    dnn_01h_table, dnn_24h_table
+    nothing
 end
 
-function export2CSV(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String, output_prefix::String)
-    plotdata_01h_path = output_dir * output_prefix * "_plotdata_01h.csv"
-    plotdata_24h_path = output_dir * output_prefix * "_plotdata_24h.csv"
-    dates_01h = dates .+ Dates.Hour(1)
-    dates_24h = dates .+ Dates.Hour(24)
+function plot_DNN_histogram(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
+    output_size::Integer, output_dir::String, output_prefix::String)
 
-    y_01h_vals = JuliaDB.select(dnn_01h_table, :y)
-    ŷ_01h_vals = JuliaDB.select(dnn_01h_table, :ŷ)
-    y_24h_vals = JuliaDB.select(dnn_24h_table, :y)
-    ŷ_24h_vals = JuliaDB.select(dnn_24h_table, :ŷ)
-
-    len_01h = min(length(JuliaDB.select(dnn_01h_table, :y)), length(dates_01h))
-    len_24h = min(length(JuliaDB.select(dnn_24h_table, :y)), length(dates_24h))
-
-    df_01h = DataFrame(
-        dates = dates_01h[1:len_01h], y = y_01h_vals[1:len_01h], yhat = ŷ_01h_vals[1:len_01h])
-    df_24h = DataFrame(
-        dates = dates_24h[1:len_24h], y = y_24h_vals[1:len_24h], yhat = ŷ_24h_vals[1:len_24h])
-
-    CSV.write(plotdata_01h_path, df_01h)
-    CSV.write(plotdata_24h_path, df_24h)
-
-    return y_01h_vals, ŷ_01h_vals, y_24h_vals, ŷ_24h_vals
-end
-
-function plot_DNN_scatter(dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String)
-    ENV["GKSwstype"] = "100"
-    sc_01h_path = output_dir * String(ycol) * "_01h_scatter.png"
-    sc_24h_path = output_dir * String(ycol) * "_24h_scatter.png"
-
-    lim = max(maximum(JuliaDB.select(dnn_01h_table, :y)), maximum(JuliaDB.select(dnn_01h_table, :ŷ)))
-    gr(size=(1080, 1080))
-    sc = Plots.scatter(JuliaDB.select(dnn_01h_table, :y), JuliaDB.select(dnn_01h_table, :ŷ), 
-        xlim = (0, lim), ylim = (0, lim), legend=false,
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        title="DNN/OBS", xlabel="Observation", ylabel="DNN",
-        background_color = BG_COLOR, markercolor = MK_COLOR)
-    Plots.plot!(0:0.1:lim, 0:0.1:lim, 
-        xlim = (0, lim), ylim = (0, lim), legend=false,
-        background_color = BG_COLOR, linecolor = LN_COLOR)
-    Plots.png(sc, sc_01h_path)
-
-    gr(size=(1080, 1080))
-    sc = Plots.scatter(JuliaDB.select(dnn_24h_table, :y), JuliaDB.select(dnn_24h_table, :ŷ), 
-        xlim = (0, lim), ylim = (0, lim), legend=false,
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        title="DNN/OBS", xlabel="Observation", ylabel="DNN",
-        background_color = BG_COLOR, markercolor = MK_COLOR)
-    Plots.plot!(0:0.1:lim, 0:0.1:lim, 
-        xlim = (0, lim), ylim = (0, lim), legend=false,
-        background_color = BG_COLOR, linecolor = LN_COLOR)
-    Plots.png(sc, sc_24h_path)   
-end
-
-function plot_DNN_histogram(dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String)
-    ENV["GKSwstype"] = "100"
-    hs_01h_path = output_dir * String(ycol) * "_01h_hist.png"
-    hs_24h_path = output_dir * String(ycol) * "_24h_hist.png"
-
-    gr(size=(2560, 1080))
-    ht = Plots.histogram(JuliaDB.select(dnn_01h_table, :y), label="obs", 
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        title="Histogram of data", ylabel="#",
-        background_color = BG_COLOR, fillalpha=0.5)
-    ht = Plots.histogram!(JuliaDB.select(dnn_01h_table, :ŷ), label="model")
-    Plots.png(ht, hs_01h_path)
-
-    gr(size=(2560, 1080))
-    ht = Plots.histogram(JuliaDB.select(dnn_24h_table, :y), label=["obs", "model"],
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        title="Histogram of data", ylabel="#",
-        background_color = BG_COLOR, fillalpha=0.5)
-    ht = Plots.histogram!(JuliaDB.select(dnn_24h_table, :ŷ), label="model")
-    Plots.png(ht, hs_24h_path)
-end
-
-function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, ycol::Symbol, output_dir::String, output_prefix::String)
-    ENV["GKSwstype"] = "100"
-    line_01h_path = output_dir * String(ycol) * "_01h_line.png"
-    line_24h_path = output_dir * String(ycol) * "_24h_line.png"
-    dates_01h = dates .+ Dates.Hour(1)
-    dates_24h = dates .+ Dates.Hour(24)
-    len_model = length(JuliaDB.select(dnn_01h_table, :y))
-
-    # plot in dates
-    gr(size = (2560, 1080))
-    pl = Plots.plot(dates_01h[1:len_model], JuliaDB.select(dnn_01h_table, :y),
-        ylim = (0.0,
-            max(maximum(JuliaDB.select(dnn_01h_table, :y)), maximum(JuliaDB.select(dnn_01h_table, :ŷ)))),
-        line=:solid, linewidth=5, label="obs.",
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR, color=LN01_COLOR,
-        title=String(ycol) * " in dates (01h)",
-        xlabel="date", ylabel=String(ycol), legend=:best)
-    pl = Plots.plot!(dates_01h[1:len_model], JuliaDB.select(dnn_01h_table, :ŷ),
-        line=:solid, linewidth=5, color=LN02_COLOR, label="model")
-    Plots.png(pl, line_01h_path)
-
-    #@info "Correlation in 01H results: ", Statistics.cor(JuliaDB.select(dnn_01h_table, :y), JuliaDB.select(dnn_01h_table, :ŷ))
-
-    gr(size = (2560, 1080))
-    pl = Plots.plot(dates_24h[1:len_model], JuliaDB.select(dnn_24h_table, :y),
-        ylim = (0.0,
-            max(maximum(JuliaDB.select(dnn_24h_table, :y)), maximum(JuliaDB.select(dnn_24h_table, :ŷ)))),
-        line=:solid, linewidth=5, label="obs.",
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR, color=LN01_COLOR,
-        title=String(ycol) * " in dates (24h)",
-        xlabel="date", ylabel=String(ycol), legend=:best)
-    pl = Plots.plot!(dates_24h[1:len_model], JuliaDB.select(dnn_24h_table, :ŷ),
-        line=:solid, linewidth=5, color=LN02_COLOR, label="model")
-    Plots.png(pl, line_24h_path)
-
-    #@info "Correlation in 24H results: ", Statistics.cor(JuliaDB.select(dnn_24h_table, :y), JuliaDB.select(dnn_24h_table, :ŷ))
-end
-
-function plot_DNN_lineplot(dates, dnn_01h_table, dnn_24h_table, s_date::DateTime, f_date::DateTime, ycol::Symbol, output_dir::String, output_prefix::String)
     ENV["GKSwstype"] = "100"
 
-    line_01h_path = output_dir * output_prefix * "_01h_line.png"
-    line_24h_path = output_dir * output_prefix * "_24h_line.png"
-    dates_01h = dates .+ Dates.Hour(1)
-    dates_24h = dates .+ Dates.Hour(24)
-    len_model = length(JuliaDB.select(dnn_01h_table, :y))
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        hs_OBS_path = output_dir * "$(i_pad)/" * "$(output_prefix)_hist(obs)_$(i_pad))h.png"
+        hs_DNN_path = output_dir * "$(i_pad)/" * "$(output_prefix)_hist(dnn)_$(i_pad))h.png"
 
-    # slice between s_date and e_date
-    y_01h_vals = JuliaDB.select(dnn_01h_table, :y)
-    ŷ_01h_vals = JuliaDB.select(dnn_01h_table, :ŷ)
-    y_24h_vals = JuliaDB.select(dnn_24h_table, :y)
-    ŷ_24h_vals = JuliaDB.select(dnn_24h_table, :ŷ)
+        gr(size=(2560, 1080))
 
-    s_01h_idx = findfirst(isequal.(dates_01h, s_date))
-    f_01h_idx = findfirst(isequal.(dates_01h, f_date))
-    s_24h_idx = findfirst(isequal.(dates_24h, s_date))
-    f_24h_idx = findfirst(isequal.(dates_24h, f_date))
+        ht = Plots.histogram(JuliaDB.select(dnn_table[i], :y), label="OBS",
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+            guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+            title="Histogram of OBS ($(i_pad)h)", ylabel="#",
+            background_color = BG_COLOR, fillalpha=0.5)
+        Plots.png(ht, hs_OBS_path)
 
-    # plot in dates
-    gr(size = (2560, 1080))
-    pl = Plots.plot(dates_01h[s_01h_idx:f_01h_idx], y_01h_vals[s_01h_idx:f_01h_idx],
-        ylim = (0.0,
-            max(maximum(y_01h_vals[s_01h_idx:f_01h_idx]), maximum(ŷ_01h_vals[s_01h_idx:f_01h_idx]))),
-        line=:solid, linewidth=5, label="obs.",
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR, color=LN01_COLOR,
-        title=String(ycol) * " in dates (01h) at ", 
-        xlabel="date", ylabel=String(ycol), legend=:best)
-    pl = Plots.plot!(dates_01h[s_01h_idx:f_01h_idx], ŷ_01h_vals[s_01h_idx:f_01h_idx],
-        line=:solid, linewidth=5, color=LN02_COLOR, label="model")
-    Plots.png(pl, line_01h_path)
+        ht = Plots.histogram(JuliaDB.select(dnn_table[i], :ŷ), label="DNN",
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+            guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+            title="Histogram of DNN ($(i_pad)h)", ylabel="#",
+            background_color = BG_COLOR, fillalpha=0.5)
+        Plots.png(ht, hs_DNN_path)
+    end
 
-    gr(size = (2560, 1080))
-    pl = Plots.plot(dates_24h[s_24h_idx:f_24h_idx], y_01h_vals[s_24h_idx:f_24h_idx],
-        ylim = (0.0,
-            max(maximum(y_24h_vals[s_24h_idx:f_24h_idx]), maximum(ŷ_24h_vals[s_24h_idx:f_24h_idx]))),
-        line=:solid, linewidth=5, label="obs.",
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR, color=LN01_COLOR,
-        title=String(ycol) * " in dates (24h) at ", 
-        xlabel="date", ylabel=String(ycol), legend=:best)
-    pl = Plots.plot!(dates_24h[s_24h_idx:f_24h_idx], ŷ_01h_vals[s_24h_idx:f_24h_idx],
-        line=:solid, linewidth=5, color=LN02_COLOR, label="model")
-    Plots.png(pl, line_24h_path)
+    nothing
+end
+
+"""
+    plot_DNN_lineplot(dates, dnn_table, ycol, output_size, output_dir, output_prefix)
+
+Plot prediction by dates (full length). 
+"""
+function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
+    output_size::Integer, output_dir::String, output_prefix::String)
+
+    ENV["GKSwstype"] = "100"
+
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_hist(obs)_$(i_pad))h.png"
+        dates_h = dates .+ Dates.Hour(i)
+
+        gr(size = (2560, 1080))
+        pl = Plots.plot(dates_h, JuliaDB.select(dnn_table[i], :y),
+            ylim = (0.0,
+                max(maximum(JuliaDB.select(dnn_table[i], :y)), maximum(JuliaDB.select(dnn_table[i], :ŷ)))),
+            line=:solid, linewidth=5, label="OBS",
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+            guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+            background_color = BG_COLOR, color=LN01_COLOR,
+            title=String(ycol) * " by dates ($(i_pad)h)",
+            xlabel="date", ylabel=String(ycol), legend=:best)
+
+        pl = Plots.plot!(dates_h, JuliaDB.select(dnn_table[i], :ŷ),
+            line=:solid, linewidth=5, color=LN02_COLOR, label="DNN")
+        Plots.png(pl, line_path)
+    end
+
+    nothing
+end
+
+"""
+    plot_DNN_lineplot(dates, dnn_table, s_date, f_date, ycol, output_size, output_dir, output_prefix)
+
+Plot prediction by dates (given date range). 
+"""
+function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1},
+    s_date::DateTime, f_date::DateTime, ycol::Symbol,
+    output_size::Integer, output_dir::String, output_prefix::String)
+
+    ENV["GKSwstype"] = "100"
+
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_hist(obs)_$(i_pad))h.png"
+        dates_h = collect(s_date:Hour(1):f_date) .+ Dates.Hour(i)
+
+        gr(size = (2560, 1080))
+        pl = Plots.plot(dates_h, JuliaDB.select(dnn_table[i], :y),
+            ylim = (0.0,
+                max(maximum(JuliaDB.select(dnn_table[i], :y)), maximum(JuliaDB.select(dnn_table[i], :ŷ)))),
+            line=:solid, linewidth=5, label="OBS",
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+            guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+            background_color = BG_COLOR, color=LN01_COLOR,
+            title=String(ycol) * " by dates ($(i_pad)h)",
+            xlabel="date", ylabel=String(ycol), legend=:best)
+
+        pl = Plots.plot!(dates_h, JuliaDB.select(dnn_table[i], :ŷ),
+            line=:solid, linewidth=5, color=LN02_COLOR, label="DNN")
+        Plots.png(pl, line_path)
+    end
+    
+    nothing
 end
 
 function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
     ENV["GKSwstype"] = "100"
+
     rmse_path = output_dir * String(ycol) * "_eval_RMSE.png"
     rsr_path = output_dir * String(ycol) * "_eval_RSR.png"
     nse_path = output_dir * String(ycol) * "_eval_NSE.png"
@@ -276,71 +221,25 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
     learn_rate_path = output_dir * String(ycol) * "_eval_learning_rate.png"
     acc_path = output_dir * String(ycol) * "_eval_acc.png"
 
+    eval_syms = [:RMSE, :RSR, :NSE, :PBIAS, :learn_rate, :ACC]
+
     last_epoch = df[end, :epoch]
 
-    gr(size = (2560, 1080))
-    pl = Plots.plot(df[:, :epoch], df[:, :RMSE],
-        color=:black, linewidth=6,
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR,
-        title="RMSE of " * String(ycol),
-        xlabel="epoch", ylabel="RSR", legend=false)
-    annotate!([(last_epoch, df[last_epoch, :RMSE], text("Value: " *  string(df[last_epoch, :RMSE]), 18, :black, :right))])
-    Plots.png(pl, rmse_path)
+    for eval_sym in eval_syms
+        gr(size = (1920, 1080))
 
-    gr(size = (2560, 1080))
-    pl = Plots.plot(df[:, :epoch], df[:, :RSR],
-        color=:black, linewidth=6,
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR,
-        title="RSR of " * String(ycol),
-        xlabel="epoch", ylabel="RSR", legend=false)
-    annotate!([(last_epoch, df[last_epoch, :RSR], text("Value: " *  string(df[last_epoch, :RSR]), 18, :black, :right))])
-    Plots.png(pl, rsr_path)
+        plot_path = output_dir * String(ycol) * "_eval_$(String(eval_sym)).png"
 
-    gr(size = (2560, 1080))
-    pl = Plots.plot(df[:, :epoch], df[:, :NSE],
-        color=:black, linewidth=6,
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR,
-        title="NSE of " * String(ycol),
-        xlabel="epoch", ylabel="NSE", legend=false)
-    annotate!([(last_epoch, df[last_epoch, :NSE], text("Value: " *  string(df[last_epoch, :NSE]), 18, :black, :right))])
-    Plots.png(pl, nse_path)
-
-    gr(size = (2560, 1080))
-    pl = Plots.plot(df[:, :epoch], df[:, :PBIAS],
-        color=:black, linewidth=6,
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR,
-        title="PBIAS of " * String(ycol),
-        xlabel="epoch", ylabel="PBIAS", legend=false)
-    annotate!([(last_epoch, df[last_epoch, :PBIAS], text("Value: " *  string(df[last_epoch, :PBIAS]), 18, :black, :right))])
-    Plots.png(pl, pbias_path)
-
-    gr(size = (2560, 1080))
-    pl = Plots.plot(df[:, :epoch], df[:, :learn_rate],
-        color=:black, linewidth=6,
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR,
-        title="LEARNING RATE of " * String(ycol),
-        xlabel="epoch", ylabel="Learning Rate", yscale=:log10, legend=false)
-    Plots.png(pl, learn_rate_path)
-
-    gr(size = (2560, 1080))
-    pl = Plots.plot(df[:, :epoch], df[:, :ACC],
-        color=:black, linewidth=6,
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR,
-        title="ACC of " * String(ycol),
-        xlabel="epoch", ylabel="ACC", legend=false)
-    Plots.png(pl, acc_path)
+        pl = Plots.plot(df[:, :epoch], df[:, eval_sym],
+            color=:black, linewidth=6,
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+            guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+            background_color = BG_COLOR,
+            title="$(String(eval_sym)) " * String(ycol),
+            xlabel="epoch", ylabel="$(String(eval_sym))", legend=false)
+        annotate!([(last_epoch, df[last_epoch, eval_sym], text("Value: " *  string(df[last_epoch, eval_sym]), 18, :black, :right))])
+        Plots.png(pl, rmse_path)
+    end
 
     nothing
 end

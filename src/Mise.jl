@@ -10,6 +10,8 @@ using Statistics
 using Flux
 using Flux.Tracker
 using Flux.Tracker: param, back!, grad, data
+# for temporal fix
+using ForwardDiff
 
 using BSON
 using CSV
@@ -48,6 +50,7 @@ ENV["GKSwstype"] = "100"
 # https://github.com/JuliaPlots/Plots.jl/issues/1076#issuecomment-327509819
 include("utils.jl")
 include("input.jl")
+include("output.jl")
 include("loss.jl")
 include("evaluation.jl")
 include("plots.jl")
@@ -57,6 +60,11 @@ include("jongro01_DNN/model.jl")
 #include("jongro02_LSTM/model.jl")
 
 include("postprocess/post_jongro01_DNN.jl")
+
+# temporal workaround for CuArrays #378
+CuArrays.culiteral_pow(::typeof(^), x::ForwardDiff.Dual{Nothing,Float32,1}, ::Val{2}) = x*x
+CuArrays.culiteral_pow(::typeof(^), x::ForwardDiff.Dual{Nothing,Float64,1}, ::Val{2}) = x*x
+
 # input
 export join_data, filter_jongro, read_jongro, filter_station, read_station,
 # utils
@@ -75,10 +83,12 @@ export join_data, filter_jongro, read_jongro, filter_station, read_station,
 # jongro02_DNN
 #       train_all_LSTM,
 # post processing
-        test_features, test_station, test_classification,
+        compute_corr, test_features, test_station, test_classification,
+# output
+        predict_model, export_CSV,
 # plot
         plot_totaldata,
-        compute_prediction, export2CSV,
+        plot_pcorr,
         plot_corr,
         plot_DNN_scatter,
         plot_DNN_histogram,

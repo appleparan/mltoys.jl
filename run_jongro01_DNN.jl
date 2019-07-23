@@ -6,6 +6,7 @@ using MicroLogging
 using Mise
 
 function run_model()
+
     @info "Start Model"
     flush(stdout); flush(stderr)
     df = read_jongro("/input/jongro_single.csv")
@@ -43,7 +44,7 @@ function run_model()
     plot_totaldata(df, :PM25, "/mnt/")
     plot_totaldata(df, :PM10, "/mnt/")
 
-    plot_corr(df, norm_features, features, "/mnt/")
+    plot_pcorr(df, norm_features, features, "/mnt/")
     
     sample_size = 72
     output_size = 24
@@ -83,8 +84,9 @@ function run_model()
     test_idxs = create_idxs(test_wd_idxs, test_size)
     #test_idxs = collect((train_size + valid_size + 1):(train_size + valid_size + test_size))
     flush(stdout); flush(stderr)
+
     # simply collect dates, determine exact date for prediction (for 1h, 24h, and so on) later
-    test_dates = collect(test_sdate:Hour(1):test_fdate)
+    test_dates = collect(test_sdate + Hour(sample_size - 1):Hour(1):test_fdate - Hour(output_size))
 
     input_size = sample_size * length(features)
 
