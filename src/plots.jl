@@ -154,7 +154,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
 
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
-        line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_hist(obs)_$(i_pad))h.png"
+        line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad))h.png"
         dates_h = dates .+ Dates.Hour(i)
 
         gr(size = (2560, 1080))
@@ -189,7 +189,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
 
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
-        line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_hist(obs)_$(i_pad))h.png"
+        line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad))h.png"
         dates_h = collect(s_date:Hour(1):f_date) .+ Dates.Hour(i)
 
         gr(size = (2560, 1080))
