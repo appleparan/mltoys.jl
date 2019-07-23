@@ -54,3 +54,19 @@ function export_CSV(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1}
     dfs
 end
 
+function compute_corr(dnn_table::Array{IndexedTable, 1},
+    output_size::Integer, output_dir::String, output_prefix::String)
+
+    corr_path = output_dir * output_prefix * "_corr.csv"
+    corr = zeros(output_size)
+
+    for i = 1:output_size
+        corr[i] = Statistics.cor(JuliaDB.select(dnn_table[i], :y), JuliaDB.select(dnn_table[i], :ŷ))
+    end
+
+    df = DataFrame(hour = collect(1:output_size), corr = corr)
+
+    CSV.write(corr_path, df)
+
+    df
+end

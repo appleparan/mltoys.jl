@@ -65,7 +65,7 @@ function run_model()
     # windowsed index (index in input)
     train_valid_wd_idxs = window_df(df, sample_size, output_size, train_sdate, train_fdate)
     test_wd_idxs = window_df(df, sample_size, output_size, test_sdate, test_fdate)
-    
+
     # Befor to prepare (input, output) pairs, determine its size first
     train_valid_wd_size = length(train_valid_wd_idxs)
     test_wd_size = length(test_wd_idxs)

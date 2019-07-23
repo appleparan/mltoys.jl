@@ -85,8 +85,8 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     end
 
     dnn_table = predict_model(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/")
-    dfs_out = export_CSV(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", string(ycol))
-    df_corr = compute_corr(dnn_table, output_size)
+    dfs_out = export_CSV(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", String(ycol))
+    df_corr = compute_corr(dnn_table, output_size, "/mnt/", String(ycol))
 
     plot_DNN_scatter(dnn_table, ycol, output_size, "/mnt/", String(ycol))
     plot_DNN_histogram(dnn_table, ycol, output_size, "/mnt/", String(ycol))
