@@ -838,9 +838,9 @@ end
 
 Find fist row number in df[:, `col`] as `val` by brute-force
 """
-function findrow(df::DataFrame, col::Symbol, val::T) where T <: Real
+function findrow(df::DataFrame, col::Symbol, val::Union{<:Real, DateTime, ZonedDateTime})
     
-    idx = zero(T)
+    idx = 0
     for row in eachrow(df)
         idx += 1
         if (row[col] == val)

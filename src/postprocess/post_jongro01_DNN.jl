@@ -7,7 +7,7 @@ function test_station(model_path::String, stn_df::DataFrame, ycol::Symbol, stn_c
 
     filepath = model_path * string(ycol) * ".bson"
 
-    BSON.@load filepath cpu_model weights
+    BSON.@load filepath cpu_model weights μ σ
     Flux.loadparams!(cpu_model, weights)
     model = cpu_model |> gpu
 
@@ -25,7 +25,6 @@ function test_station(model_path::String, stn_df::DataFrame, ycol::Symbol, stn_c
     norm_feas = copy(_norm_feas)
     # remove ycol itself
     # deleteat!(norm_feas, findall(x -> x == norm_ycol, norm_feas))
-
     test_wd_idxs = window_df(stn_df, sample_size, output_size, test_sdate, test_fdate)
     sidx = findrow(stn_df, :date, test_sdate)
     fidx = findrow(stn_df, :date, test_fdate)
@@ -33,33 +32,32 @@ function test_station(model_path::String, stn_df::DataFrame, ycol::Symbol, stn_c
         @error "Error; cannot found date: ", sidx, fidx
         return
     end
-
-    test_idxs = sidx:fidx
+    test_wd_size = length(test_wd_idxs)
     test_size = length(test_wd_idxs)
+    test_idxs = create_idxs(test_wd_idxs, test_size)
 
     μσs = mean_and_std_cols(stn_df, features)
-    total_μ = μσs[String(ycol), "μ"].value
-    total_σ = μσs[String(ycol), "σ"].value
-
-    test_μ, test_σ = mean_and_std(stn_df[test_idxs, norm_ycol])
+    stn_μ = μσs[String(ycol), "μ"].value
+    stn_σ = μσs[String(ycol), "σ"].value
+    
     μσ = ndsparse((
-        dataset = ["test", "test"],
+        dataset = ["total", "total"],
         type = ["μ", "σ"]),
-        (value = [test_μ, test_σ],))
+        (value = [μ, σ],))
 
-    #@info "    Constructing (input, output) pairs for test set (another station)..."
-    #p = Progress(length(test_wd_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    #test_set = [(ProgressMeter.next!(p); make_pairs_DNN(stn_df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
-    test_set = [(make_pairs_DNN(stn_df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
+    @info "    Construct Test Set..."
+    p = Progress(length(test_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
+    test_set = [(ProgressMeter.next!(p);
+        make_pair_DNN(stn_df, norm_ycol, idx, norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
 
-    _RMSE = RMSE("test", test_set, model, μσ)
-    _RSR = RSR("test", test_set, model, μσ)
-    _PBIAS = PBIAS("test", test_set, model, μσ)
-    _NSE = NSE("test", test_set, model, μσ)
-    _IOA = IOA("test", test_set, model, μσ)
+    _RMSE = RMSE(test_set, model, μσ)
+    _RSR = RSR(test_set, model, μσ)
+    _PBIAS = PBIAS(test_set, model, μσ)
+    _NSE = NSE(test_set, model, μσ)
+    _IOA = IOA(test_set, model, μσ)
 
     test_dates = collect(test_sdate:Hour(1):test_fdate)
-    table_01h, table_24h = compute_prediction(test_set, model, ycol, total_μ, total_σ, "/mnt/")
+    table_01h, table_24h = compute_prediction(test_set, model, ycol, μ, σ, "/mnt/")
     ycol_str = string(ycol)
     y_01h_vals, ŷ_01h_vals, y_24h_vals, ŷ_24h_vals = export2CSV(DateTime.(test_dates), table_01h, table_24h, ycol, output_dir, output_prefix)
 
@@ -95,7 +93,7 @@ function test_station(model_path::String, stn_df_in::DataFrame, stn_df_out::Data
 
     filepath = model_path * string(ycol) * ".bson"
 
-    BSON.@load filepath cpu_model weights
+    BSON.@load filepath cpu_model weights μ σ
     Flux.loadparams!(cpu_model, weights)
     model = cpu_model |> gpu
 
@@ -107,47 +105,44 @@ function test_station(model_path::String, stn_df_in::DataFrame, stn_df_out::Data
     if (is_zscored == false)
         zscore!(stn_df_in, features, _norm_feas)
     end
-
-    # remove target (ycol)
+# remove target (ycol)
     norm_ycol = Symbol(norm_prefix, ycol)
     norm_feas = copy(_norm_feas)
     # remove ycol itself
     # deleteat!(norm_feas, findall(x -> x == norm_ycol, norm_feas))
-
-    test_wd_idxs = window_df(stn_df_in, sample_size, output_size, test_sdate, test_fdate)
-    sidx = findrow(stn_df_in, :date, test_sdate)
-    fidx = findrow(stn_df_in, :date, test_fdate)
+    test_wd_idxs = window_df(stn_df, sample_size, output_size, test_sdate, test_fdate)
+    sidx = findrow(stn_df, :date, test_sdate)
+    fidx = findrow(stn_df, :date, test_fdate)
     if (sidx == 0 || fidx == 0) 
         @error "Error; cannot found date: ", sidx, fidx
         return
     end
-
-    test_idxs = sidx:fidx
+    test_wd_size = length(test_wd_idxs)
     test_size = length(test_wd_idxs)
+    test_idxs = create_idxs(test_wd_idxs, test_size)
 
-    μσs = mean_and_std_cols(stn_df_out, features)
-    total_μ = μσs[String(ycol), "μ"].value
-    total_σ = μσs[String(ycol), "σ"].value
-
-    test_μ, test_σ = mean_and_std(stn_df_out[test_idxs, norm_ycol])
+    μσs = mean_and_std_cols(stn_df, features)
+    stn_μ = μσs[String(ycol), "μ"].value
+    stn_σ = μσs[String(ycol), "σ"].value
+    
     μσ = ndsparse((
-        dataset = ["test", "test"],
+        dataset = ["total", "total"],
         type = ["μ", "σ"]),
-        (value = [test_μ, test_σ],))
+        (value = [μ, σ],))
 
-    #@info "    Constructing (input, output) pairs for test set (another station)..."
-    #p = Progress(length(test_wd_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    #test_set = [(ProgressMeter.next!(p); make_pairs_DNN(stn_df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
-    test_set = [(make_pairs_DNN(stn_df_in, stn_df_out, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
+    @info "    Construct Test Set..."
+    p = Progress(length(test_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
+    test_set = [(ProgressMeter.next!(p);
+        make_pair_DNN(stn_df, norm_ycol, idx, norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
 
-    _RMSE = RMSE("test", test_set, model, μσ)
-    _RSR = RSR("test", test_set, model, μσ)
-    _PBIAS = PBIAS("test", test_set, model, μσ)
-    _NSE = NSE("test", test_set, model, μσ)
-    _IOA = IOA("test", test_set, model, μσ)
+    _RMSE = RMSE(test_set, model, μσ)
+    _RSR = RSR(test_set, model, μσ)
+    _PBIAS = PBIAS(test_set, model, μσ)
+    _NSE = NSE(test_set, model, μσ)
+    _IOA = IOA(test_set, model, μσ)
 
     test_dates = collect(test_sdate:Hour(1):test_fdate)
-    table_01h, table_24h = compute_prediction(test_set, model, ycol, total_μ, total_σ, "/mnt/")
+    table_01h, table_24h = compute_prediction(test_set, model, ycol, μ, σ, "/mnt/")
     ycol_str = string(ycol)
     y_01h_vals, ŷ_01h_vals, y_24h_vals, ŷ_24h_vals = export2CSV(DateTime.(test_dates), table_01h, table_24h, ycol, output_dir, output_prefix)
 
@@ -195,13 +190,11 @@ function test_classification(model_path::String, stn_df::DataFrame, ycol::Symbol
     if (is_zscored == false)
         zscore!(stn_df, features, _norm_feas)
     end
-
-    # remove target (ycol)
+# remove target (ycol)
     norm_ycol = Symbol(norm_prefix, ycol)
     norm_feas = copy(_norm_feas)
     # remove ycol itself
     # deleteat!(norm_feas, findall(x -> x == norm_ycol, norm_feas))
-
     test_wd_idxs = window_df(stn_df, sample_size, output_size, test_sdate, test_fdate)
     sidx = findrow(stn_df, :date, test_sdate)
     fidx = findrow(stn_df, :date, test_fdate)
@@ -209,24 +202,23 @@ function test_classification(model_path::String, stn_df::DataFrame, ycol::Symbol
         @error "Error; cannot found date: ", sidx, fidx
         return
     end
-
-    test_idxs = sidx:fidx
+    test_wd_size = length(test_wd_idxs)
     test_size = length(test_wd_idxs)
+    test_idxs = create_idxs(test_wd_idxs, test_size)
 
     μσs = mean_and_std_cols(stn_df, features)
-    total_μ = μσs[String(ycol), "μ"].value
-    total_σ = μσs[String(ycol), "σ"].value
-
-    test_μ, test_σ = mean_and_std(stn_df[test_idxs, norm_ycol])
+    stn_μ = μσs[String(ycol), "μ"].value
+    stn_σ = μσs[String(ycol), "σ"].value
+    
     μσ = ndsparse((
-        dataset = ["test", "test"],
+        dataset = ["total", "total"],
         type = ["μ", "σ"]),
-        (value = [test_μ, test_σ],))
+        (value = [μ, σ],))
 
-    #@info "    Constructing (input, output) pairs for test set (another station)..."
-    #p = Progress(length(test_wd_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    #test_set = [(ProgressMeter.next!(p); make_pairs_DNN(stn_df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
-    test_set = [(make_pairs_DNN(stn_df, norm_ycol, collect(idx), norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
+    @info "    Construct Test Set..."
+    p = Progress(length(test_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
+    test_set = [(ProgressMeter.next!(p);
+        make_pair_DNN(stn_df, norm_ycol, idx, norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
 
     forecast_all, forecast_high = classification("test", test_set, ycol, model)
 

@@ -125,11 +125,6 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
         flush(stdout); flush(stderr)
 
         # record evaluation 
-        #=
-        rsr = RSR("valid", valid_set, model, μσ)
-        nse = NSE("valid", valid_set, model, μσ)
-        pbias = PBIAS("valid", valid_set, model, μσ)
-        =#
         rmse, rsr, nse, pbias, ioa = evaluations(valid_set, model, μσ, [:RMSE, :RSR, :NSE, :PBIAS, :IOA])
         push!(df_eval, [epoch_idx opt.eta acc rmse rsr nse pbias ioa])
 
@@ -148,7 +143,8 @@ function train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size
             weights = Tracker.data.(params(cpu_model))
             # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
-            BSON.@save filepath cpu_model weights epoch_idx acc
+            μ, σ = μσ["total", "μ"].value, μσ["total", "σ"].value
+            BSON.@save filepath cpu_model weights epoch_idx acc μ σ
             best_acc = acc
             last_improvement = epoch_idx
         end

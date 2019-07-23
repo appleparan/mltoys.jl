@@ -56,7 +56,7 @@ include("jongro01_DNN/preprocess.jl")
 include("jongro01_DNN/model.jl")
 #include("jongro02_LSTM/model.jl")
 
-include("postprocess/jongro01_DNN.jl")
+include("postprocess/post_jongro01_DNN.jl")
 # input
 export join_data, filter_jongro, read_jongro, filter_station, read_station,
 # utils
