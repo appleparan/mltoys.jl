@@ -35,7 +35,7 @@ function export_CSV(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1}
 
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
-        plottable_path::String = output_dir * "$(i_pad)/" * "$(output_prefix)_plottable_$(i_pad))h.csv"
+        plottable_path::String = output_dir * "$(i_pad)/" * "$(output_prefix)_plottable_$(i_pad)h.csv"
         
         dates_h = dates .+ Dates.Hour(i)
         y = JuliaDB.select(dnn_table[i], :y)

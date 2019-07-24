@@ -91,7 +91,7 @@ function plot_DNN_scatter(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
 
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
-        sc_path = output_dir * "$(i_pad)/" * "$(output_prefix)_scatter_$(i_pad))h.png"
+        sc_path = output_dir * "$(i_pad)/" * "$(output_prefix)_scatter_$(i_pad)h.png"
 
         lim = max(maximum(JuliaDB.select(dnn_table[i], :y)),
                 maximum(JuliaDB.select(dnn_table[i], :ŷ)))
@@ -119,8 +119,8 @@ function plot_DNN_histogram(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
 
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
-        hs_OBS_path = output_dir * "$(i_pad)/" * "$(output_prefix)_hist(obs)_$(i_pad))h.png"
-        hs_DNN_path = output_dir * "$(i_pad)/" * "$(output_prefix)_hist(dnn)_$(i_pad))h.png"
+        hs_OBS_path = output_dir * "$(i_pad)/" * "$(output_prefix)_hist(obs)_$(i_pad)h.png"
+        hs_DNN_path = output_dir * "$(i_pad)/" * "$(output_prefix)_hist(dnn)_$(i_pad)h.png"
 
         gr(size=(2560, 1080))
 
@@ -154,7 +154,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
 
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
-        line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad))h.png"
+        line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
         dates_h = dates .+ Dates.Hour(i)
 
         gr(size = (2560, 1080))
@@ -189,7 +189,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
 
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
-        line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad))h.png"
+        line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
         dates_h = collect(s_date:Hour(1):f_date) .+ Dates.Hour(i)
 
         gr(size = (2560, 1080))
