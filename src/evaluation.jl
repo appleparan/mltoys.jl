@@ -59,7 +59,7 @@ RMSE-observations standard deviation ratio
 function RSR(dataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
     RSR_arr = []
     μ = μσ["total", "μ"][:value]
-    @show "mu? ", μ
+
     for (x, y) in dataset
         ŷ = model(x |> gpu)
         @assert size(ŷ) == size(y)
