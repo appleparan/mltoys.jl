@@ -59,7 +59,7 @@ RMSE-observations standard deviation ratio
 function RSR(dataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
     RSR_arr = []
     μ = μσ["total", "μ"][:value]
-
+    @show "mu? ", μ
     for (x, y) in dataset
         ŷ = model(x |> gpu)
         @assert size(ŷ) == size(y)
@@ -130,6 +130,50 @@ end
 IOA(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- Flux.Tracker.data(ŷ))) /
     max(sum(abs2.(abs.(Flux.Tracker.data(ŷ) .- mean(Flux.Tracker.data(ŷ))) .+ abs.(Flux.Tracker.data(y) .- mean(Flux.Tracker.data(ŷ))))), eps())
 
+# R2
+#=
+R-Squared
+R Squared & Adjusted R Squared are often used for explanatory purposes and
+explains how well your selected independent variable(s)
+explain the variability in your dependent variable(s
+https://en.wikipedia.org/wiki/Coefficient_of_determination
+=#
+function R2(dataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
+    R2_arr = []
+    μ = μσ["total", "μ"][:value]
+
+    for (x, y) in dataset
+        ŷ = model(x |> gpu)
+        @assert size(ŷ) == size(y)
+
+        push!(R2_arr, R2(y, ŷ, μ))
+    end
+
+    mean(R2_arr)
+end
+
+R2(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- Flux.Tracker.data(ŷ))) / sum(abs2.(y .- μ))
+
+#=
+AdjR2 (TODO)
+https://medium.com/usf-msds/choosing-the-right-metric-for-machine-learning-models-part-1-a99d7d7414e4
+
+function AdjR2(dataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
+    R2_arr = []
+    μ = μσ["total", "μ"][:value]
+
+    for (x, y) in dataset
+        ŷ = model(x |> gpu)
+        @assert size(ŷ) == size(y)
+
+        push!(AdjR2_arr, AdjR2(y, ŷ, μ))
+    end
+
+    mean(AdjR2_arr)
+end
+
+AdjR2(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- Flux.Tracker.data(ŷ))) / sum(abs2.(y .- μ))
+=#
 function classification(dataset::Array{T1, 1}, model::C, ycol::Symbol) where C <: Flux.Chain where T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}} where F <: AbstractFloat
     class_all_arr = []
     class_high_arr = []

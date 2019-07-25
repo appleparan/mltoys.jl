@@ -66,12 +66,14 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     @info " $(string(ycol)) PBIAS for test  : ", PBIAS(test_set, model, μσ)
     @info " $(string(ycol)) NSE for test    : ", NSE(test_set, model, μσ)
     @info " $(string(ycol)) IOA for test    : ", IOA(test_set, model, μσ)
+    @info " $(string(ycol)) R2 for test     : ", R2(test_set, model, μσ)
 
     @info " $(string(ycol)) RMSE for valid  : ", RMSE(valid_set, model, μσ)
     @info " $(string(ycol)) RSR for valid   : ", RSR(valid_set, model, μσ)
     @info " $(string(ycol)) PBIAS for valid : ", PBIAS(valid_set, model, μσ)
     @info " $(string(ycol)) NSE for valid   : ", NSE(valid_set, model, μσ)
     @info " $(string(ycol)) IOA for valid   : ", IOA(valid_set, model, μσ)
+    @info " $(string(ycol)) R2 for valid    : ", R2(valid_set, model, μσ)
     if ycol == :PM10 || ycol == :PM25
         forecast_all, forecast_high = classification(test_set, model, ycol)
         @info " $(string(ycol)) Forecasting accuracy (all) for test : ", forecast_all
@@ -124,7 +126,7 @@ function train_DNN!(model::C,
     acc = 0.0
 
     df_eval = DataFrame(epoch = Int64[], learn_rate = Float64[], ACC = Float64[],
-        RMSE = Float64[], RSR = Float64[], NSE = Float64[], PBIAS = Float64[], IOA = Float64[])
+        RMSE = Float64[], RSR = Float64[], NSE = Float64[], PBIAS = Float64[], IOA = Float64[], R2 = Float64[])
 
     for epoch_idx in 1:epoch_size
         best_acc, last_improvement
@@ -137,11 +139,11 @@ function train_DNN!(model::C,
         flush(stdout); flush(stderr)
 
         # record evaluation 
-        rmse, rsr, nse, pbias, ioa = evaluations(valid_set, model, μσ, [:RMSE, :RSR, :NSE, :PBIAS, :IOA])
-        push!(df_eval, [epoch_idx opt.eta acc rmse rsr nse pbias ioa])
+        rmse, rsr, nse, pbias, ioa, r2 = evaluations(valid_set, model, μσ, [:RMSE, :RSR, :NSE, :PBIAS, :IOA, :R2])
+        push!(df_eval, [epoch_idx opt.eta acc rmse rsr nse pbias ioa r2])
 
         # If our accuracy is good enough, quit out.
-        if acc < 0.0001
+        if acc < 0.001
             @info("    -> Early-exiting: We reached our target accuracy (RSR) of 0.0001")
             break
         end
@@ -201,7 +203,7 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(data) = RSR(data, model, μσ)
+    accuracy(data) = RMSE(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -224,7 +226,7 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(data) = RSR(data, model, μσ)
+    accuracy(data) = RMSE(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -247,7 +249,7 @@ function compile_SO2_DNN(input_size::Integer, batch_size::Integer, output_size::
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(data) = RSR(data, model, μσ)
+    accuracy(data) = RMSE(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -271,7 +273,7 @@ function compile_NO2_DNN(input_size::Integer, batch_size::Integer, output_size::
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(data) = RSR(data, model, μσ)
+    accuracy(data) = RMSE(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -295,7 +297,7 @@ function compile_CO_DNN(input_size::Integer, batch_size::Integer, output_size::I
 
     loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(data) = RSR(data, model, μσ)
+    accuracy(data) = RMSE(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
