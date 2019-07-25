@@ -70,11 +70,12 @@ function plot_corr(df_corr::DataFrame, output_size::Integer, output_dir::String,
 
     ENV["GKSwstype"] = "100"
 
-    plot_path = output_dir * output_prefix * "corr_hourly"
+    plot_path = output_dir * "$(output_prefix)_corr_hourly"
 
     gr(size=(1920, 1080))
     pl = Plots.plot(df_corr[!, :hour], df_corr[!, :corr],
         title="Correlation on hourly prediction", xlabel="hour", ylabel="corr",
+        line=:solid, linewidth=5, label="OBS",
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, linecolor = LN01_COLOR, legend=false)
@@ -190,7 +191,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
         line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
-        dates_h = collect(s_date:Hour(1):f_date) .+ Dates.Hour(i)
+        dates_h = dates .+ Dates.Hour(i)
 
         gr(size = (2560, 1080))
         pl = Plots.plot(dates_h, JuliaDB.select(dnn_table[i], :y),

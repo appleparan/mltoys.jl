@@ -1,17 +1,5 @@
-function compute_corr(dnn_table::Array{IndexedTable, 1}, output_size::Integer)
-
-    corr = zeros(output_size)
-
-    for i = 1:output_size
-        corr[i] = Statistics.cor(JuliaDB.select(dnn_table[i], :y), JuliaDB.select(dnn_table[i], :ŷ))
-    end
-
-    df = DataFrame(hour = collect(1:output_size), corr = corr)
-
-    df
-end
-
-function test_station(model_path::String, stn_df::DataFrame, ycol::Symbol, stn_code::Integer, stn_name::String,
+function test_station(model_path::String, stn_df::DataFrame,
+    ycol::Symbol, stn_code::Integer, stn_name::String,
     sample_size::Integer, output_size::Integer,
     output_dir::String, output_prefix::String,
     test_sdate::ZonedDateTime=ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul"),
@@ -59,9 +47,7 @@ function test_station(model_path::String, stn_df::DataFrame, ycol::Symbol, stn_c
         (value = [μ, σ],))
 
     @info "    Construct Test Set..."
-    p = Progress(length(test_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    test_set = [(ProgressMeter.next!(p);
-        make_pair_DNN(stn_df, norm_ycol, idx, norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
+    test_set = [make_pair_DNN(stn_df, norm_ycol, idx, norm_feas, sample_size, output_size) for idx in test_wd_idxs]
 
     _RMSE = RMSE(test_set, model, μσ)
     _RSR = RSR(test_set, model, μσ)
@@ -69,35 +55,34 @@ function test_station(model_path::String, stn_df::DataFrame, ycol::Symbol, stn_c
     _NSE = NSE(test_set, model, μσ)
     _IOA = IOA(test_set, model, μσ)
 
-    test_dates = collect(test_sdate:Hour(1):test_fdate)
-    table_01h, table_24h = compute_prediction(test_set, model, ycol, μ, σ, "/mnt/")
-    ycol_str = string(ycol)
-    y_01h_vals, ŷ_01h_vals, y_24h_vals, ŷ_24h_vals = export2CSV(DateTime.(test_dates), table_01h, table_24h, ycol, output_dir, output_prefix)
+    #test_dates = collect(test_sdate:Hour(1):test_fdate)
+    test_dates = collect(test_sdate + Hour(sample_size - 1):Hour(1):test_fdate - Hour(output_size))
+
+    dnn_table = predict_model(test_set, model, ycol, μ, σ, output_size, output_dir)
+    dfs_out = export_CSV(DateTime.(test_dates), dnn_table, ycol, output_size, output_dir, output_prefix)
+    df_corr = compute_corr(dnn_table, output_size, output_dir, output_prefix)
 
     plot_datefmt = @dateformat_str "yyyymmddHH"
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h,
-        DateTime(2018, 7, 1, 1), DateTime(2018, 7, 7, 23), ycol,
-        output_dir, output_prefix)
-
-    _corr_01h = Statistics.cor(y_01h_vals, ŷ_01h_vals)
-    _corr_24h = Statistics.cor(y_24h_vals, ŷ_24h_vals)
+    test_sdate_str = Dates.format(test_sdate, plot_datefmt)
+    test_fdate_str = Dates.format(test_fdate, plot_datefmt)
+    plot_DNN_lineplot(DateTime.(test_dates), dnn_table,
+        DateTime(test_sdate), DateTime(test_fdate), ycol, output_size, output_dir,
+        output_prefix * "_$(test_sdate_str)_$(test_fdate_str)")
 
     @info " $(string(ycol)) RMSE        : ", _RMSE
     @info " $(string(ycol)) RSR         : ", _RSR
     @info " $(string(ycol)) PBIAS       : ", _PBIAS
     @info " $(string(ycol)) NSE         : ", _NSE
     @info " $(string(ycol)) IOA         : ", _IOA
-    
-    @info " $(string(ycol)) Corr(01H)   : ", _corr_01h
-    @info " $(string(ycol)) Corr(24H)   : ", _corr_24h
 
     stn_lat = stn_df[1, :lat]
     stn_lon = stn_df[1, :lon]
     return [stn_code, stn_name, stn_lat, stn_lon, string(ycol),
-        _RMSE, _RSR, _PBIAS, _NSE, _IOA, _corr_01h, _corr_24h]
+        _RMSE, _RSR, _PBIAS, _NSE, _IOA]
 end
 
-function test_station(model_path::String, stn_df_in::DataFrame, stn_df_out::DataFrame, ycol::Symbol, stn_code::Integer, stn_name::String,
+function test_station(model_path::String, stn_df_in::DataFrame, stn_df_out::DataFrame,
+    ycol::Symbol, stn_code::Integer, stn_name::String,
     sample_size::Integer, output_size::Integer,
     output_dir::String, output_prefix::String,
     test_sdate::ZonedDateTime=ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul"),
@@ -118,14 +103,14 @@ function test_station(model_path::String, stn_df_in::DataFrame, stn_df_out::Data
     if (is_zscored == false)
         zscore!(stn_df_in, features, _norm_feas)
     end
-# remove target (ycol)
+    # remove target (ycol)
     norm_ycol = Symbol(norm_prefix, ycol)
     norm_feas = copy(_norm_feas)
     # remove ycol itself
     # deleteat!(norm_feas, findall(x -> x == norm_ycol, norm_feas))
-    test_wd_idxs = window_df(stn_df, sample_size, output_size, test_sdate, test_fdate)
-    sidx = findrow(stn_df, :date, test_sdate)
-    fidx = findrow(stn_df, :date, test_fdate)
+    test_wd_idxs = window_df(stn_df_in, sample_size, output_size, test_sdate, test_fdate)
+    sidx = findrow(stn_df_in, :date, test_sdate)
+    fidx = findrow(stn_df_in, :date, test_fdate)
     if (sidx == 0 || fidx == 0) 
         @error "Error; cannot found date: ", sidx, fidx
         return
@@ -134,7 +119,7 @@ function test_station(model_path::String, stn_df_in::DataFrame, stn_df_out::Data
     test_size = length(test_wd_idxs)
     test_idxs = create_idxs(test_wd_idxs, test_size)
 
-    μσs = mean_and_std_cols(stn_df, features)
+    μσs = mean_and_std_cols(stn_df_out, features)
     stn_μ = μσs[String(ycol), "μ"].value
     stn_σ = μσs[String(ycol), "σ"].value
     
@@ -144,9 +129,7 @@ function test_station(model_path::String, stn_df_in::DataFrame, stn_df_out::Data
         (value = [μ, σ],))
 
     @info "    Construct Test Set..."
-    p = Progress(length(test_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    test_set = [(ProgressMeter.next!(p);
-        make_pair_DNN(stn_df, norm_ycol, idx, norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
+    test_set = [make_pair_DNN(stn_df_in, norm_ycol, idx, norm_feas, sample_size, output_size) for idx in test_wd_idxs]
 
     _RMSE = RMSE(test_set, model, μσ)
     _RSR = RSR(test_set, model, μσ)
@@ -154,18 +137,19 @@ function test_station(model_path::String, stn_df_in::DataFrame, stn_df_out::Data
     _NSE = NSE(test_set, model, μσ)
     _IOA = IOA(test_set, model, μσ)
 
-    test_dates = collect(test_sdate:Hour(1):test_fdate)
-    table_01h, table_24h = compute_prediction(test_set, model, ycol, μ, σ, "/mnt/")
-    ycol_str = string(ycol)
-    y_01h_vals, ŷ_01h_vals, y_24h_vals, ŷ_24h_vals = export2CSV(DateTime.(test_dates), table_01h, table_24h, ycol, output_dir, output_prefix)
+    #test_dates = collect(test_sdate:Hour(1):test_fdate)
+    test_dates = collect(test_sdate + Hour(sample_size - 1):Hour(1):test_fdate - Hour(output_size))
+
+    dnn_table = predict_model(test_set, model, ycol, μ, σ, output_size, output_dir)
+    dfs_out = export_CSV(DateTime.(test_dates), dnn_table, ycol, output_size, output_dir, output_prefix)
+    df_corr = compute_corr(dnn_table, output_size, output_dir, output_prefix)
 
     plot_datefmt = @dateformat_str "yyyymmddHH"
-    plot_DNN_lineplot(DateTime.(test_dates), table_01h, table_24h,
-        DateTime(2018, 7, 1, 1), DateTime(2018, 7, 7, 23), ycol,
-        output_dir, output_prefix)
-
-    _corr_01h = Statistics.cor(y_01h_vals, ŷ_01h_vals)
-    _corr_24h = Statistics.cor(y_24h_vals, ŷ_24h_vals)
+    test_sdate_str = Dates.format(test_sdate, plot_datefmt)
+    test_fdate_str = Dates.format(test_fdate, plot_datefmt)
+    plot_DNN_lineplot(DateTime.(test_dates), dnn_table,
+        DateTime(test_sdate), DateTime(test_fdate), ycol, output_size, output_dir,
+        output_prefix * "_$(test_sdate_str)_$(test_fdate_str)")
 
     @info " $(string(ycol)) RMSE        : ", _RMSE
     @info " $(string(ycol)) RSR         : ", _RSR
@@ -173,13 +157,10 @@ function test_station(model_path::String, stn_df_in::DataFrame, stn_df_out::Data
     @info " $(string(ycol)) NSE         : ", _NSE
     @info " $(string(ycol)) IOA         : ", _IOA
 
-    @info " $(string(ycol)) Corr(01H)   : ", _corr_01h
-    @info " $(string(ycol)) Corr(24H)   : ", _corr_24h
-
     stn_lat = stn_df_in[1, :lat]
     stn_lon = stn_df_in[1, :lon]
     return [stn_code, stn_name, stn_lat, stn_lon, string(ycol),
-        _RMSE, _RSR, _PBIAS, _NSE, _IOA, _corr_01h, _corr_24h]
+        _RMSE, _RSR, _PBIAS, _NSE, _IOA]
 end
 
 function test_classification(model_path::String, stn_df::DataFrame, ycol::Symbol, stn_code::Integer, stn_name::String,
@@ -191,7 +172,7 @@ function test_classification(model_path::String, stn_df::DataFrame, ycol::Symbol
 
     filepath = model_path * string(ycol) * ".bson"
 
-    BSON.@load filepath cpu_model weights
+    BSON.@load filepath cpu_model weights μ σ
     Flux.loadparams!(cpu_model, weights)
     model = cpu_model |> gpu
 
@@ -203,7 +184,7 @@ function test_classification(model_path::String, stn_df::DataFrame, ycol::Symbol
     if (is_zscored == false)
         zscore!(stn_df, features, _norm_feas)
     end
-# remove target (ycol)
+    # remove target (ycol)
     norm_ycol = Symbol(norm_prefix, ycol)
     norm_feas = copy(_norm_feas)
     # remove ycol itself
@@ -229,11 +210,9 @@ function test_classification(model_path::String, stn_df::DataFrame, ycol::Symbol
         (value = [μ, σ],))
 
     @info "    Construct Test Set..."
-    p = Progress(length(test_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    test_set = [(ProgressMeter.next!(p);
-        make_pair_DNN(stn_df, norm_ycol, idx, norm_feas, sample_size, output_size)) for idx in test_wd_idxs]
+    test_set = [make_pair_DNN(stn_df, norm_ycol, idx, norm_feas, sample_size, output_size) for idx in test_wd_idxs]
 
-    forecast_all, forecast_high = classification("test", test_set, ycol, model)
+    forecast_all, forecast_high = classification(test_set, model, ycol)
 
     stn_lat = stn_df[1, :lat]
     stn_lon = stn_df[1, :lon]

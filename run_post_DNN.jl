@@ -7,6 +7,13 @@ using ProgressMeter
 
 using Mise
 
+function mkpath_resdir(res_dir::String, output_size::Integer) 
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        Base.Filesystem.mkpath(res_dir * "$(i_pad)/")
+    end
+end
+
 function post_station(input_path::String, model_path::String, res_dir::String,
     sample_size::Integer, output_size::Integer, test_sdate::ZonedDateTime, test_fdate::ZonedDateTime)
     
@@ -31,9 +38,7 @@ function post_station(input_path::String, model_path::String, res_dir::String,
         RSR = Real[],
         PBIAS = Real[],
         NSE = Real[],
-        IOA = Real[],
-        corr_1h = Real[],
-        corr_24h = Real[])
+        IOA = Real[],)
     
     #stn_codes = [ 111123, 111142, 111161, 111273]
     #stn_names = ["종로구", "성동구", "성북구", "송파구"]
@@ -70,8 +75,6 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
         PBIAS = Real[],
         NSE = Real[],
         IOA = Real[],
-        corr_1h = Real[],
-        corr_24h = Real[],
         rm_fea = String[])
     
     stn_code = 111123
@@ -98,7 +101,7 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
 
         rmf_df = copy(stn_df)
         for r_f in r_fea
-            rmf_df[:, r_f] = 0.0
+            rmf_df[:, r_f] .= 0.0
         end
 
         features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
@@ -109,7 +112,7 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
         for r_f in r_fea
             norm_r_fea = Symbol(norm_prefix, string(r_f))
             # replace NaN to zero at r_f column (necessary when testing removing some features)
-            rmf_df[findall(x -> isnan(x), rmf_df[:, norm_r_fea]), norm_r_fea] = 0.0
+            rmf_df[findall(x -> isnan(x), rmf_df[:, norm_r_fea]), norm_r_fea] .= 0.0
         end
 
         row_PM10 = test_station(model_path, rmf_df, stn_df2, :PM10, stn_code, stn_name,
@@ -194,18 +197,21 @@ function run()
     @info "Postprocessing per station"
     res_dir = "/mnt/post/station/"
     Base.Filesystem.mkpath(res_dir)
+    mkpath_resdir(res_dir, output_size)
     post_station(input_path, model_path, res_dir,
         sample_size, output_size, test_sdate, test_fdate)
 
     @info "Postprocessing per feature removing"
     res_dir = "/mnt/post/feature/"
     Base.Filesystem.mkpath(res_dir)
+    mkpath_resdir(res_dir, output_size)
     post_feature(input_path, model_path, res_dir,
         sample_size, output_size, test_sdate, test_fdate)
-    
+
     @info "Postprocessing for forecasting"
     res_dir = "/mnt/post/forecast/"
     Base.Filesystem.mkpath(res_dir)
+    mkpath_resdir(res_dir, output_size)
     post_forecast(input_path, model_path, res_dir,
         sample_size, output_size, test_sdate, test_fdate)
 end

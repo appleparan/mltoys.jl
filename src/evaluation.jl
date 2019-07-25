@@ -130,7 +130,7 @@ end
 IOA(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- Flux.Tracker.data(ŷ))) /
     max(sum(abs2.(abs.(Flux.Tracker.data(ŷ) .- mean(Flux.Tracker.data(ŷ))) .+ abs.(Flux.Tracker.data(y) .- mean(Flux.Tracker.data(ŷ))))), eps())
 
-function classification(dataset, model::F, ycol::Symbol) where F <: Flux.Chain
+function classification(dataset::Array{T1, 1}, model::C, ycol::Symbol) where C <: Flux.Chain where T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}} where F <: AbstractFloat
     class_all_arr = []
     class_high_arr = []
 
