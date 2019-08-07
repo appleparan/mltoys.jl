@@ -35,7 +35,7 @@ end
 RMSE-observations standard deviation ratio 
 =#
 function RMSE(dataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
-    RMSE_arr = []
+    RMSE_arr = Real[]
 
     for (x, y) in dataset
         ŷ = model(x |> gpu)
@@ -57,7 +57,7 @@ RMSE(y, ŷ, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2.(y .- Flux.Tracker.dat
 RMSE-observations standard deviation ratio 
 =#
 function RSR(dataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
-    RSR_arr = []
+    RSR_arr = Real[]
     μ = μσ["total", "μ"][:value]
 
     for (x, y) in dataset
@@ -79,7 +79,7 @@ relative magnitude of the residual variance (“noise”)
 compared to the measured data variance (“information”
 =#
 function NSE(dataset, model::Flux.Chain, μσ::AbstractNDSparse) where F <: Flux.Chain
-    NSE_arr = []
+    NSE_arr = Real[]
     μ = μσ["total", "μ"][:value]
 
     for (x, y) in dataset
@@ -99,7 +99,7 @@ The optimal value of PBIAS is 0.0, with low-magnitude values indicating accurate
 indicate model overestimation bias (Gupta et al., 1999)
 =#
 function PBIAS(dataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
-    PBIAS_arr = []
+    PBIAS_arr = Real[]
 
     for (x, y) in dataset
         ŷ = model(x |> gpu)
@@ -114,7 +114,7 @@ end
 PBIAS(y, ŷ, μ::Real=zero(AbstractFloat)) = sum(y .- Flux.Tracker.data(ŷ)) / sum(y) * 100.0
 
 function IOA(dataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
-    IOA_arr = []
+    IOA_arr = Real[]
     μ = μσ["total", "μ"][:value]
 
     for (x, y) in dataset
@@ -127,8 +127,9 @@ function IOA(dataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
     mean(IOA_arr)
 end
 
-IOA(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- Flux.Tracker.data(ŷ))) /
-    max(sum(abs2.(abs.(Flux.Tracker.data(ŷ) .- mean(Flux.Tracker.data(ŷ))) .+ abs.(Flux.Tracker.data(y) .- mean(Flux.Tracker.data(ŷ))))), eps())
+IOA(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(Flux.Tracker.data(y) .- Flux.Tracker.data(ŷ))) /
+        max(sum(abs2.(abs.(Flux.Tracker.data(ŷ) .- mean(Flux.Tracker.data(y))) .+
+            abs.(Flux.Tracker.data(y) .- mean(Flux.Tracker.data(y))))), eps())
 
 # R2
 #=
@@ -139,7 +140,7 @@ explain the variability in your dependent variable(s
 https://en.wikipedia.org/wiki/Coefficient_of_determination
 =#
 function R2(dataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
-    R2_arr = []
+    R2_arr = Real[]
     μ = μσ["total", "μ"][:value]
 
     for (x, y) in dataset

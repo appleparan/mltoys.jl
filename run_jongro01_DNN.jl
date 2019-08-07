@@ -22,6 +22,7 @@ function run_model()
     │ 5   │ 101    │ 111123      │ 2015-01-01T05:00:00+09:00 │ 37.572   │ 127.005   │ 0.005   │ 0.2     │ 0.019   │ 0.006   │ 127.0   │ 5.0     │ -9.1    │ 5.35625 │ 1.94951 │ 1011.8  │ missing  │ missing  │
     =#
     features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
+
     # For GPU
     default_FloatType::DataType = Float64
 
@@ -29,7 +30,6 @@ function run_model()
     norm_features = [Symbol(eval(norm_prefix * String(f))) for f in features]
 
     μσs = mean_and_std_cols(df, features)
-    #hampel!(df, features, norm_features)
     zscore!(df, features, norm_features)
 
     # convert Float types
@@ -41,16 +41,20 @@ function run_model()
         df[!, nfea] = default_FloatType.(df[!, nfea])
     end
 
+    train_features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
+
+    norm_train_features = [Symbol(eval(norm_prefix * String(f))) for f in train_features]
+
     plot_totaldata(df, :PM25, "/mnt/")
     plot_totaldata(df, :PM10, "/mnt/")
 
     plot_pcorr(df, norm_features, features, "/mnt/")
-    
+
     sample_size = 72
     output_size = 24
     epoch_size = 500
     batch_size = 32
-    @info "feature : " features
+    @info "training feature : " train_features
     @info "sizes (sample, output, epoch, batch) : ", sample_size, output_size, epoch_size, batch_size
 
     # slices for indicies
@@ -88,13 +92,13 @@ function run_model()
     # simply collect dates, determine exact date for prediction (for 1h, 24h, and so on) later
     test_dates = collect(test_sdate + Hour(sample_size - 1):Hour(1):test_fdate - Hour(output_size))
 
-    input_size = sample_size * length(features)
+    input_size = sample_size * length(train_features)
 
     @info "PM10 Training..."
     flush(stdout); flush(stderr)
 
     # free minibatch after training because of memory usage
-    PM10_model, PM10_μσ = train_DNN(df, :PM10, norm_prefix, norm_features,
+    PM10_model, PM10_μσ = train_DNN(df, :PM10, norm_prefix, norm_train_features,
     sample_size, input_size, batch_size, output_size, epoch_size, default_FloatType,
     train_valid_wd_idxs, test_wd_idxs, train_chnk, train_idxs, valid_idxs, test_idxs, μσs,
     "PM10", test_dates)
@@ -102,7 +106,7 @@ function run_model()
     @info "PM25 Training..."
     flush(stdout); flush(stderr)
 
-    PM25_model, PM25_μσ = train_DNN(df, :PM25, norm_prefix, norm_features,
+    PM25_model, PM25_μσ = train_DNN(df, :PM25, norm_prefix, norm_train_features,
     sample_size, input_size, batch_size, output_size, epoch_size, default_FloatType,
     train_valid_wd_idxs, test_wd_idxs, train_chnk, train_idxs, valid_idxs, test_idxs, μσs,
     "PM25", test_dates)

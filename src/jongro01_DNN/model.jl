@@ -6,7 +6,7 @@
         μσs, filename, test_dates)
 
 """
-function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas::Array{Symbol},
+function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::Array{Symbol},
     sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
     default_FloatType::DataType,
     train_valid_wd_idxs::Array{<:UnitRange{I}, 1}, test_wd_idxs::Array{<:UnitRange{I}, 1},
@@ -17,7 +17,6 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, _norm_feas:
     @info "DNN training starts.."
 
     norm_ycol = Symbol(norm_prefix, ycol)
-    norm_feas = copy(_norm_feas)
 
     # extract from ndsparse
     total_μ = μσs[String(ycol), "μ"].value
@@ -116,7 +115,8 @@ function train_DNN!(model::C,
     train_set::Array{T2, 1}, valid_set::Array{T1, 1},
     loss, accuracy, opt,
     epoch_size::Integer, μσ::AbstractNDSparse,
-    filename::String) where C <: Flux.Chain where T2 <: Tuple{AbstractArray{F, 2}, AbstractArray{F, 2}} where T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}}  where F <: AbstractFloat
+    filename::String) where {C <: Flux.Chain, F <: AbstractFloat, T2 <: Tuple{AbstractArray{F, 2}, AbstractArray{F, 2}},
+    T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}}}
 
     @info("    Beginning training loop...")
     flush(stdout); flush(stderr)
@@ -138,7 +138,7 @@ function train_DNN!(model::C,
         @info(@sprintf("epoch [%d]: Valid accuracy: %.6f Time: %s", epoch_idx, acc, now()))
         flush(stdout); flush(stderr)
 
-        # record evaluation 
+        # record evaluation
         rmse, rsr, nse, pbias, ioa, r2 = evaluations(valid_set, model, μσ, [:RMSE, :RSR, :NSE, :PBIAS, :IOA, :R2])
         push!(df_eval, [epoch_idx opt.eta acc rmse rsr nse pbias ioa r2])
 
@@ -187,8 +187,8 @@ end
 function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
-    #unit_size = min(Int(round(input_size * 3/3)), 768)
-    unit_size = Int(round(input_size * 0.33))
+    unit_size = min(Int(round(input_size * 3/3)), 768)
+    #unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM10: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
@@ -212,8 +212,8 @@ end
 function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
-    #unit_size = min(Int(round(input_size * 2/3)), 512)
-    unit_size = Int(round(input_size * 0.33))
+    unit_size = min(Int(round(input_size * 2/3)), 512)
+    #unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM25: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
