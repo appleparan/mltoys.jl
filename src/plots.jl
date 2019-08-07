@@ -244,3 +244,24 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
 
     nothing
 end
+
+function plot_corr_input(corr_arr::Array{F, 1}, title::String, output_dir::String, output_prefix::String) where F<:AbstractFloat
+    ENV["GKSwstype"] = "100"
+
+    line_path = output_dir * "$(output_prefix)_corr.png"
+
+    gr(size = (2560, 1080))
+    pl = Plots.plot(corr_arr,
+        line=:solid, linewidth=5,
+        ylim=(min(0.0, minimum(corr_arr)), 1.0),
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color= :black,
+        title = title,
+        xlabel = "lag", ylabel = "corr", legend=false)
+    plot!([72], color= :black, linewidth=5, line=:dash, seriestype="vline")
+
+    Plots.png(pl, line_path)
+
+    nothing
+end

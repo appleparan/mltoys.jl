@@ -1,5 +1,6 @@
 module Mise
 
+# Base
 using Base.Filesystem
 using Base.Iterators: partition, zip
 using LinearAlgebra: norm
@@ -7,34 +8,40 @@ using Printf
 using Random
 using Statistics
 
+# Statistics
+using StatsBase: mean, std, mean_and_std, zscore, crosscor
+import StatsBase: zscore!
+
+# ML
 using Flux
 using Flux.Tracker
 using Flux.Tracker: param, back!, grad, data
 # for temporal fix
 using ForwardDiff
 
-using BSON
-using CSV
+# Tables
 using DataFrames, DataFramesMeta, Missings, Query
 using DataValues
 using Dates, TimeZones
-using DelimitedFiles
+using JuliaDB
 
-using ArgParse
+# IO
+using BSON, CSV
+using DelimitedFiles
 using FileIO
 using Formatting
 using Glob
-using JuliaDB
+
+# utils
+using ArgParse
 using MicroLogging
 using ProgressMeter
-using StatsBase: mean, std, mean_and_std, zscore
 
+# Plots
 using Plots
 using Plots.PlotMeasures
 using ColorTypes
 using StatsPlots
-
-import StatsBase: zscore!
 
 if isa(Sys.which("python3"), String)
         using ExcelReaders
@@ -79,7 +86,7 @@ export join_data, filter_jongro, read_jongro, filter_station, read_station,
 # loss
         huber_loss, huber_loss_mean, mse_rnn,
 # jongro01_DNN
-        train_DNN,
+        train_DNN, corr_input,
 # jongro02_DNN
 #       train_all_LSTM,
 # post processing
@@ -87,6 +94,7 @@ export join_data, filter_jongro, read_jongro, filter_station, read_station,
 # output
         predict_model, export_CSV,
 # plot
+        plot_corr_input,
         plot_totaldata,
         plot_pcorr,
         plot_corr,
