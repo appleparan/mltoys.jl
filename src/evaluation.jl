@@ -155,6 +155,23 @@ end
 
 R2(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- Flux.Tracker.data(ŷ))) / sum(abs2.(y .- μ))
 
+
+function RAE(Edataset, model::F, μσ::AbstractNDSparse) where F <: Flux.Chain
+    RAE_arr = Real[]
+    μ = μσ["total", "μ"][:value]
+
+    for (x, y) in dataset
+        ŷ = model(x |> gpu)
+        @assert size(ŷ) == size(y)
+
+        push!(RAE_arr, RAE(y, ŷ, μ))
+    end
+
+    mean(RAE_arr)
+end
+
+RAE(y, ŷ, μ::Real=zero(AbstractFloat)) = sum(abs.(y .- Flux.Tracker.data(ŷ))) / sum(abs.(y .- μ))
+
 #=
 AdjR2 (TODO)
 https://medium.com/usf-msds/choosing-the-right-metric-for-machine-learning-models-part-1-a99d7d7414e4

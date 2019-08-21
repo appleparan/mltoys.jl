@@ -9,6 +9,7 @@ using Random
 using Statistics
 
 # Statistics
+using Distributions
 using StatsBase: mean, std, mean_and_std, zscore, crosscor
 import StatsBase: zscore!
 
@@ -64,7 +65,8 @@ include("plots.jl")
 
 include("jongro01_DNN/preprocess.jl")
 include("jongro01_DNN/model.jl")
-#include("jongro02_LSTM/model.jl")
+include("jongro02_LSTM/model.jl")
+include("jongro03_OU/model.jl")
 
 include("postprocess/post_jongro01_DNN.jl")
 
@@ -82,13 +84,15 @@ export join_data, filter_jongro, read_jongro, filter_station, read_station,
         getX_LSTM, getY_LSTM, make_input_LSTM, findrow,
         WHO_PM10, WHO_PM25,
 # evaluation
-        evaluations, RMSE, RSR, NSE, PBIAS, IOA, classification,
+        evaluations, RMSE, RSR, NSE, PBIAS, IOA, classification, R2, RAE,
 # loss
         huber_loss, huber_loss_mean, mse_rnn,
 # jongro01_DNN
         train_DNN, corr_input,
 # jongro02_DNN
-#       train_all_LSTM,
+        train_LSTM,
+# jongro03_UO
+        evolve_OU,
 # post processing
         compute_corr, test_features, test_station, test_classification,
 # output
