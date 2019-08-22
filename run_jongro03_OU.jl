@@ -103,12 +103,12 @@ function run_model()
     flush(stdout); flush(stderr)
 
     # free minibatch after training because of memory usage
-    evolve_OU(df_test, :PM10, μσs, default_FloatType, test_dates)
+    evolve_OU(df_test, :PM10, μσs, default_FloatType, sample_size, test_dates)
 
     @info "PM25 Evolving..."
     flush(stdout); flush(stderr)
 
-    evolve_OU(df_test, :PM25, μσs, default_FloatType, test_dates)
+    evolve_OU(df_test, :PM25, μσs, default_FloatType, sample_size, test_dates)
 end
 
 run_model()

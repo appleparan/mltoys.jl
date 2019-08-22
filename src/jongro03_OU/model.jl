@@ -12,6 +12,7 @@ OU dynamics = "mean reverting" term + "white noise" term
 """
 function evolve_OU(df::DataFrame, ycol::Symbol,
     μσs::AbstractNDSparse, default_FloatType::DataType,
+    input_size::Integer,
     test_dates::Array{ZonedDateTime,1}) where I <: Integer
 
     # ycol's mean / std
@@ -22,14 +23,14 @@ function evolve_OU(df::DataFrame, ycol::Symbol,
     X₀ = df[1, ycol]
     # https://en.wikipedia.org/wiki/Vasicek_model
     # "speed of reversion". a characterizes the velocity at which such trajectories will regroup around μ in time;
-    θ = 1.0
+    θ = 0.01
     # "long term mean level". All future trajectories of r will evolve around a mean level μ in the long run;
     μ = μ_ycol
     # "long term variance". All future trajectories of r will regroup around the long term mean with such variance after a long time.
     σ = σ_ycol
     # time interval, sqrt(σ * 2.0 * h) is "instantaneous volatility", measures instant by instant the amplitude of randomness entering the system
     # higher sqrt(σ * 2.0 * h), more randomnesss
-    h = 0.05
+    h = 0.001
 
     # Wiener Process
     rng = MersenneTwister()
@@ -44,8 +45,9 @@ function evolve_OU(df::DataFrame, ycol::Symbol,
 
     # Vasicek Model
     # https://en.wikipedia.org/wiki/Vasicek_model
-    for next in 2:T
+    for next in input_size + 1:T
         Distributions.rand!(rng, dW, rand_arr)
+        μ, σ = mean_and_std(df[next - input_size:next, ycol])
         Xₜ[next] = X₀ + sum(θ .* (μ .- Xₜ[1:next-1])) + sum(sqrt(σ * 2.0 * h) .* rand_arr)
     end
 
@@ -60,7 +62,7 @@ function plot_OU(dates::Array{DateTime, 1}, obs_series, model_series,
 
     ENV["GKSwstype"] = "nul"
 
-    line_path = output_dir * "OU_comparison_$(string(ycol))"
+    line_path = output_dir * "OU_MA_$(string(ycol))"
     dates_h = dates .+ Dates.Hour(1)
 
     BG_COLOR = ColorTypes.RGB(255/255, 255/255, 255/255)
@@ -75,7 +77,7 @@ function plot_OU(dates::Array{DateTime, 1}, obs_series, model_series,
     pl = Plots.plot(dates, obs_series,
         line=:solid, linewidth=5, label="OBS",
         size = (2560, 1080),
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, color=LN01_COLOR,
         title="OBS & Stochasticm, $(ycol) Corr :  $(cor)",
