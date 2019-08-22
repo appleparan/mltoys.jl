@@ -18,7 +18,7 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
     gr(size=(1920, 1080))
     ht = Plots.histogram(df[!, ycol], title="Histogram of " * String(ycol),
         xlabel=String(ycol), ylabel="#", bins=200, legend=false,
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, fillcolor = FL01_COLOR, fillalpha=0.2)
     png(ht, hist_path)
@@ -28,7 +28,7 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
     gr(size=(1920, 1080))
     pl = Plots.plot(dates, df[!, ycol],
         title=String(ycol) * " in dates", xlabel="date", ylabel=String(ycol),
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, linecolor = LN01_COLOR, legend=false)
     png(pl, plot_path)
@@ -54,7 +54,7 @@ function plot_pcorr(_df::DataFrame, feas::AbstractArray, label_feas::AbstractArr
 
     crpl = Plots.heatmap(string.(label_feas), string.(label_feas), dfm_cor,
         clim = (-1.0, 1.0), c=:blues, legend=true, annotations = ann,
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         title="CORR", background_color = BG_COLOR)
 
@@ -76,7 +76,7 @@ function plot_corr(df_corr::DataFrame, output_size::Integer, output_dir::String,
     pl = Plots.plot(df_corr[!, :hour], df_corr[!, :corr],
         title="Correlation on hourly prediction", xlabel="hour", ylabel="corr",
         line=:solid, linewidth=5, label="OBS",
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, linecolor = LN01_COLOR, legend=false)
 
@@ -99,7 +99,7 @@ function plot_DNN_scatter(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
         gr(size=(1080, 1080))
         sc = Plots.scatter(JuliaDB.select(dnn_table[i], :y), JuliaDB.select(dnn_table[i], :ŷ), 
             xlim = (0, lim), ylim = (0, lim), legend=false,
-            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
             guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
             title="DNN/OBS ($(i_pad)h)", xlabel="OBS", ylabel="DNN",
             background_color = BG_COLOR, markercolor = MK_COLOR)
@@ -126,14 +126,14 @@ function plot_DNN_histogram(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
         gr(size=(2560, 1080))
 
         ht = Plots.histogram(JuliaDB.select(dnn_table[i], :y), label="OBS",
-            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
             guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
             title="Histogram of OBS ($(i_pad)h)", ylabel="#",
             background_color = BG_COLOR, fillalpha=0.5)
         Plots.png(ht, hs_OBS_path)
 
         ht = Plots.histogram(JuliaDB.select(dnn_table[i], :ŷ), label="DNN",
-            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
             guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
             title="Histogram of DNN ($(i_pad)h)", ylabel="#",
             background_color = BG_COLOR, fillalpha=0.5)
@@ -163,7 +163,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
             ylim = (0.0,
                 max(maximum(JuliaDB.select(dnn_table[i], :y)), maximum(JuliaDB.select(dnn_table[i], :ŷ)))),
             line=:solid, linewidth=5, label="OBS",
-            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
             guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
             background_color = BG_COLOR, color=LN01_COLOR,
             title=String(ycol) * " by dates ($(i_pad)h)",
@@ -198,7 +198,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
             ylim = (0.0,
                 max(maximum(JuliaDB.select(dnn_table[i], :y)), maximum(JuliaDB.select(dnn_table[i], :ŷ)))),
             line=:solid, linewidth=5, label="OBS",
-            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
             guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
             background_color = BG_COLOR, color=LN01_COLOR,
             title=String(ycol) * " by dates ($(i_pad)h)",
@@ -233,7 +233,7 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
 
         pl = Plots.plot(df[:, :epoch], df[:, eval_sym],
             color=:black, linewidth=6,
-            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
             guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
             background_color = BG_COLOR,
             title="$(String(eval_sym)) " * String(ycol),
@@ -254,7 +254,7 @@ function plot_corr_input(corr_arr::Array{F, 1}, title::String, output_dir::Strin
     pl = Plots.plot(corr_arr,
         line=:solid, linewidth=5,
         ylim=(min(0.0, minimum(corr_arr)), 1.0),
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15px,
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, color= :black,
         title = title,
