@@ -3,7 +3,7 @@ module Mise
 # Base
 using Base.Filesystem
 using Base.Iterators: partition, zip
-using LinearAlgebra: norm
+using LinearAlgebra
 using Printf
 using Random
 using Statistics
@@ -19,6 +19,9 @@ using Flux.Tracker
 using Flux.Tracker: param, back!, grad, data
 # for temporal fix
 using ForwardDiff
+
+# MCMC
+using Mamba
 
 # Tables
 using DataFrames, DataFramesMeta, Missings, Query
@@ -67,6 +70,7 @@ include("jongro01_DNN/preprocess.jl")
 include("jongro01_DNN/model.jl")
 include("jongro02_LSTM/model.jl")
 include("jongro03_OU/model.jl")
+include("jongro04_MCMC/model.jl")
 
 include("postprocess/post_jongro01_DNN.jl")
 
@@ -93,6 +97,8 @@ export join_data, filter_jongro, read_jongro, filter_station, read_station,
         train_LSTM,
 # jongro03_UO
         evolve_OU,
+# jongro04_MCMC
+        evolve_MCMC,
 # post processing
         compute_corr, test_features, test_station, test_classification,
 # output
