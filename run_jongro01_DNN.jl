@@ -110,33 +110,6 @@ function run_model()
     sample_size, input_size, batch_size, output_size, epoch_size, default_FloatType,
     train_valid_wd_idxs, test_wd_idxs, train_chnk, train_idxs, valid_idxs, test_idxs, μσs,
     "PM25", test_dates)
-    #=
-    @info "SO2 Training..."
-    flush(stdout); flush(stderr)
-
-    # free minibatch after training because of memory usage
-    SO2_model, SO2_μσ = train_DNN(df, :SO2, norm_prefix, norm_features,
-    sample_size, input_size, batch_size, output_size, epoch_size, default_FloatType,
-    train_valid_wd_idxs, test_wd_idxs, train_chnk, train_idxs, valid_idxs, test_idxs, μσs,
-    "SO2", test_dates)
-
-    @info "CO Training..."
-    flush(stdout); flush(stderr)
-
-    # free minibatch after training because of memory usage
-    CO_model, CO_μσ = train_DNN(df, :CO, norm_prefix, norm_features,
-    sample_size, input_size, batch_size, output_size, epoch_size, default_FloatType,
-    train_valid_wd_idxs, test_wd_idxs, train_chnk, train_idxs, valid_idxs, test_idxs, μσs,
-    "CO", test_dates)
-
-    @info "NO2 Training..."
-    flush(stdout); flush(stderr)
-
-    NO2_model, NO2_μσ = train_DNN(df, :NO2, norm_prefix, norm_features,
-    sample_size, input_size, batch_size, output_size, epoch_size, default_FloatType,
-    train_valid_wd_idxs, test_wd_idxs, train_chnk, train_idxs, valid_idxs, test_idxs, μσs,
-    "NO2", test_dates)
-    =#
 end
 
 run_model()

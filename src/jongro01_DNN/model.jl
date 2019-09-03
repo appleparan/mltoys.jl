@@ -97,11 +97,6 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::
     plot_DNN_lineplot(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", String(ycol))
     plot_corr(df_corr, output_size, "/mnt/", String(ycol))
 
-    #_corr_01h = Statistics.cor(y_01h_vals, ŷ_01h_vals)
-    #_corr_24h = Statistics.cor(y_24h_vals, ŷ_24h_vals)
-    #@info " $(string(ycol)) Corr(01H)   : ", _corr_01h
-    #@info " $(string(ycol)) Corr(24H)   : ", _corr_24h
-
     # 3 months plot
     # TODO : how to generalize date range? how to split based on test_dates?
     # 1/4 : because train size is 3 days, result should be start from 1/4
@@ -121,7 +116,7 @@ function train_DNN!(model::C,
     @info("    Beginning training loop...")
     flush(stdout); flush(stderr)
 
-    best_acc = 100.0
+    best_acc = 0.0
     last_improvement = 0
     acc = 0.0
 
@@ -131,7 +126,7 @@ function train_DNN!(model::C,
     for epoch_idx in 1:epoch_size
         best_acc, last_improvement
         # Train for a single epoch
-        Flux.train!(loss, params(model), train_set, opt)
+        Flux.train!(loss, Flux.params(model), train_set, opt)
 
         # Calculate accuracy:
         acc = accuracy(valid_set)
@@ -143,18 +138,18 @@ function train_DNN!(model::C,
         push!(df_eval, [epoch_idx opt.eta acc rmse rsr nse pbias ioa r2])
 
         # If our accuracy is good enough, quit out.
-        if acc < 0.001
+        if acc > 0.99
             @info("    -> Early-exiting: We reached our target accuracy (RSR) of 0.0001")
             break
         end
 
         # If this is the best accuracy we've seen so far, save the model out
-        if acc < best_acc
+        if acc > best_acc
             @info "    -> New best accuracy! Saving model out to " * filename
             flush(stdout)
 
             cpu_model = model |> cpu
-            weights = Tracker.data.(params(cpu_model))
+            weights = Tracker.data.(Flux.params(cpu_model))
             # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
             μ, σ = μσ["total", "μ"].value, μσ["total", "σ"].value
@@ -187,23 +182,21 @@ end
 function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
-    unit_size = min(Int(round(input_size * 3/3)), 768)
+    unit_size = 400
     #unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM10: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
         Dense(input_size, unit_size, leakyrelu),
-
-        Dense(unit_size, unit_size, leakyrelu),
         
         Dense(unit_size, unit_size, leakyrelu),
 
         Dense(unit_size, output_size)
     ) |> gpu
 
-    loss(x, y) = Flux.mse(model(x), y)
+    loss(x, y) = Flux.mse(model(x), y) + sum(norm, Flux.params(model))
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(data) = RMSE(data, model, μσ)
+    accuracy(data) = R2(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -212,92 +205,21 @@ end
 function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
-    unit_size = min(Int(round(input_size * 2/3)), 512)
+    unit_size = 400
     #unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM25: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
-        Dense(input_size, unit_size, leakyrelu), Dropout(0.2),
+        Dense(input_size, unit_size, leakyrelu),
 
-        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
-
-        Dense(unit_size, output_size)
-    ) |> gpu
-
-    loss(x, y) = Flux.mse(model(x), y)
-    #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(data) = RMSE(data, model, μσ)
-    opt = Flux.ADAM()
-
-    model, loss, accuracy, opt
-end
-
-function compile_SO2_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
-    @info("    Compiling model...")
-    # answer from SO: https://stats.stackexchange.com/a/180052
-    #unit_size = min(Int(round(input_size * 2/3)), 512)
-    unit_size = Int(round(input_size * 2/3))
-    @show "Unit size in SO2: ", unit_size
-    # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
-    model = Chain(
-        Dense(input_size, unit_size, leakyrelu), Dropout(0.2),
-
-        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
+        Dense(unit_size, unit_size, leakyrelu),
 
         Dense(unit_size, output_size)
     ) |> gpu
 
-    loss(x, y) = Flux.mse(model(x), y)
+    loss(x, y) = Flux.mse(model(x), y) + sum(norm, Flux.params(model))
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(data) = RMSE(data, model, μσ)
-    opt = Flux.ADAM()
-
-    model, loss, accuracy, opt
-end
-
-
-function compile_NO2_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
-    @info("    Compiling model...")
-    # answer from SO: https://stats.stackexchange.com/a/180052
-    #unit_size = min(Int(round(input_size * 2/3)), 512)
-    unit_size = Int(round(input_size * 2/3))
-    @show "Unit size in NO2: ", unit_size
-    # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
-    model = Chain(
-        Dense(input_size, unit_size, leakyrelu), Dropout(0.2),
-
-        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
-
-        Dense(unit_size, output_size)
-    ) |> gpu
-
-    loss(x, y) = Flux.mse(model(x), y)
-    #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(data) = RMSE(data, model, μσ)
-    opt = Flux.ADAM()
-
-    model, loss, accuracy, opt
-end
-
-
-function compile_CO_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
-    @info("    Compiling model...")
-    # answer from SO: https://stats.stackexchange.com/a/180052
-    #unit_size = min(Int(round(input_size * 2/3)), 512)
-    unit_size = Int(round(input_size * 2/3))
-    @show "Unit size in CO: ", unit_size
-    # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
-    model = Chain(
-        Dense(input_size, unit_size, leakyrelu), Dropout(0.2),
-
-        Dense(unit_size, unit_size, leakyrelu), Dropout(0.2),
-
-        Dense(unit_size, output_size)
-    ) |> gpu
-
-    loss(x, y) = Flux.mse(model(x), y)
-    #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(data) = RMSE(data, model, μσ)
+    accuracy(data) = R2(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
