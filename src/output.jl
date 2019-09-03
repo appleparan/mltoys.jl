@@ -1,5 +1,5 @@
 
-function predict_model(dataset::AbstractArray{T, 1}, model::Chain, ycol::Symbol,
+function predict_model(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String) where T <: Tuple
 
     dnn_table = Array{IndexedTable}(undef, output_size)
