@@ -47,11 +47,6 @@ function run_model()
 
     norm_train_features = [Symbol(eval(norm_prefix * String(f))) for f in train_features]
 
-    plot_totaldata(df, :PM25, "/mnt/")
-    plot_totaldata(df, :PM10, "/mnt/")
-
-    plot_pcorr(df, norm_features, features, "/mnt/")
-
     sample_size = 72
     output_size = 24
     hid_size = 64
@@ -103,12 +98,12 @@ function run_model()
     flush(stdout); flush(stderr)
 
     # free minibatch after training because of memory usage
-    evolve_OU(df_test, :PM10, μσs, default_FloatType, sample_size, test_dates)
+    evolve_OU(df_test, :PM10, norm_features, μσs, default_FloatType, sample_size, test_dates)
 
     @info "PM25 Evolving..."
     flush(stdout); flush(stderr)
 
-    evolve_OU(df_test, :PM25, μσs, default_FloatType, sample_size, test_dates)
+    evolve_OU(df_test, :PM25, norm_features, μσs, default_FloatType, sample_size, test_dates)
 end
 
 run_model()
