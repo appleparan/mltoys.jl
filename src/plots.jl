@@ -15,8 +15,8 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
     plot_path = output_dir * String(ycol) * "_total_plot.png"
 
     # plot histogram
-    gr(size=(1920, 1080))
-    ht = Plots.histogram(df[!, ycol], title="Histogram of " * String(ycol),
+    ht = Plots.histogram(float.(df[!, ycol]), title="Histogram of " * String(ycol),
+        size = (2560, 1080),
         xlabel=String(ycol), ylabel="#", bins=200, legend=false,
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
@@ -25,8 +25,8 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
 
     # plot in dates
     dates = DateTime.(df[!, :date])
-    gr(size=(1920, 1080))
-    pl = Plots.plot(dates, df[!, ycol],
+    pl = Plots.plot(dates, float.(df[!, ycol]),
+        size = (2560, 1080),
         title=String(ycol) * " in dates", xlabel="date", ylabel=String(ycol),
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
@@ -52,7 +52,8 @@ function plot_pcorr(_df::DataFrame, feas::AbstractArray, label_feas::AbstractArr
     end
     end
 
-    crpl = Plots.heatmap(string.(label_feas), string.(label_feas), dfm_cor,
+    crpl = Plots.heatmap(string.(label_feas), string.(label_feas), float.(dfm_cor),
+        size = (2560, 1080),
         clim = (-1.0, 1.0), c=:blues, legend=true, annotations = ann,
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
@@ -72,8 +73,8 @@ function plot_corr(df_corr::DataFrame, output_size::Integer, output_dir::String,
 
     plot_path = output_dir * "$(output_prefix)_corr_hourly"
 
-    gr(size=(1920, 1080))
-    pl = Plots.plot(df_corr[!, :hour], df_corr[!, :corr],
+    pl = Plots.plot(float.(df_corr[!, :hour]), float.(df_corr[!, :corr]),
+        size = (2560, 1080),
         title="Correlation on hourly prediction", xlabel="hour", ylabel="corr",
         line=:solid, linewidth=5, label="OBS",
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
@@ -85,6 +86,74 @@ function plot_corr(df_corr::DataFrame, output_size::Integer, output_dir::String,
     nothing
 end
 
+function plot_corr_input(corr_arr::Array{F, 1}, title::String, output_dir::String, output_prefix::String) where F<:AbstractFloat
+    ENV["GKSwstype"] = "100"
+
+    line_path = output_dir * "$(output_prefix)_corr.png"
+
+    pl = Plots.plot(float.(corr_arr),
+        size = (2560, 1080),
+        line=:solid, linewidth=5,
+        ylim=(min(0.0, minimum(corr_arr)), 1.0),
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color= :black,
+        title = title,
+        xlabel = "lag", ylabel = "corr", legend=false)
+    plot!([72], color= :black, linewidth=5, line=:dash, seriestype="vline")
+
+    Plots.png(pl, line_path)
+
+    nothing
+end
+
+function plot_corr_OU(lag_arr::Array{I, 1}, corr_arr::Array{F, 1},
+    title::String, output_dir::String, output_prefix::String) where {F<:AbstractFloat, I<:Integer}
+    ENV["GKSwstype"] = "100"
+
+    line_path = output_dir * "$(output_prefix).png"
+
+    pl = Plots.plot(float.(lag_arr), float.(corr_arr),
+        size = (2560, 1080),
+        line=:solid, linewidth=5,
+        ylim=(min(0.0, minimum(corr_arr)), 1.0),
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=30PlotMeasures.px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color= :black,
+        title = title,
+        xlabel = "time", ylabel = "corr", legend=false)
+    # plot 72 hour line to check correlation is zero at 72 hour.
+    plot!([72], color= :black, linewidth=5, line=:dash, seriestype="vline")
+
+    Plots.png(pl, line_path)
+
+    nothing
+end
+
+function plot_corr_OU(corr_arr::Array{F, 1},
+    title::String, output_dir::String, output_prefix::String) where {F<:AbstractFloat, I<:Integer}
+    ENV["GKSwstype"] = "100"
+
+    line_path = output_dir * "$(output_prefix).png"
+
+    pl = Plots.plot(float.(corr_arr),
+        size = (2560, 1080),
+        line=:solid, linewidth=5,
+        ylim=(min(0.0, minimum(corr_arr)), 1.0),
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=30PlotMeasures.px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color= :black,
+        title = title,
+        xlabel = "time", ylabel = "corr", legend=false)
+    # plot 72 hour line to check correlation is zero at 72 hour.
+    plot!([72], color= :black, linewidth=5, line=:dash, seriestype="vline")
+
+    Plots.png(pl, line_path)
+
+    nothing
+end
+
+
 function plot_DNN_scatter(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
     output_size::Integer, output_dir::String, output_prefix::String)
 
@@ -93,18 +162,19 @@ function plot_DNN_scatter(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
         sc_path = output_dir * "$(i_pad)/" * "$(output_prefix)_scatter_$(i_pad)h.png"
+        lim = max(maximum(JuliaDB.select(dnn_table[i], :y)), 
+            maximum(JuliaDB.select(dnn_table[i], :ŷ)))
 
-        lim = max(maximum(JuliaDB.select(dnn_table[i], :y)),
-                maximum(JuliaDB.select(dnn_table[i], :ŷ)))
-        gr(size=(1080, 1080))
-        sc = Plots.scatter(JuliaDB.select(dnn_table[i], :y), JuliaDB.select(dnn_table[i], :ŷ), 
+        sc = Plots.scatter(float.(JuliaDB.select(dnn_table[i], :y)), float.(JuliaDB.select(dnn_table[i], :ŷ)),
+            size = (2560, 1080),
             xlim = (0, lim), ylim = (0, lim), legend=false,
             guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
             guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
             title="DNN/OBS ($(i_pad)h)", xlabel="OBS", ylabel="DNN",
             background_color = BG_COLOR, markercolor = MK_COLOR)
+
         # diagonal line (corr = 1)
-        Plots.plot!(0:0.1:lim, 0:0.1:lim, 
+        Plots.plot!(collect(0:0.1:lim), collect(0:0.1:lim), 
             xlim = (0, lim), ylim = (0, lim), legend=false,
             background_color = BG_COLOR, linecolor = LN_COLOR)
         Plots.png(sc, sc_path)
@@ -123,16 +193,16 @@ function plot_DNN_histogram(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
         hs_OBS_path = output_dir * "$(i_pad)/" * "$(output_prefix)_hist(obs)_$(i_pad)h.png"
         hs_DNN_path = output_dir * "$(i_pad)/" * "$(output_prefix)_hist(dnn)_$(i_pad)h.png"
 
-        gr(size=(2560, 1080))
-
-        ht = Plots.histogram(JuliaDB.select(dnn_table[i], :y), label="OBS",
+        ht = Plots.histogram(float.(JuliaDB.select(dnn_table[i], :y)), label="OBS",
+            size = (2560, 1080),
             guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
             guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
             title="Histogram of OBS ($(i_pad)h)", ylabel="#",
             background_color = BG_COLOR, fillalpha=0.5)
         Plots.png(ht, hs_OBS_path)
 
-        ht = Plots.histogram(JuliaDB.select(dnn_table[i], :ŷ), label="DNN",
+        ht = Plots.histogram(float.(JuliaDB.select(dnn_table[i], :ŷ)), label="DNN",
+            size = (2560, 1080),
             guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
             guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
             title="Histogram of DNN ($(i_pad)h)", ylabel="#",
@@ -158,8 +228,8 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
         line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
         dates_h = dates .+ Dates.Hour(i)
 
-        gr(size = (2560, 1080))
-        pl = Plots.plot(dates_h, JuliaDB.select(dnn_table[i], :y),
+        pl = Plots.plot(dates_h, float.(JuliaDB.select(dnn_table[i], :y)),
+            size = (2560, 1080),
             ylim = (0.0,
                 max(maximum(JuliaDB.select(dnn_table[i], :y)), maximum(JuliaDB.select(dnn_table[i], :ŷ)))),
             line=:solid, linewidth=5, label="OBS",
@@ -169,7 +239,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
             title=String(ycol) * " by dates ($(i_pad)h)",
             xlabel="date", ylabel=String(ycol), legend=:best)
 
-        pl = Plots.plot!(dates_h, JuliaDB.select(dnn_table[i], :ŷ),
+        pl = Plots.plot!(dates_h, float.(JuliaDB.select(dnn_table[i], :ŷ)),
             line=:solid, linewidth=5, color=LN02_COLOR, label="DNN")
         Plots.png(pl, line_path)
     end
@@ -193,8 +263,8 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
         line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
         dates_h = dates .+ Dates.Hour(i)
 
-        gr(size = (2560, 1080))
-        pl = Plots.plot(dates_h, JuliaDB.select(dnn_table[i], :y),
+        pl = Plots.plot(dates_h, float.(JuliaDB.select(dnn_table[i], :y)),
+            size = (2560, 1080),
             ylim = (0.0,
                 max(maximum(JuliaDB.select(dnn_table[i], :y)), maximum(JuliaDB.select(dnn_table[i], :ŷ)))),
             line=:solid, linewidth=5, label="OBS",
@@ -204,7 +274,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
             title=String(ycol) * " by dates ($(i_pad)h)",
             xlabel="date", ylabel=String(ycol), legend=:best)
 
-        pl = Plots.plot!(dates_h, JuliaDB.select(dnn_table[i], :ŷ),
+        pl = Plots.plot!(dates_h, float.(JuliaDB.select(dnn_table[i], :ŷ)),
             line=:solid, linewidth=5, color=LN02_COLOR, label="DNN")
         Plots.png(pl, line_path)
     end
@@ -231,7 +301,8 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
 
         plot_path = output_dir * String(ycol) * "_eval_$(String(eval_sym)).png"
 
-        pl = Plots.plot(df[:, :epoch], df[:, eval_sym],
+        pl = Plots.plot(float.(df[:, :epoch]), float.(df[:, eval_sym]),
+            size = (2560, 1080),
             color=:black, linewidth=6,
             guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
             guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
@@ -241,27 +312,6 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
         annotate!([(last_epoch, df[last_epoch, eval_sym], text("Value: " *  string(df[last_epoch, eval_sym]), 18, :black, :right))])
         Plots.png(pl, rmse_path)
     end
-
-    nothing
-end
-
-function plot_corr_input(corr_arr::Array{F, 1}, title::String, output_dir::String, output_prefix::String) where F<:AbstractFloat
-    ENV["GKSwstype"] = "100"
-
-    line_path = output_dir * "$(output_prefix)_corr.png"
-
-    gr(size = (2560, 1080))
-    pl = Plots.plot(corr_arr,
-        line=:solid, linewidth=5,
-        ylim=(min(0.0, minimum(corr_arr)), 1.0),
-        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
-        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR, color= :black,
-        title = title,
-        xlabel = "lag", ylabel = "corr", legend=false)
-    plot!([72], color= :black, linewidth=5, line=:dash, seriestype="vline")
-
-    Plots.png(pl, line_path)
 
     nothing
 end
