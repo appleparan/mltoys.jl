@@ -128,7 +128,3 @@ function perm_df(df, permed_idx, col, labels)
 
     X, Y
 end
-
-function corr_input(df::DataFrame, ycol1::Symbol, ycol2::Symbol, lags)
-    crosscor(df[:, ycol1], df[:, ycol2], lags)
-end
