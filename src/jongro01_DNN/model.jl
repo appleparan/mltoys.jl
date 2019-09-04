@@ -27,10 +27,14 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::
         dataset = ["total", "total"],
         type = ["μ", "σ"]),
         (value = [total_μ, total_σ],))
+    μσ_norm = ndsparse((
+        dataset = ["total", "total"],
+        type = ["μ", "σ"]),
+        (value = [0.0, 1.0],))
 
     # construct compile function symbol
     compile = eval(Symbol(:compile, "_", ycol, "_DNN"))
-    model, loss, accuracy, opt = compile(input_size, batch_size, output_size, μσ)
+    model, loss, accuracy, opt = compile(input_size, batch_size, output_size, μσ_norm)
 
     # |> gpu doesn't work to *_set directly
     # construct minibatch for train_set
@@ -134,7 +138,8 @@ function train_DNN!(model::C,
         flush(stdout); flush(stderr)
 
         # record evaluation
-        rmse, rsr, nse, pbias, ioa, r2 = evaluations(valid_set, model, μσ, [:RMSE, :RSR, :NSE, :PBIAS, :IOA, :R2])
+        #rmse, rsr, nse, pbias, ioa, r2 = evaluations(valid_set, model, μσ, [:RMSE, :RSR, :NSE, :PBIAS, :IOA, :R2])
+        rmse, rsr, nse, pbias, ioa, r2 = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         push!(df_eval, [epoch_idx opt.eta acc rmse rsr nse pbias ioa r2])
 
         # If our accuracy is good enough, quit out.
