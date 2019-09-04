@@ -47,7 +47,7 @@ function RMSE(dataset, model, μσ::AbstractNDSparse)
     mean(RMSE_arr)
 end
 
-RMSE(y, ŷ, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ))))
+RMSE(y, ŷ, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ))) / length(y))
 
 # http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.532.2506&rep=rep1&type=pdf
 # MODEL EVALUATION GUIDELINES FOR SYSTEMATIC QUANTIFICATION OF ACCURACY IN WATERSHED SIMULATIONS
@@ -128,8 +128,8 @@ function IOA(dataset, model, μσ::AbstractNDSparse)
 end
 
 IOA(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(Flux.Tracker.data(y) .- Flux.Tracker.data(ŷ))) /
-        max(sum(abs2.(abs.(Flux.Tracker.data(ŷ) .- mean(Flux.Tracker.data(y))) .+
-            abs.(Flux.Tracker.data(y) .- mean(Flux.Tracker.data(y))))), eps())
+        max(sum(abs.(Flux.Tracker.data(ŷ) .- μ) .+
+            abs.(Flux.Tracker.data(y) .- μ)), eps())
 
 # R2
 #=
@@ -154,7 +154,6 @@ function R2(dataset, model, μσ::AbstractNDSparse)
 end
 
 R2(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- Flux.Tracker.data(ŷ))) / sum(abs2.(y .- μ))
-
 
 function RAE(Edataset, model, μσ::AbstractNDSparse)
     RAE_arr = Real[]
