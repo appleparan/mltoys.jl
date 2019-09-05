@@ -138,13 +138,12 @@ function train_DNN!(model::C,
         flush(stdout); flush(stderr)
 
         # record evaluation
-        #rmse, rsr, nse, pbias, ioa, r2 = evaluations(valid_set, model, μσ, [:RMSE, :RSR, :NSE, :PBIAS, :IOA, :R2])
-        rmse, rsr, nse, pbias, ioa, r2 = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        rmse, rsr, nse, pbias, ioa, r2 = evaluations(valid_set, model, μσ, [:RMSE, :RSR, :NSE, :PBIAS, :IOA, :R2])
         push!(df_eval, [epoch_idx opt.eta acc rmse rsr nse pbias ioa r2])
 
         # If our accuracy is good enough, quit out.
         if acc > 0.99
-            @info("    -> Early-exiting: We reached our target accuracy (RSR) of 0.0001")
+            @info("    -> Early-exiting: We reached our target accuracy")
             break
         end
 
@@ -187,7 +186,7 @@ end
 function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
-    unit_size = 400
+    unit_size = 768
     #unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM10: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
@@ -200,8 +199,9 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     ) |> gpu
 
     loss(x, y) = Flux.mse(model(x), y) + sum(norm, Flux.params(model))
+    #loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(data) = R2(data, model, μσ)
+    accuracy(data) = RMSE(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -210,7 +210,7 @@ end
 function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
-    unit_size = 400
+    unit_size = 768
     #unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM25: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
@@ -223,8 +223,9 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     ) |> gpu
 
     loss(x, y) = Flux.mse(model(x), y) + sum(norm, Flux.params(model))
+    #loss(x, y) = Flux.mse(model(x), y)
     #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(data) = R2(data, model, μσ)
+    accuracy(data) = RMSE(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
