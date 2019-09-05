@@ -38,7 +38,7 @@ function RMSE(dataset, model, μσ::AbstractNDSparse)
     RMSE_arr = Real[]
 
     for (x, y) in dataset
-        ŷ = model(x |> gpu)
+        ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         push!(RMSE_arr, RMSE(y, ŷ))
@@ -47,7 +47,7 @@ function RMSE(dataset, model, μσ::AbstractNDSparse)
     mean(RMSE_arr)
 end
 
-RMSE(y, ŷ, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ))) / length(y))
+RMSE(y, ŷ, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2.(y .- ŷ)) / length(y))
 
 # http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.532.2506&rep=rep1&type=pdf
 # MODEL EVALUATION GUIDELINES FOR SYSTEMATIC QUANTIFICATION OF ACCURACY IN WATERSHED SIMULATIONS
@@ -61,7 +61,7 @@ function RSR(dataset, model, μσ::AbstractNDSparse)
     μ = μσ["total", "μ"][:value]
 
     for (x, y) in dataset
-        ŷ = model(x |> gpu)
+        ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         push!(RSR_arr, RSR(y, ŷ, μ))
@@ -70,7 +70,7 @@ function RSR(dataset, model, μσ::AbstractNDSparse)
     mean(RSR_arr)
 end
 
-RSR(y, ŷ, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ)))) / sqrt(sum(abs2.(y .- μ)))
+RSR(y, ŷ, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2.(y .- ŷ))) / sqrt(sum(abs2.(y .- μ)))
 
 # NSE
 #=
@@ -83,7 +83,7 @@ function NSE(dataset, model, μσ::AbstractNDSparse)
     μ = μσ["total", "μ"][:value]
 
     for (x, y) in dataset
-        ŷ = model(x |> gpu)
+        ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         push!(NSE_arr, NSE(y, ŷ, μ))
@@ -92,7 +92,7 @@ function NSE(dataset, model, μσ::AbstractNDSparse)
     mean(NSE_arr)
 end
 
-NSE(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sqrt(sum(abs2.(y .- Flux.Tracker.data(ŷ)))) / sqrt(sum(abs2.(y .- μ)))
+NSE(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sqrt(sum(abs2.(y .- ŷ))) / sqrt(sum(abs2.(y .- μ)))
 
 #=
 The optimal value of PBIAS is 0.0, with low-magnitude values indicating accurate model simulation. Positive values indicate model underestimation bias, and negative values
@@ -102,7 +102,7 @@ function PBIAS(dataset, model, μσ::AbstractNDSparse)
     PBIAS_arr = Real[]
 
     for (x, y) in dataset
-        ŷ = model(x |> gpu)
+        ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         push!(PBIAS_arr, PBIAS(y, ŷ))
@@ -111,14 +111,14 @@ function PBIAS(dataset, model, μσ::AbstractNDSparse)
     mean(PBIAS_arr)
 end
 
-PBIAS(y, ŷ, μ::Real=zero(AbstractFloat)) = sum(y .- Flux.Tracker.data(ŷ)) / sum(y) * 100.0
+PBIAS(y, ŷ, μ::Real=zero(AbstractFloat)) = sum(y .- ŷ) / sum(y) * 100.0
 
 function IOA(dataset, model, μσ::AbstractNDSparse)
     IOA_arr = Real[]
     μ = μσ["total", "μ"][:value]
 
     for (x, y) in dataset
-        ŷ = model(x |> gpu)
+        ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         push!(IOA_arr, IOA(y, ŷ, μ))
@@ -127,9 +127,8 @@ function IOA(dataset, model, μσ::AbstractNDSparse)
     mean(IOA_arr)
 end
 
-IOA(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(Flux.Tracker.data(y) .- Flux.Tracker.data(ŷ))) /
-        max(sum(abs.(Flux.Tracker.data(ŷ) .- μ) .+
-            abs.(Flux.Tracker.data(y) .- μ)), eps())
+IOA(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- ŷ)) /
+        max(sum(abs.(ŷ .- μ) .+ abs.(y .- μ)), eps())
 
 # R2
 #=
@@ -144,7 +143,7 @@ function R2(dataset, model, μσ::AbstractNDSparse)
     μ = μσ["total", "μ"][:value]
 
     for (x, y) in dataset
-        ŷ = model(x |> gpu)
+        ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         push!(R2_arr, R2(y, ŷ, μ))
@@ -153,7 +152,7 @@ function R2(dataset, model, μσ::AbstractNDSparse)
     mean(R2_arr)
 end
 
-R2(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- Flux.Tracker.data(ŷ))) / sum(abs2.(y .- μ))
+R2(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- ŷ)) / sum(abs2.(y .- μ))
 
 function RAE(Edataset, model, μσ::AbstractNDSparse)
     RAE_arr = Real[]
@@ -169,7 +168,7 @@ function RAE(Edataset, model, μσ::AbstractNDSparse)
     mean(RAE_arr)
 end
 
-RAE(y, ŷ, μ::Real=zero(AbstractFloat)) = sum(abs.(y .- Flux.Tracker.data(ŷ))) / sum(abs.(y .- μ))
+RAE(y, ŷ, μ::Real=zero(AbstractFloat)) = sum(abs.(y .- ŷ)) / sum(abs.(y .- μ))
 
 #=
 AdjR2 (TODO)
