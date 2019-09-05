@@ -12,7 +12,7 @@ function evaluations(dataset, model, μσ, metrics::Array{Symbol})
 
     # evaluate metric
     for (x, y) in dataset
-        ŷ = model(x |> gpu)
+        ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         for metric in metrics
