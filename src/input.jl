@@ -184,14 +184,14 @@ function parse_aerosols(aes_dir::String, input_dir::String)
         # convert to ZonedDateTime to parse time correctly (i.e. 20181231T24:00 and 20190101T00:00)
         dates = [ZonedDateTime(DateTime(string(d), date_str), tz"Asia/Seoul") for d in df_raw[:date]]
 
-        df_tmp = DataFrame(stationCode = df_raw[:stationCode],
+        df_tmp = DataFrame(stationCode = df_raw[!, :stationCode],
             date = dates,
-            SO2 = df_raw[:SO2],
-            CO = df_raw[:CO],
-            O3 = df_raw[:O3],
-            NO2 = df_raw[:NO2],
-            PM10 = df_raw[:PM10],
-            PM25 = df_raw[:PM25])
+            SO2 = df_raw[!, :SO2],
+            CO = df_raw[!, :CO],
+            O3 = df_raw[!, :O3],
+            NO2 = df_raw[!, :NO2],
+            PM10 = df_raw[!, :PM10],
+            PM25 = df_raw[!, :PM25])
 
         df = vcat(df, df_tmp)
 
@@ -228,27 +228,27 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
             Symbol("적설(cm)") => :snow])
         dropmissing!(df_raw, :date)
 
-        dates = [ZonedDateTime(DateTime(string(d), date_str), tz"Asia/Seoul") for d in df_raw[:date]]
+        dates = [ZonedDateTime(DateTime(string(d), date_str), tz"Asia/Seoul") for d in df_raw[!, :date]]
         
         # missings to zero except temp, humid, and pres (pressure)
-        df_raw[:wind_vel] = coalesce.(df_raw[:wind_vel], 0.0)
-        df_raw[:wind_dir] = coalesce.(df_raw[:wind_dir], 0.0)
-        df_raw[:prep] = coalesce.(df_raw[:prep], 0.0)
-        df_raw[:snow] = coalesce.(df_raw[:snow], 0.0)
+        df_raw[!, :wind_vel] = coalesce.(df_raw[!, :wind_vel], 0.0)
+        df_raw[!, :wind_dir] = coalesce.(df_raw[!, :wind_dir], 0.0)
+        df_raw[!, :prep] = coalesce.(df_raw[!, :prep], 0.0)
+        df_raw[!, :snow] = coalesce.(df_raw[!, :snow], 0.0)
 
         # http://colaweb.gmu.edu/dev/clim301/lectures/wind/wind-uv
-        _u = [w[1] * Base.Math.cos(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[:wind_vel], df_raw[:wind_dir])]
-        _v = [w[1] * Base.Math.sin(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[:wind_vel], df_raw[:wind_dir])]
+        _u = [w[1] * Base.Math.cos(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[:wind_vel], df_raw[!, :wind_dir])]
+        _v = [w[1] * Base.Math.sin(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[:wind_vel], df_raw[!, :wind_dir])]
 
         df_tmp = DataFrame(
             date = dates,
-            temp = df_raw[:temp],
+            temp = df_raw[!, :temp],
             u = _u,
             v = _v,
-            pres = df_raw[:pres],
-            humid = df_raw[:humid],
-            prep = df_raw[:prep],
-            snow = df_raw[:snow])
+            pres = df_raw[!, :pres],
+            humid = df_raw[!, :humid],
+            prep = df_raw[!, :prep],
+            snow = df_raw[!, :snow])
 
         df = vcat(df, df_tmp)
 
@@ -288,7 +288,7 @@ function join_data(input_dir::String, obs_path::String, aes_dir::String, wea_dir
     df1 = join(df_obs, df_aes, on = :stationCode)
     df2 = join(df1, df_wea, on = :date, kind = :inner)
 
-    df = df2[:, [:stationCode, :date, :lat, :lon,
+    df = df2[!, [:stationCode, :date, :lat, :lon,
                    :SO2, :CO, :O3, :NO2, :PM10, :PM25,
                    :temp, :u, :v, :pres, :humid, :prep, :snow]]
 
