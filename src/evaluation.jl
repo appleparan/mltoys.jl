@@ -36,6 +36,8 @@ RMSE-observations standard deviation ratio
 =#
 function RMSE(dataset, model, μσ::AbstractNDSparse)
     RMSE_arr = Real[]
+    _μ = μσ["total", "μ"][:value]
+    _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
         ŷ = Flux.Tracker.data(model(x |> gpu))
@@ -58,13 +60,14 @@ RMSE-observations standard deviation ratio
 =#
 function RSR(dataset, model, μσ::AbstractNDSparse)
     RSR_arr = Real[]
-    μ = μσ["total", "μ"][:value]
+    _μ = μσ["total", "μ"][:value]
+    _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
         ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
-        push!(RSR_arr, RSR(y, ŷ, μ))
+        push!(RSR_arr, RSR(y, ŷ, _μ))
     end
 
     mean(RSR_arr)
@@ -80,13 +83,14 @@ compared to the measured data variance (“information”
 =#
 function NSE(dataset, model, μσ::AbstractNDSparse)
     NSE_arr = Real[]
-    μ = μσ["total", "μ"][:value]
+    _μ = μσ["total", "μ"][:value]
+    _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
         ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
-        push!(NSE_arr, NSE(y, ŷ, μ))
+        push!(NSE_arr, NSE(y, ŷ, _μ))
     end
 
     mean(NSE_arr)
@@ -100,6 +104,8 @@ indicate model overestimation bias (Gupta et al., 1999)
 =#
 function PBIAS(dataset, model, μσ::AbstractNDSparse)
     PBIAS_arr = Real[]
+    _μ = μσ["total", "μ"][:value]
+    _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
         ŷ = Flux.Tracker.data(model(x |> gpu))
@@ -115,13 +121,14 @@ PBIAS(y, ŷ, μ::Real=zero(AbstractFloat)) = sum(y .- ŷ) / sum(y) * 100.0
 
 function IOA(dataset, model, μσ::AbstractNDSparse)
     IOA_arr = Real[]
-    μ = μσ["total", "μ"][:value]
+    _μ = μσ["total", "μ"][:value]
+    _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
         ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
-        push!(IOA_arr, IOA(y, ŷ, μ))
+        push!(IOA_arr, IOA(y, ŷ, _μ))
     end
 
     mean(IOA_arr)
@@ -140,13 +147,14 @@ https://en.wikipedia.org/wiki/Coefficient_of_determination
 =#
 function R2(dataset, model, μσ::AbstractNDSparse)
     R2_arr = Real[]
-    μ = μσ["total", "μ"][:value]
+    _μ = μσ["total", "μ"][:value]
+    _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
         ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
-        push!(R2_arr, R2(y, ŷ, μ))
+        push!(R2_arr, R2(y, ŷ, _μ))
     end
 
     mean(R2_arr)
@@ -156,13 +164,14 @@ R2(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- ŷ)) / sum(abs2.(
 
 function RAE(Edataset, model, μσ::AbstractNDSparse)
     RAE_arr = Real[]
-    μ = μσ["total", "μ"][:value]
+    _μ = μσ["total", "μ"][:value]
+    _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
-        ŷ = model(x |> gpu)
+        ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
-        push!(RAE_arr, RAE(y, ŷ, μ))
+        push!(RAE_arr, RAE(y, ŷ, _μ))
     end
 
     mean(RAE_arr)
@@ -190,13 +199,15 @@ end
 
 AdjR2(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- Flux.Tracker.data(ŷ))) / sum(abs2.(y .- μ))
 =#
-function classification(dataset::Array{T1, 1}, model, ycol::Symbol) where T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}} where F <: AbstractFloat
+function classification(dataset::Array{T1, 1}, model, ycol::Symbol, μσ::AbstractNDSparse) where T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}} where F <: AbstractFloat
     class_all_arr = []
     class_high_arr = []
+    _μ = μσ["total", "μ"][:value]
+    _σ = μσ["total", "σ"][:value]
 
     # TODO : if y is not 24 hour data, adjust them to use daily average
     for (x, y) in dataset
-        ŷ = model(x |> gpu)
+        ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         # daliy average
