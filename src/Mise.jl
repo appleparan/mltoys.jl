@@ -16,12 +16,11 @@ import StatsBase: zscore!
 # ML
 using Flux
 using Flux.Tracker
-using Flux.Tracker: param, back!, grad, data
 # for temporal fix
 using ForwardDiff
 
 # MCMC
-using Mamba
+#using Mamba
 
 # Tables
 using DataFrames, DataFramesMeta, Missings, Query
@@ -48,7 +47,7 @@ using ColorTypes
 using StatsPlots
 
 if isa(Sys.which("python3"), String)
-        using ExcelReaders
+    using ExcelReaders
 end
 
 if isa(Sys.which("nvcc"), String)
@@ -63,6 +62,7 @@ include("utils.jl")
 include("input.jl")
 include("output.jl")
 include("loss.jl")
+include("activation.jl")
 include("evaluation.jl")
 include("plots.jl")
 
@@ -87,6 +87,7 @@ export join_data, filter_jongro, read_jongro, filter_station, read_station,
         getX, getY, make_pair_DNN, make_batch_DNN, 
         getX_LSTM, getY_LSTM, make_input_LSTM, findrow,
         WHO_PM10, WHO_PM25,
+# activation
 # evaluation
         evaluations, RMSE, RSR, NSE, PBIAS, IOA, classification, R2, RAE,
 # loss
