@@ -34,7 +34,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::
 
     # construct compile function symbol
     compile = eval(Symbol(:compile, "_", ycol, "_DNN"))
-    model, loss, accuracy, opt = compile(input_size, batch_size, output_size, μσ_norm)
+    model, loss, accuracy, opt = compile(input_size, batch_size, output_size, μσ)
 
     # |> gpu doesn't work to *_set directly
     # construct minibatch for train_set
@@ -57,6 +57,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::
     test_set = [(ProgressMeter.next!(p);
         make_pair_DNN(df, norm_ycol, idx, norm_feas, sample_size, output_size)) for idx in test_idxs]
 
+    # *_set : normalized
     df_evals = train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, filename)
     
     # TODO : (current) validation with zscore, (future) validation with original value?
@@ -77,8 +78,9 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::
     @info " $(string(ycol)) NSE for valid   : ", NSE(valid_set, model, μσ)
     @info " $(string(ycol)) IOA for valid   : ", IOA(valid_set, model, μσ)
     @info " $(string(ycol)) R2 for valid    : ", R2(valid_set, model, μσ)
+
     if ycol == :PM10 || ycol == :PM25
-        forecast_all, forecast_high = classification(test_set, model, ycol)
+        forecast_all, forecast_high = classification(test_set, model, ycol, μσ)
         @info " $(string(ycol)) Forecasting accuracy (all) for test : ", forecast_all
         @info " $(string(ycol)) Forecasting accuracy (high) for test : ", forecast_high
     end
@@ -129,12 +131,13 @@ function train_DNN!(model::C,
 
     for epoch_idx in 1:epoch_size
         best_acc, last_improvement
-        # Train for a single epoch
+        # train model with normalized data set
         Flux.train!(loss, Flux.params(model), train_set, opt)
 
         # Calculate accuracy:
-        acc = accuracy(valid_set)
-        @info(@sprintf("epoch [%d]: Valid accuracy: %.6f Time: %s", epoch_idx, acc, now()))
+        _acc = accuracy(valid_set)
+        _loss = accuracy(valid_set)
+        @info(@sprintf("epoch [%d]: Loss: %.6f Valid accuracy: %.6f Time: %s", epoch_idx, _loss, _acc, now()))
         flush(stdout); flush(stderr)
 
         # record evaluation
@@ -142,7 +145,7 @@ function train_DNN!(model::C,
         push!(df_eval, [epoch_idx opt.eta acc rmse rsr nse pbias ioa r2])
 
         # If our accuracy is good enough, quit out.
-        if acc > 0.99
+        if acc > 0.999
             @info("    -> Early-exiting: We reached our target accuracy")
             break
         end
@@ -186,22 +189,20 @@ end
 function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
-    unit_size = 768
+    unit_size = min(Int(round(input_size * 3/3)), 768)
     #unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM10: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
         Dense(input_size, unit_size, leakyrelu),
-        
+
         Dense(unit_size, unit_size, leakyrelu),
 
         Dense(unit_size, output_size)
     ) |> gpu
 
-    loss(x, y) = Flux.mse(model(x), y) + sum(norm, Flux.params(model))
-    #loss(x, y) = Flux.mse(model(x), y)
-    #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(data) = RMSE(data, model, μσ)
+    loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
+    accuracy(data) = IOA(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -210,7 +211,7 @@ end
 function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
-    unit_size = 768
+    unit_size = min(Int(round(input_size * 2/3)), 512)
     #unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM25: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
@@ -222,10 +223,8 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
         Dense(unit_size, output_size)
     ) |> gpu
 
-    loss(x, y) = Flux.mse(model(x), y) + sum(norm, Flux.params(model))
-    #loss(x, y) = Flux.mse(model(x), y)
-    #loss(x, y) = huber_loss_mean(model(x), y)
-    accuracy(data) = RMSE(data, model, μσ)
+    loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
+    accuracy(data) = IOA(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
