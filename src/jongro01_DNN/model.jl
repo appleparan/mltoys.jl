@@ -122,9 +122,9 @@ function train_DNN!(model::C,
     @info("    Beginning training loop...")
     flush(stdout); flush(stderr)
 
+    _acc = 0.0
     best_acc = 0.0
     last_improvement = 0
-    acc = 0.0
 
     df_eval = DataFrame(epoch = Int64[], learn_rate = Float64[], ACC = Float64[],
         RMSE = Float64[], RSR = Float64[], NSE = Float64[], PBIAS = Float64[], IOA = Float64[], R2 = Float64[])
@@ -134,24 +134,24 @@ function train_DNN!(model::C,
         # train model with normalized data set
         Flux.train!(loss, Flux.params(model), train_set, opt)
 
-        # Calculate accuracy:
-        _acc = accuracy(valid_set)
-        _loss = accuracy(valid_set)
-        @info(@sprintf("epoch [%d]: Loss: %.6f Valid accuracy: %.6f Time: %s", epoch_idx, _loss, _acc, now()))
-        flush(stdout); flush(stderr)
-
         # record evaluation
         rmse, rsr, nse, pbias, ioa, r2 = evaluations(valid_set, model, μσ, [:RMSE, :RSR, :NSE, :PBIAS, :IOA, :R2])
-        push!(df_eval, [epoch_idx opt.eta acc rmse rsr nse pbias ioa r2])
+        push!(df_eval, [epoch_idx opt.eta _acc rmse rsr nse pbias ioa r2])
+
+        # Calculate accuracy:
+        _acc = accuracy(valid_set)
+        _loss = rmse
+        @info(@sprintf("epoch [%d]: Valid accuracy: %.8f Time: %s", epoch_idx, _acc, now()))
+        flush(stdout); flush(stderr)
 
         # If our accuracy is good enough, quit out.
-        if acc > 0.999
+        if _acc > 0.999999
             @info("    -> Early-exiting: We reached our target accuracy")
             break
         end
 
         # If this is the best accuracy we've seen so far, save the model out
-        if acc > best_acc
+        if _acc > best_acc
             @info "    -> New best accuracy! Saving model out to " * filename
             flush(stdout)
 
@@ -160,8 +160,8 @@ function train_DNN!(model::C,
             # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
             μ, σ = μσ["total", "μ"].value, μσ["total", "σ"].value
-            BSON.@save filepath cpu_model weights epoch_idx acc μ σ
-            best_acc = acc
+            BSON.@save filepath cpu_model weights epoch_idx _acc μ σ
+            best_acc = _acc
             last_improvement = epoch_idx
         end
 
