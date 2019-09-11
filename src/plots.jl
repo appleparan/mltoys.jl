@@ -166,7 +166,7 @@ function plot_DNN_scatter(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
             maximum(JuliaDB.select(dnn_table[i], :ŷ)))
 
         sc = Plots.scatter(float.(JuliaDB.select(dnn_table[i], :y)), float.(JuliaDB.select(dnn_table[i], :ŷ)),
-            size = (2560, 1080),
+            size = (1080, 1080),
             xlim = (0, lim), ylim = (0, lim), legend=false,
             guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
             guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
