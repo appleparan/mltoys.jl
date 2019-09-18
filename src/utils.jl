@@ -10,6 +10,8 @@ function mean_and_std_cols(df::DataFrame, cols::Array{Symbol, 1})
     vals = []
     for col in cols
         μ, σ = mean_and_std(df[!, col])
+        _min = minimum(df[!, col])
+        _max = maximum(df[!, col])
 
         push!(syms, String(col))
         push!(types, "μ")
@@ -18,6 +20,14 @@ function mean_and_std_cols(df::DataFrame, cols::Array{Symbol, 1})
         push!(syms, String(col))
         push!(types, "σ")
         push!(vals, σ)
+
+        push!(syms, String(col))
+        push!(types, "minimum")
+        push!(vals, _min)
+
+        push!(syms, String(col))
+        push!(types, "maximum")
+        push!(vals, _max)
     end
 
     μσ = ndsparse((
@@ -193,6 +203,34 @@ function zscore!(df::DataFrame, cols::Array{Symbol, 1}, new_cols::Array{Symbol, 
         zscore!(df, col, new_col, μ, σ)
     end
 end
+
+"""
+    min_max_scaling_cols(df, cols)
+
+find mean and std value in df[:, col]
+"""
+function min_max_scaling!(df::DataFrame, cols::Array{String, 1}, new_cols::Array{String, 1},
+    new_min::F = -1.0, new_max::F = 1.0) where F<:AbstractFloat
+    min_max_scaling!(df, Symbol.(cols), Symbol.(new_cols), new_min, new_max)
+end
+
+function min_max_scaling!(df::DataFrame, cols::Array{Symbol, 1}, new_cols::Array{Symbol, 1},
+    new_min::F = -1.0, new_max::F = 1.0) where F<:AbstractFloat
+
+    for (col, new_col) in zip(cols, new_cols)
+        min_max_scaling!(df, col, new_col, new_min, new_max)
+    end
+end
+
+function min_max_scaling!(df::DataFrame, col::Symbol, new_col::Symbol,
+    new_min::F, new_max::F) where F<:AbstractFloat
+
+    to_be_normalized = df[!, col]
+    df[!, new_col] = new_min .+ (new_max - new_min) .*
+        (to_be_normalized .- minimum(to_be_normalized)) ./
+        (maximum(to_be_normalized) .- minimum(to_be_normalized))
+end
+
 
 """
     exclude_elem(cols, target_col)
@@ -738,6 +776,8 @@ become
   4, 10, 16, 22, 28], 
  [5, 11, 17, 23, 29;
   6, 12, 18, 24, 30])
+
+https://discourse.julialang.org/t/flux-support-for-mini-batches/14718/3?u=appleparan
 """
 function make_batch_DNN(df::DataFrame, ycol::Symbol,
     chnks::Array{<:UnitRange{I}, 1}, features::Array{Symbol, 1},

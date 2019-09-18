@@ -80,7 +80,8 @@ include("jongro01_DNN/model.jl")
 # input
 export join_data, filter_jongro, read_jongro, filter_station, read_station,
 # utils
-    mean_and_std_cols, hampel!, zscore!, exclude_elem, split_df, window_df,
+    mean_and_std_cols, hampel!, zscore!, min_max_scaling!,
+    exclude_elem, split_df, window_df,
     split_sizes3, split_sizes2, create_chunks, create_idxs,
     getHoursLater, remove_sparse_input!, is_sparse_Y,
     getX, getY, make_pair_DNN, make_batch_DNN, 
@@ -88,7 +89,7 @@ export join_data, filter_jongro, read_jongro, filter_station, read_station,
     WHO_PM10, WHO_PM25,
 # activation
 # evaluation
-    evaluations, RMSE, RSR, NSE, PBIAS, IOA, classification, R2, RAE,
+    evaluations, RMSE, MAE, RSR, NSE, PBIAS, IOA, R2, AdjR2, MSPE, MAPE, classification,
 # loss
     huber_loss, huber_loss_mean, mse_rnn,
 # jongro01_DNN
@@ -102,7 +103,7 @@ export join_data, filter_jongro, read_jongro, filter_station, read_station,
 # post processing
     compute_corr, test_features, test_station, test_classification,
 # output
-    predict_model, export_CSV,
+    predict_model_norm, predict_model_minmax, export_CSV,
 # plot
     plot_corr_input,
     plot_totaldata,

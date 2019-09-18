@@ -457,7 +457,6 @@ end
             B = collect(  len_df+1:2*len_df),
             C = collect(2*len_df+1:3*len_df))
         idx = 1:sample_size
-        
 
         # pair = ([1,...,24,len_df,...,len_df+24],[2*len_df,...,2*len_df+12])
         pair = make_pair_DNN(df, :C, idx, [:A, :B], sample_size, output_size)

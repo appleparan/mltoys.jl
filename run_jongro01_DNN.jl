@@ -30,7 +30,8 @@ function run_model()
     norm_features = [Symbol(eval(norm_prefix * String(f))) for f in features]
 
     μσs = mean_and_std_cols(df, features)
-    zscore!(df, features, norm_features)
+    #zscore!(df, features, norm_features)
+    min_max_scaling!(df, features, norm_features)
 
     # convert Float types
     for fea in features
@@ -41,7 +42,7 @@ function run_model()
         df[!, nfea] = default_FloatType.(df[!, nfea])
     end
 
-    train_features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
+    train_features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :humid, :prep, :snow]
 
     norm_train_features = [Symbol(eval(norm_prefix * String(f))) for f in train_features]
 
@@ -52,7 +53,7 @@ function run_model()
 
     sample_size = 72
     output_size = 24
-    epoch_size = 500
+    epoch_size = 200
     batch_size = 32
     @info "training feature : " train_features
     @info "sizes (sample, output, epoch, batch) : ", sample_size, output_size, epoch_size, batch_size
@@ -63,7 +64,7 @@ function run_model()
     # split into window [[1,2,3,4],[2,3,4,5]...]
     train_sdate = ZonedDateTime(2012, 1, 1, 1, tz"Asia/Seoul")
     train_fdate = ZonedDateTime(2017, 12, 31, 23, tz"Asia/Seoul")
-    test_sdate = ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul")
+    test_sdate = ZonedDateTime(2018, 1, 1, 0, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
 
     # windowsed index (index in input)

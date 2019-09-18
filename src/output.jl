@@ -1,5 +1,4 @@
-
-function predict_model(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
+function predict_model_norm(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String) where T <: Tuple
 
     dnn_table = Array{IndexedTable}(undef, output_size)
@@ -18,6 +17,35 @@ function predict_model(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
 
         org_y = cpu_y .* σ .+ μ
         org_ŷ = Flux.Tracker.data(cpu_ŷ) .* σ .+ μ
+
+        for i = 1:output_size
+            tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
+            dnn_table[i] = merge(dnn_table[i], tmp_table)
+        end
+    end
+
+    dnn_table
+end
+
+function predict_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
+    _min::AbstractFloat, _max::AbstractFloat, output_size::Integer, output_dir::String) where T <: Tuple
+
+    dnn_table = Array{IndexedTable}(undef, output_size)
+    table_path = Array{String}(undef, output_size)
+
+    for i = 1:output_size
+        table_path[i] = output_dir * "$(String(ycol))_$(lpad(i,2,'0'))_table.csv"
+        dnn_table[i] = table((y = [], ŷ = [],))
+    end
+
+    for (x, y) in dataset
+        ŷ = model(x |> gpu)
+
+        cpu_y = y |> cpu
+        cpu_ŷ = ŷ |> cpu
+
+        org_y = (cpu_y .- (-1.0)) .* 0.5 .* (_max - _min) .+ _min
+        org_ŷ = (Flux.Tracker.data(cpu_ŷ) .- (-1.0)) .* 0.5 .* (_max - _min) .+ _min
 
         for i = 1:output_size
             tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))

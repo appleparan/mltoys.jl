@@ -178,6 +178,11 @@ function plot_DNN_scatter(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
             xlim = (0, lim), ylim = (0, lim), legend=false,
             background_color = BG_COLOR, linecolor = LN_COLOR)
         Plots.png(sc, sc_path)
+
+        sc_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_scatter_$(i_pad)h.csv"
+        df = DataFrame(obs = float.(JuliaDB.select(dnn_table[i], :y)),
+            model = float.(JuliaDB.select(dnn_table[i], :ŷ)))
+        CSV.write(sc_csvpath, df, writeheader = true)
     end
 
     nothing
@@ -226,6 +231,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
         line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
+        line_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.csv"
         dates_h = dates .+ Dates.Hour(i)
 
         pl = Plots.plot(dates_h, float.(JuliaDB.select(dnn_table[i], :y)),
@@ -242,6 +248,12 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
         pl = Plots.plot!(dates_h, float.(JuliaDB.select(dnn_table[i], :ŷ)),
             line=:solid, linewidth=5, color=LN02_COLOR, label="DNN")
         Plots.png(pl, line_path)
+
+        line_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.csv"
+        df = DataFrame(dates = dates,
+            obs = float.(JuliaDB.select(dnn_table[i], :y)),
+            model = float.(JuliaDB.select(dnn_table[i], :ŷ)))
+        CSV.write(line_csvpath, df, writeheader = true)
     end
 
     nothing
@@ -277,6 +289,12 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
         pl = Plots.plot!(dates_h, float.(JuliaDB.select(dnn_table[i], :ŷ)),
             line=:solid, linewidth=5, color=LN02_COLOR, label="DNN")
         Plots.png(pl, line_path)
+
+        line_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
+        df = DataFrame(dates = dates,
+            obs = float.(JuliaDB.select(dnn_table[i], :y)),
+            model = float.(JuliaDB.select(dnn_table[i], :ŷ)))
+        CSV.write(line_csvpath, df, writeheader = true)
     end
     
     nothing
@@ -285,14 +303,7 @@ end
 function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
     ENV["GKSwstype"] = "100"
 
-    rmse_path = output_dir * String(ycol) * "_eval_RMSE.png"
-    rsr_path = output_dir * String(ycol) * "_eval_RSR.png"
-    nse_path = output_dir * String(ycol) * "_eval_NSE.png"
-    pbias_path = output_dir * String(ycol) * "_eval_PBIAS.png"
-    learn_rate_path = output_dir * String(ycol) * "_eval_learning_rate.png"
-    acc_path = output_dir * String(ycol) * "_eval_acc.png"
-
-    eval_syms = [:RMSE, :RSR, :NSE, :PBIAS, :learn_rate, :ACC]
+    eval_syms = [:RMSE, :MAE, :MSPE, :MAPE, :NSE, :PBIAS, :IOA, :R2, :AdjR2, :learn_rate, :ACC]
 
     last_epoch = df[end, :epoch]
 
@@ -310,8 +321,10 @@ function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
             title="$(String(eval_sym)) " * String(ycol),
             xlabel="epoch", ylabel="$(String(eval_sym))", legend=false)
         annotate!([(last_epoch, df[last_epoch, eval_sym], text("Value: " *  string(df[last_epoch, eval_sym]), 18, :black, :right))])
-        Plots.png(pl, rmse_path)
+        Plots.png(pl, plot_path)
     end
 
+    eval_path = output_dir * String(ycol) * "_evals.csv"
+    CSV.write(eval_path, df, writeheader = true)
     nothing
 end

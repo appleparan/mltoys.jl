@@ -21,6 +21,8 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::
     # extract from ndsparse
     total_μ = μσs[String(ycol), "μ"].value
     total_σ = μσs[String(ycol), "σ"].value
+    total_min = float(μσs[String(ycol), "minimum"].value)
+    total_max = float(μσs[String(ycol), "maximum"].value)
 
     # compute mean and std by each train/valid/test set
     μσ = ndsparse((
@@ -66,18 +68,22 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::
     flush(stdout); flush(stderr)
 
     @info " $(string(ycol)) RMSE for test   : ", RMSE(test_set, model, μσ)
-    @info " $(string(ycol)) RSR for test    : ", RSR(test_set, model, μσ)
-    @info " $(string(ycol)) PBIAS for test  : ", PBIAS(test_set, model, μσ)
+    @info " $(string(ycol)) MAE for test    : ", MAE(test_set, model, μσ)
+    @info " $(string(ycol)) MSPE for test   : ", MSPE(test_set, model, μσ)
+    @info " $(string(ycol)) MAPE for test   : ", MAPE(test_set, model, μσ)
+    @info " $(string(ycol)) R2 for test     : ", R2(test_set, model, μσ)
+    @info " $(string(ycol)) Adj-R2 for test : ", AdjR2(test_set, model, μσ)
     @info " $(string(ycol)) NSE for test    : ", NSE(test_set, model, μσ)
     @info " $(string(ycol)) IOA for test    : ", IOA(test_set, model, μσ)
-    @info " $(string(ycol)) R2 for test     : ", R2(test_set, model, μσ)
 
     @info " $(string(ycol)) RMSE for valid  : ", RMSE(valid_set, model, μσ)
-    @info " $(string(ycol)) RSR for valid   : ", RSR(valid_set, model, μσ)
-    @info " $(string(ycol)) PBIAS for valid : ", PBIAS(valid_set, model, μσ)
+    @info " $(string(ycol)) MAE for valid   : ", MAE(valid_set, model, μσ)
+    @info " $(string(ycol)) MSPE for valid   : ", MSPE(valid_set, model, μσ)
+    @info " $(string(ycol)) MAPE for valid   : ", MAPE(valid_set, model, μσ)
+    @info " $(string(ycol)) R2 for valid    : ", R2(valid_set, model, μσ)
+    @info " $(string(ycol)) Adj-R2 for valid: ", AdjR2(valid_set, model, μσ)
     @info " $(string(ycol)) NSE for valid   : ", NSE(valid_set, model, μσ)
     @info " $(string(ycol)) IOA for valid   : ", IOA(valid_set, model, μσ)
-    @info " $(string(ycol)) R2 for valid    : ", R2(valid_set, model, μσ)
 
     if ycol == :PM10 || ycol == :PM25
         forecast_all, forecast_high = classification(test_set, model, ycol, μσ)
@@ -91,7 +97,8 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::
         Base.Filesystem.mkpath("/mnt/$(i_pad)/")
     end
 
-    dnn_table = predict_model(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/")
+    #dnn_table = predict_model_norm(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/")
+    dnn_table = predict_model_minmax(test_set, model, ycol, total_min, total_max, output_size, "/mnt/")
     dfs_out = export_CSV(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", String(ycol))
     df_corr = compute_corr(dnn_table, output_size, "/mnt/", String(ycol))
 
@@ -123,11 +130,14 @@ function train_DNN!(model::C,
     flush(stdout); flush(stderr)
 
     _acc = 0.0
-    best_acc = 0.0
+    # for adjR2 -∞ is the worst
+    best_acc = -Inf
     last_improvement = 0
 
     df_eval = DataFrame(epoch = Int64[], learn_rate = Float64[], ACC = Float64[],
-        RMSE = Float64[], RSR = Float64[], NSE = Float64[], PBIAS = Float64[], IOA = Float64[], R2 = Float64[])
+        RMSE = Float64[], MAE = Float64[], MSPE = Float64[], MAPE = Float64[], 
+        NSE = Float64[], PBIAS = Float64[],
+        IOA = Float64[], R2 = Float64[], AdjR2 = Float64[])
 
     for epoch_idx in 1:epoch_size
         best_acc, last_improvement
@@ -135,17 +145,18 @@ function train_DNN!(model::C,
         Flux.train!(loss, Flux.params(model), train_set, opt)
 
         # record evaluation
-        rmse, rsr, nse, pbias, ioa, r2 = evaluations(valid_set, model, μσ, [:RMSE, :RSR, :NSE, :PBIAS, :IOA, :R2])
-        push!(df_eval, [epoch_idx opt.eta _acc rmse rsr nse pbias ioa r2])
+        rmse, mae, mspe, mape, nse, pbias, ioa, r2, adjr2 =
+            evaluations(valid_set, model, μσ, [:RMSE, :MAE, :MSPE, :MAPE, :NSE, :PBIAS, :IOA, :R2, :AdjR2])
+        push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape nse pbias ioa r2 adjr2])
 
         # Calculate accuracy:
-        _acc = accuracy(valid_set)
-        _loss = rmse
-        @info(@sprintf("epoch [%d]: Valid accuracy: %.8f Time: %s", epoch_idx, _acc, now()))
+        _acc = Tracker.data(accuracy(valid_set))
+        _loss = Tracker.data(loss(train_set[1][1], train_set[1][2]))
+        @info(@sprintf("epoch [%d]: loss[1]: %.8E Valid accuracy: %.8E Time: %s", epoch_idx, _loss, _acc, now()))
         flush(stdout); flush(stderr)
 
         # If our accuracy is good enough, quit out.
-        if _acc > 0.999999
+        if _acc > 0.999
             @info("    -> Early-exiting: We reached our target accuracy")
             break
         end
@@ -189,20 +200,27 @@ end
 function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
-    unit_size = min(Int(round(input_size * 3/3)), 768)
+    #unit_size = min(Int(round(input_size * 3/3)), 768)
+    unit_size = 768
     #unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM10: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
+
+    # not sigmoid, elu used to reduce vanishing gradient problem
+    # predict low concentration is not important than high concentration
     model = Chain(
         Dense(input_size, unit_size, leakyrelu),
+
+        Dense(unit_size, unit_size, leakyrelu),
 
         Dense(unit_size, unit_size, leakyrelu),
 
         Dense(unit_size, output_size)
     ) |> gpu
 
-    loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
-    accuracy(data) = IOA(data, model, μσ)
+    #loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
+    loss(x, y) = Flux.mse(model(x), y)
+    accuracy(data) = AdjR2(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -211,7 +229,8 @@ end
 function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
-    unit_size = min(Int(round(input_size * 2/3)), 512)
+    #unit_size = min(Int(round(input_size * 2/3)), 512)
+    unit_size = 512
     #unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM25: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
@@ -220,11 +239,14 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
 
         Dense(unit_size, unit_size, leakyrelu),
 
+        Dense(unit_size, unit_size, leakyrelu),
+
         Dense(unit_size, output_size)
     ) |> gpu
 
-    loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
-    accuracy(data) = IOA(data, model, μσ)
+    #loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
+    loss(x, y) = Flux.mse(model(x), y)
+    accuracy(data) = AdjR2(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
