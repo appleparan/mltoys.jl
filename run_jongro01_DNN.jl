@@ -42,7 +42,7 @@ function run_model()
         df[!, nfea] = default_FloatType.(df[!, nfea])
     end
 
-    train_features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :humid, :prep, :snow]
+    train_features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
 
     norm_train_features = [Symbol(eval(norm_prefix * String(f))) for f in train_features]
 
@@ -54,7 +54,7 @@ function run_model()
     sample_size = 72
     output_size = 24
     epoch_size = 200
-    batch_size = 32
+    batch_size = 128
     @info "training feature : " train_features
     @info "sizes (sample, output, epoch, batch) : ", sample_size, output_size, epoch_size, batch_size
 
