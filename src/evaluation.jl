@@ -136,7 +136,7 @@ function NSE(dataset, model, μσ::AbstractNDSparse)
     mean(NSE_arr)
 end
 
-NSE(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sqrt(sum(abs2.(y .- ŷ))) / (sqrt(sum(abs2.(y .- μ))) + eps())
+NSE(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sqrt(sum(abs2.(y .- ŷ))) / sqrt(sum(abs2.(y .- μ))) 
 
 ```
     PBIAS(dataset, model, μσ)
@@ -242,7 +242,7 @@ R2(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- ŷ)) / (sum(abs2.
 the percentage of variation explained by only the independent variables that actually affect the dependent variable.
 https://medium.com/usf-msds/choosing-the-right-metric-for-machine-learning-models-part-1-a99d7d7414e4
 ```
-function AdjR2(dataset, model, μσ::AbstractNDSparse)
+function AdjR2(dataset, model, μσ::AbstractNDSparse, k::Int=13)
     AdjR2_arr = Real[]
     _μ = μσ["total", "μ"][:value]
     _σ = μσ["total", "σ"][:value]
@@ -251,7 +251,7 @@ function AdjR2(dataset, model, μσ::AbstractNDSparse)
         ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
-        _AdjR2 = AdjR2(y, ŷ, mean(y))
+        _AdjR2 = AdjR2(y, ŷ, mean(y), n, k)
 
         if abs(_AdjR2) != Inf
             push!(AdjR2_arr, _AdjR2)
@@ -261,10 +261,10 @@ function AdjR2(dataset, model, μσ::AbstractNDSparse)
     mean(AdjR2_arr)
 end
 
-function AdjR2(y, ŷ, μ::Real=zero(AbstractFloat)) 
+function AdjR2(y, ŷ, μ::Real=zero(AbstractFloat), k::Int=13)
     _R2 = R2(y, ŷ, μ)
 
-    1.0 - (1.0 - _R2^2) * (length(y) - 1.0) / (length(y) - length(ŷ) - 1.0)
+    1.0 - (1.0 - _R2^2) * (length(y) - 1.0) / (length(y) - k - 1.0)
 end
 
 ```

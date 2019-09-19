@@ -201,7 +201,7 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
     #unit_size = min(Int(round(input_size * 3/3)), 768)
-    unit_size = 480
+    unit_size = 128
     #unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM10: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
@@ -220,7 +220,8 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
 
     #loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
     loss(x, y) = Flux.mse(model(x), y)
-    accuracy(data) = AdjR2(data, model, μσ)
+    # TODO : How to pass feature size
+    accuracy(data) = AdjR2(data, model, μσ, 12)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -230,7 +231,7 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
     #unit_size = min(Int(round(input_size * 2/3)), 512)
-    unit_size = 480
+    unit_size = 128
     #unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM25: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
@@ -246,7 +247,8 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
 
     #loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
     loss(x, y) = Flux.mse(model(x), y)
-    accuracy(data) = AdjR2(data, model, μσ)
+    # TODO : How to pass feature size
+    accuracy(data) = AdjR2(data, model, μσ, 12)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
