@@ -184,7 +184,11 @@ function IOA(dataset, model, μσ::AbstractNDSparse)
         ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
-        push!(IOA_arr, IOA(y, ŷ, mean(y)))
+        _IOA = IOA(y, ŷ, mean(y))
+
+        @assert 0.0 <= _IOA <= 1.0
+
+        push!(IOA_arr, _IOA)
     end
 
     mean(IOA_arr)
@@ -226,6 +230,8 @@ function R2(dataset, model, μσ::AbstractNDSparse)
 
         _R2 = R2(y, ŷ, mean(y))
 
+        @assert _R2 <= 1.0
+
         if abs(_R2) != Inf
             push!(R2_arr, _R2)
         end
@@ -234,7 +240,7 @@ function R2(dataset, model, μσ::AbstractNDSparse)
     mean(R2_arr)
 end
 
-R2(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- ŷ)) / (sum(abs2.(y .- μ)))
+R2(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- ŷ)) / sum(abs2.(y .- μ))
 
 ```
     AdjR2(dataset, model, μσ::AbstractNDSparse)
@@ -251,7 +257,9 @@ function AdjR2(dataset, model, μσ::AbstractNDSparse, k::Int=13)
         ŷ = Flux.Tracker.data(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
-        _AdjR2 = AdjR2(y, ŷ, mean(y), n, k)
+        _AdjR2 = AdjR2(y, ŷ, mean(y), k)
+
+        @assert _AdjR2 <= 1.0
 
         if abs(_AdjR2) != Inf
             push!(AdjR2_arr, _AdjR2)
@@ -287,7 +295,9 @@ function MSPE(dataset, model, μσ::AbstractNDSparse)
 
         _MSPE = MSPE(y, ŷ, mean(y))
 
-        push!(MSPE_arr, _MSPE)
+        if abs(_MSPE) != Inf
+            push!(MSPE_arr, _MSPE)
+        end
     end
 
     mean(MSPE_arr)
@@ -315,7 +325,9 @@ function MAPE(dataset, model, μσ::AbstractNDSparse)
 
         _MAPE = MAPE(y, ŷ, mean(y))
 
-        push!(MAPE_arr, _MAPE)
+        if abs(_MAPE) != Inf
+            push!(MAPE_arr, _MAPE)
+        end
     end
 
     mean(MAPE_arr)
