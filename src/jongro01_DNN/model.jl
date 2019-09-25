@@ -60,7 +60,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::
         make_pair_DNN(df, norm_ycol, idx, norm_feas, sample_size, output_size)) for idx in test_idxs]
 
     # *_set : normalized
-    df_evals = train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, filename)
+    df_evals = train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, norm_feas, filename)
     
     # TODO : (current) validation with zscore, (future) validation with original value?
     @info "    Test ACC  : ", accuracy(test_set)
@@ -75,6 +75,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::
     @info " $(string(ycol)) Adj-R2 for test : ", AdjR2(test_set, model, μσ)
     @info " $(string(ycol)) NSE for test    : ", NSE(test_set, model, μσ)
     @info " $(string(ycol)) IOA for test    : ", IOA(test_set, model, μσ)
+    @info " $(string(ycol)) RIOA for test   : ", RefinedIOA(test_set, model, μσ)
 
     @info " $(string(ycol)) RMSE for valid  : ", RMSE(valid_set, model, μσ)
     @info " $(string(ycol)) MAE for valid   : ", MAE(valid_set, model, μσ)
@@ -84,6 +85,7 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::
     @info " $(string(ycol)) Adj-R2 for valid: ", AdjR2(valid_set, model, μσ)
     @info " $(string(ycol)) NSE for valid   : ", NSE(valid_set, model, μσ)
     @info " $(string(ycol)) IOA for valid   : ", IOA(valid_set, model, μσ)
+    @info " $(string(ycol)) RIOA for valid  : ", RefinedIOA(valid_set, model, μσ)
 
     if ycol == :PM10 || ycol == :PM25
         forecast_all, forecast_high = classification(test_set, model, ycol, μσ)
@@ -122,7 +124,7 @@ end
 function train_DNN!(model::C,
     train_set::Array{T2, 1}, valid_set::Array{T1, 1},
     loss, accuracy, opt,
-    epoch_size::Integer, μσ::AbstractNDSparse,
+    epoch_size::Integer, μσ::AbstractNDSparse, norm_feas::Array{Symbol},
     filename::String) where {C <: Flux.Chain, F <: AbstractFloat, T2 <: Tuple{AbstractArray{F, 2}, AbstractArray{F, 2}},
     T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}}}
 
@@ -137,7 +139,8 @@ function train_DNN!(model::C,
     df_eval = DataFrame(epoch = Int64[], learn_rate = Float64[], ACC = Float64[],
         RMSE = Float64[], MAE = Float64[], MSPE = Float64[], MAPE = Float64[], 
         NSE = Float64[], PBIAS = Float64[],
-        IOA = Float64[], R2 = Float64[], AdjR2 = Float64[])
+        IOA = Float64[], RefinedIOA = Float64[],
+        R2 = Float64[], AdjR2 = Float64[])
 
     for epoch_idx in 1:epoch_size
         best_acc, last_improvement
@@ -145,14 +148,15 @@ function train_DNN!(model::C,
         Flux.train!(loss, Flux.params(model), train_set, opt)
 
         # record evaluation
-        rmse, mae, mspe, mape, nse, pbias, ioa, r2, adjr2 =
-            evaluations(valid_set, model, μσ, [:RMSE, :MAE, :MSPE, :MAPE, :NSE, :PBIAS, :IOA, :R2, :AdjR2])
-        push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape nse pbias ioa r2 adjr2])
+        rmse, mae, mspe, mape, nse, pbias, ioa, refinedioa, r2, adjr2 =
+            evaluations(valid_set, model, μσ, norm_feas,
+            [:RMSE, :MAE, :MSPE, :MAPE, :NSE, :PBIAS, :IOA, :RefinedIOA, :R2, :AdjR2])
+        push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape nse pbias ioa refinedioa r2 adjr2])
 
         # Calculate accuracy:
         _acc = Tracker.data(accuracy(valid_set))
         _loss = Tracker.data(loss(train_set[1][1], train_set[1][2]))
-        @info(@sprintf("epoch [%d]: loss[1]: %.8E Valid accuracy: %.8E Time: %s", epoch_idx, _loss, _acc, now()))
+        @info(@sprintf("epoch [%d]: loss[1]: %.8E Valid accuracy: %.8f Time: %s", epoch_idx, _loss, _acc, now()))
         flush(stdout); flush(stderr)
 
         # If our accuracy is good enough, quit out.
@@ -221,7 +225,7 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     #loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
     loss(x, y) = Flux.mse(model(x), y)
     # TODO : How to pass feature size
-    accuracy(data) = AdjR2(data, model, μσ, 12)
+    accuracy(data) = IOA(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -248,7 +252,7 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     #loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
     loss(x, y) = Flux.mse(model(x), y)
     # TODO : How to pass feature size
-    accuracy(data) = AdjR2(data, model, μσ, 12)
+    accuracy(data) = IOA(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
