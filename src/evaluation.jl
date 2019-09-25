@@ -1,33 +1,24 @@
-evaluations(dataset, model, μσ, metrics::Array{String}) =
-    evaluations(dataset, model, μσ, Symbol.(metrics))
+evaluations(dataset, model, μσ::AbstractNDSparse, feas::Array{Symbol},
+    metrics::Array{String}) =
+    evaluations(dataset, model, μσ::AbstractNDSparse, feas, Symbol.(metrics))
 
-function evaluations(dataset, model, μσ, metrics::Array{Symbol})
+function evaluations(dataset, model, μσ::AbstractNDSparse, feas::Array{Symbol}, metrics::Array{Symbol})
     _μ = μσ["total", "μ"][:value]
 
     # initialize array per metric, i.e. RSR_arr
+    metric_vals = []
+
     for metric in metrics
-        metric_arr = Symbol(metric, "_arr")
-        eval(:($metric_arr = []))
-    end
-
-    # evaluate metric
-    for (x, y) in dataset
-        ŷ = Flux.Tracker.data(model(x |> gpu))
-        @assert size(ŷ) == size(y)
-
-        for metric in metrics
-            # Expression of metric, i.e. RSR(y, ŷ, _μ)
-            metric_func = :($(metric)($y, $ŷ, $_μ))
-            # Expression of metric array, i.e. RSR_arr
-            metric_arr = :($(Symbol(metric, "_arr")))
-
-            # push to metric array, i.e. push!(RSR_arr, RSR(y, ŷ, _μ))
-            push!(eval(metric_arr), eval(metric_func))
+        if metric == :AdjR2
+            metric_func = :($(metric)($dataset, $model, $μσ, $(length)($feas)))
+        else
+            metric_func = :($(metric)($dataset, $model, $μσ))
         end
+        push!(metric_vals, eval(metric_func))
     end
 
-    # return metric arrays, i.e. (RSR_arr, NSR_arr, ...)
-    Tuple(collect([eval(:(mean($(Symbol(metric, "_arr"))))) for metric in metrics]))
+    # unpack return values
+    Tuple(metric_vals)
 end
 
 ```
@@ -186,17 +177,62 @@ function IOA(dataset, model, μσ::AbstractNDSparse)
 
         _IOA = IOA(y, ŷ, mean(y))
 
-        @assert 0.0 <= _IOA <= 1.0
-
-        push!(IOA_arr, _IOA)
+        if abs(_IOA) != Inf
+            @assert 0.0 <= _IOA <= 1.0
+            push!(IOA_arr, _IOA)
+        end
     end
 
     mean(IOA_arr)
 end
 
 IOA(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- ŷ)) /
-        max(sum(abs.(ŷ .- μ) .+ abs.(y .- μ)), eps())
-        
+        sum(abs2.(abs.(ŷ .- μ) .+ abs.(y .- μ)))
+
+        ```
+    RefinedIOA(dataset, model, μσ)
+
+Refined Index of Agreement
+
+1. reduce over-sensitive of IOA to large error-magnitude
+Willmott,C. J., Robeson, S. M. and Matsuura, K. (2011).
+A refined index of model performance. Int. J. Climatol. DOI: 10.1002/joc.2419
+1 is best, 0 is worst
+```
+function RefinedIOA(dataset, model, μσ::AbstractNDSparse)
+    RefinedIOA_arr = Real[]
+    _μ = μσ["total", "μ"][:value]
+    _σ = μσ["total", "σ"][:value]
+
+    for (x, y) in dataset
+        ŷ = Flux.Tracker.data(model(x |> gpu))
+        @assert size(ŷ) == size(y)
+
+        _RefinedIOA = RefinedIOA(y, ŷ, mean(y))
+
+        if abs(_RefinedIOA) != Inf
+            @assert -1.0 <= _RefinedIOA <= 1.0
+            push!(RefinedIOA_arr, _RefinedIOA)
+        end
+    end
+
+    mean(RefinedIOA_arr)
+end
+
+function RefinedIOA(y, ŷ, μ::Real=zero(AbstractFloat))
+    c = 2
+    m1 = sum(abs.(y .- ŷ))
+    m2 = sum(abs.(y .- mean(y)))
+
+    if m1 <= c * m2
+        d = 1.0 - m1 / (c * m2)
+    else
+        d = c * m2 / m1 - 1.0
+    end
+
+    d
+end
+
 ```
     R2(dataset, model, μσ)
 
@@ -230,9 +266,8 @@ function R2(dataset, model, μσ::AbstractNDSparse)
 
         _R2 = R2(y, ŷ, mean(y))
 
-        @assert _R2 <= 1.0
-
         if abs(_R2) != Inf
+            @assert _R2 <= 1.0
             push!(R2_arr, _R2)
         end
     end
@@ -240,7 +275,7 @@ function R2(dataset, model, μσ::AbstractNDSparse)
     mean(R2_arr)
 end
 
-R2(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- ŷ)) / sum(abs2.(y .- μ))
+R2(y, ŷ, μ::AbstractFloat) = 1.0 - sum(abs2.(y .- ŷ)) / sum(abs2.(y .- μ))
 
 ```
     AdjR2(dataset, model, μσ::AbstractNDSparse)
@@ -259,8 +294,6 @@ function AdjR2(dataset, model, μσ::AbstractNDSparse, k::Int=13)
 
         _AdjR2 = AdjR2(y, ŷ, mean(y), k)
 
-        @assert _AdjR2 <= 1.0
-
         if abs(_AdjR2) != Inf
             push!(AdjR2_arr, _AdjR2)
         end
@@ -269,7 +302,7 @@ function AdjR2(dataset, model, μσ::AbstractNDSparse, k::Int=13)
     mean(AdjR2_arr)
 end
 
-function AdjR2(y, ŷ, μ::Real=zero(AbstractFloat), k::Int=13)
+function AdjR2(y, ŷ, μ::AbstractFloat, k::Int=13)
     _R2 = R2(y, ŷ, μ)
 
     1.0 - (1.0 - _R2^2) * (length(y) - 1.0) / (length(y) - k - 1.0)
@@ -296,6 +329,7 @@ function MSPE(dataset, model, μσ::AbstractNDSparse)
         _MSPE = MSPE(y, ŷ, mean(y))
 
         if abs(_MSPE) != Inf
+            #@assert 0 <= _MSPE <= 100.0
             push!(MSPE_arr, _MSPE)
         end
     end
@@ -326,6 +360,7 @@ function MAPE(dataset, model, μσ::AbstractNDSparse)
         _MAPE = MAPE(y, ŷ, mean(y))
 
         if abs(_MAPE) != Inf
+            #@assert 0 <= _MAPE <= 100.0
             push!(MAPE_arr, _MAPE)
         end
     end
