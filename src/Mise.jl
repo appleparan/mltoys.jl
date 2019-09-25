@@ -78,7 +78,7 @@ include("jongro01_DNN/model.jl")
 #include("postprocess/post_jongro01_DNN.jl")
 
 # input
-export join_data, filter_jongro, read_jongro, filter_station, read_station,
+export join_data, filter_jongro, read_jongro, filter_station, read_station, read_stations,
 # utils
     mean_and_std_cols, hampel!, zscore!, min_max_scaling!,
     exclude_elem, split_df, window_df,
@@ -89,7 +89,8 @@ export join_data, filter_jongro, read_jongro, filter_station, read_station,
     WHO_PM10, WHO_PM25,
 # activation
 # evaluation
-    evaluations, RMSE, MAE, RSR, NSE, PBIAS, IOA, R2, AdjR2, MSPE, MAPE, classification,
+    evaluations, RMSE, MAE, RSR, NSE, PBIAS,
+    IOA, RefinedIOA, R2, AdjR2, MSPE, MAPE, classification,
 # loss
     huber_loss, huber_loss_mean, mse_rnn,
 # jongro01_DNN

@@ -1,3 +1,26 @@
+function read_stations(pre_input_path::String, stns::Dict{I, String},
+    src_input_path::String = "/input/input.csv") where I<:Integer
+    # Check precomputed path exists
+    if Base.Filesystem.ispath(pre_input_path)
+        # if exists, load CSV
+        return read_station(pre_input_path)
+    else
+        # declare due to scope problem
+        df = DataFrame()
+        # if not, read from source input path
+        for (code, name) in stns
+            @info "Preprocessing " * name * " data..."
+            tmp_df = read_station(src_input_path, code)
+            #@isdefined(df) ? df = vcat(df, tmp_df) : (df = tmp_df)
+            length(names(df)) > 0 ? df = vcat(df, tmp_df) : (df = tmp_df)
+        end
+
+        CSV.write(pre_input_path, df)
+    end
+
+    df
+end
+
 function filter_station(df, stn_code)
     stn_df = @from i in df begin
         @where i.stationCode == stn_code
@@ -5,7 +28,7 @@ function filter_station(df, stn_code)
         @collect DataFrame
     end
 
-    cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid]
+    cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :pres, :u, :v, :pres, :humid, :prep]
     for col in cols
         stn_df[!, col] = Missings.coalesce.(stn_df[!, col], 0.0)
     end
@@ -13,11 +36,10 @@ function filter_station(df, stn_code)
     stn_df
 end
 
-function read_station(input_path::String, stn_code::Integer)
+function read_station(input_path::String, stn_code::Integer=111123)
     df = CSV.read(input_path, copycols=true)
     stn_df = filter_station(df, stn_code)
 
-    @info "Start preprocessing..."
     flush(stdout); flush(stderr)
     stn_df[!, :date] = ZonedDateTime.(stn_df[!, :date])
 
@@ -61,7 +83,7 @@ function filter_jongro(df)
         @collect DataFrame
     end
 
-    cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid]
+    cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
     for col in cols
         jongro_df[col] = Missings.coalesce.(jongro_df[col], 0.0)
     end
