@@ -6,17 +6,17 @@
         μσs, filename, test_dates)
 
 """
-function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::Array{Symbol},
-    sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer, epoch_size::Integer,
-    default_FloatType::DataType,
-    train_valid_wd_idxs::Array{<:UnitRange{I}, 1}, test_wd_idxs::Array{<:UnitRange{I}, 1},
-    train_chnk::Array{<:Array{<:UnitRange{I}, 1}, 1},
-    train_idxs::Array{<:UnitRange{I}, 1}, valid_idxs::Array{<:UnitRange{I}, 1}, test_idxs::Array{<:UnitRange{I}, 1},
+function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1}, test_wd::Array{DataFrame, 1}, 
+    ycol::Symbol, norm_prefix::String, feas::Array{Symbol},
+    train_size::Integer, valid_size::Integer, test_size::Integer,
+    sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer,
+    epoch_size::Integer, eltype::DataType,
     μσs::AbstractNDSparse, filename::String, test_dates::Array{ZonedDateTime,1}) where I <: Integer
 
     @info "DNN training starts.."
 
     norm_ycol = Symbol(norm_prefix, ycol)
+    norm_feas = [Symbol(eval(norm_prefix * String(f))) for f in feas]
 
     # extract from ndsparse
     total_μ = μσs[String(ycol), "μ"].value
@@ -29,10 +29,6 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::
         dataset = ["total", "total"],
         type = ["μ", "σ"]),
         (value = [total_μ, total_σ],))
-    μσ_norm = ndsparse((
-        dataset = ["total", "total"],
-        type = ["μ", "σ"]),
-        (value = [0.0, 1.0],))
 
     # construct compile function symbol
     compile = eval(Symbol(:compile, "_", ycol, "_DNN"))
@@ -42,22 +38,23 @@ function train_DNN(df::DataFrame, ycol::Symbol, norm_prefix::String, norm_feas::
     # construct minibatch for train_set
     # https://github.com/FluxML/Flux.jl/issues/704
     @info "    Construct Training Set batch..."
-    p = Progress(length(train_chnk), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
+    p = Progress(div(length(train_wd), batch_size) + 1, dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
 
     train_set = [(ProgressMeter.next!(p);
-        make_batch_DNN(df, norm_ycol, chnk, norm_feas,
-        sample_size, output_size, batch_size, 0.5, default_FloatType)) for chnk in train_chnk]
+        make_batch_DNN(collect(dfs), norm_ycol, norm_feas,
+            sample_size, output_size, batch_size, 0.5, eltype))
+        for dfs in Base.Iterators.partition(train_wd, batch_size)]
 
     # don't construct minibatch for valid & test sets
     @info "    Construct Valid Set..."
-    p = Progress(length(valid_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
+    p = Progress(length(valid_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     valid_set = [(ProgressMeter.next!(p);
-        make_pair_DNN(df, norm_ycol, idx, norm_feas, sample_size, output_size)) for idx in valid_idxs]
+        make_pair_DNN(df, norm_ycol, norm_feas, sample_size, output_size, eltype)) for df in valid_wd]
 
     @info "    Construct Test Set..."
-    p = Progress(length(test_idxs), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
+    p = Progress(length(test_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     test_set = [(ProgressMeter.next!(p);
-        make_pair_DNN(df, norm_ycol, idx, norm_feas, sample_size, output_size)) for idx in test_idxs]
+        make_pair_DNN(df, norm_ycol, norm_feas, sample_size, output_size, eltype)) for df in test_wd]
 
     # *_set : normalized
     df_evals = train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, norm_feas, filename)
@@ -205,7 +202,7 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
     #unit_size = min(Int(round(input_size * 3/3)), 768)
-    unit_size = 128
+    unit_size = 32
     #unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM10: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
@@ -214,8 +211,6 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     # predict low concentration is not important than high concentration
     model = Chain(
         Dense(input_size, unit_size, leakyrelu),
-
-        Dense(unit_size, unit_size, leakyrelu),
 
         Dense(unit_size, unit_size, leakyrelu),
 
@@ -235,14 +230,12 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     @info("    Compiling model...")
     # answer from SO: https://stats.stackexchange.com/a/180052
     #unit_size = min(Int(round(input_size * 2/3)), 512)
-    unit_size = 128
+    unit_size = 32
     #unit_size = Int(round(input_size * 0.33))
     @show "Unit size in PM25: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
         Dense(input_size, unit_size, leakyrelu),
-
-        Dense(unit_size, unit_size, leakyrelu),
 
         Dense(unit_size, unit_size, leakyrelu),
 

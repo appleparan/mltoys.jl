@@ -1,56 +1,30 @@
-function read_stations(pre_input_path::String, stns::Dict{I, String},
-    src_input_path::String = "/input/input.csv") where I<:Integer
-    # Check precomputed path exists
-    if Base.Filesystem.ispath(pre_input_path)
-        # if exists, load CSV
-        return read_station(pre_input_path)
-    else
-        # declare due to scope problem
-        df = DataFrame()
-        # if not, read from source input path
-        for (code, name) in stns
-            @info "Preprocessing " * name * " data..."
-            tmp_df = read_station(src_input_path, code)
-            #@isdefined(df) ? df = vcat(df, tmp_df) : (df = tmp_df)
-            length(names(df)) > 0 ? df = vcat(df, tmp_df) : (df = tmp_df)
-        end
-
-        CSV.write(pre_input_path, df)
-    end
-
-    df
-end
-
-function filter_station(df, stn_code)
+function filter_station_DNN(df, stn_code)
     stn_df = @from i in df begin
         @where i.stationCode == stn_code
         @select i
         @collect DataFrame
     end
 
-    cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :pres, :u, :v, :pres, :humid, :prep]
-    for col in cols
-        stn_df[!, col] = Missings.coalesce.(stn_df[!, col], 0.0)
-    end
-
     stn_df
 end
 
-function read_station(input_path::String, stn_code::Integer=111123)
-    df = CSV.read(input_path, copycols=true)
-    stn_df = filter_station(df, stn_code)
-
+function process_raw_data_DNN!(stn_df::DataFrame)
     flush(stdout); flush(stderr)
+    cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25,
+        :temp, :pres, :u, :v, :humid, :prep, :snow]
+    airkorea_cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25]
+    weather_cols = [:temp, :u, :v, :pres, :humid, :prep, :snow]
+
+    for col in cols
+        stn_df[!, col] = Missings.coalesce.(stn_df[!, col], 0.0)
+    end
+    
     stn_df[!, :date] = ZonedDateTime.(stn_df[!, :date])
 
     # no and staitonCode must not have missing value
     @assert size(collect(skipmissing(stn_df[!, :stationCode])), 1) == size(stn_df, 1)
 
     DataFrames.dropmissing!(stn_df, [:stationCode])
-    cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
-    airkorea_cols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25]
-    weather_cols = [:temp, :u, :v, :pres, :humid]
-
     DataFrames.allowmissing!(stn_df, cols)
     for col in [:prep, :snow]
         stn_df[!, col] = Missings.coalesce.(stn_df[!, col], 0.0)
@@ -67,8 +41,57 @@ function read_station(input_path::String, stn_code::Integer=111123)
     dropmissing!(stn_df, cols, disallowmissing=true)
 
     flush(stdout); flush(stderr)
+end
 
-    stn_df
+"""
+    load_data(pre_input_path, stns, src_input_path::String = "/input/input.csv")
+
+Path -> DataFrame
+
+there is a two scenario
+1. I have pre-filtered data
+    * load pre-filtered data
+    * process data
+2. I don't have pre-filtered data
+    * load all data from source
+    * select data by station
+    * process data
+    * save data
+"""
+function load_data_DNN(pre_input_path::String, stns::NamedTuple,
+    src_input_path::String = "/input/input.csv") where I<:Integer
+    
+    # Check preprocessed path exists
+    if Base.Filesystem.ispath(pre_input_path)
+        filtered_df = CSV.read(pre_input_path, copycols=true)
+        process_raw_data_DNN!(filtered_df)
+        df = filtered_df
+    else
+        # if there is no preprocessed input, read source and create
+        dfs = DataFrame[]
+
+        # if not, read from source input path
+        # note that at 2012/11 one hour have missing, needed to add empty data manually
+        raw_df = CSV.read(src_input_path, copycols=true)
+        for (name, code) in pairs(stns)
+            @info "Preprocessing $name($code) data..."
+            stn_df = filter_station_DNN(raw_df, code)
+
+            process_raw_data_DNN!(stn_df)
+
+            push!(dfs, stn_df)
+        end
+
+        # concatenate dataframe
+        _df = vcat(dfs...)
+        sort!(_df, [:stationCode, :date]);
+
+        CSV.write(pre_input_path, _df)
+
+        df = _df
+    end
+
+    df
 end
 
 """
@@ -109,7 +132,9 @@ function read_jongro(input_path="/input/jongro_single.csv")
     
     @info "Start preprocessing..."
     flush(stdout); flush(stderr)
-    df[!, :date] = ZonedDateTime.(df[!, :date])
+    if eltype(df[!, :date]) != ZonedDateTime
+        df[!, :date] = ZonedDateTime.(df[!, :date], tz"Asia/Seoul")
+    end
 
     # no and staitonCode must not have missing value
     @assert size(collect(skipmissing(df[!, :stationCode])), 1) == size(df, 1)

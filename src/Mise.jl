@@ -62,6 +62,7 @@ ENV["GKSwstype"] = "100"
 # to use Plots in headless system
 # https://github.com/JuliaPlots/Plots.jl/issues/1076#issuecomment-327509819
 include("utils.jl")
+include("data.jl")
 include("input.jl")
 include("output.jl")
 include("loss.jl")
@@ -78,15 +79,17 @@ include("jongro01_DNN/model.jl")
 #include("postprocess/post_jongro01_DNN.jl")
 
 # input
-export join_data, filter_jongro, read_jongro, filter_station, read_station, read_stations,
+export join_data, filter_raw_data, filter_jongro, read_jongro,
 # utils
     mean_and_std_cols, hampel!, zscore!, min_max_scaling!,
-    exclude_elem, split_df, window_df,
-    split_sizes3, split_sizes2, create_chunks, create_idxs,
-    getHoursLater, remove_sparse_input!, is_sparse_Y,
-    getX, getY, make_pair_DNN, make_batch_DNN, 
-    getX_LSTM, getY_LSTM, make_input_LSTM, findrow,
+    exclude_elem, findrow,
     WHO_PM10, WHO_PM25,
+# data
+    get_date_range, validate_dates, window_df,
+    split_sizes3, split_sizes2,
+    remove_sparse_input!, is_sparse_Y,
+    getX, getY, make_pair_DNN, make_batch_DNN, 
+    getX_LSTM, getY_LSTM, make_input_LSTM,
 # activation
 # evaluation
     evaluations, RMSE, MAE, RSR, NSE, PBIAS,
@@ -95,6 +98,8 @@ export join_data, filter_jongro, read_jongro, filter_station, read_station, read
     huber_loss, huber_loss_mean, mse_rnn,
 # jongro01_DNN
     train_DNN, corr_input,
+# preprocess
+    load_data_DNN, filter_station_DNN, process_raw_data_DNN!,
 # jongro02_DNN
     train_LSTM,
 # jongro03_UO

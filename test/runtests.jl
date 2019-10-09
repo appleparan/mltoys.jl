@@ -8,6 +8,7 @@ using Flux
 
 @testset "Mise" begin
 
+include("data.jl")
 include("utils.jl")
 include("evaluation.jl")
 
