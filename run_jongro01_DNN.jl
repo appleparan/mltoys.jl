@@ -48,7 +48,9 @@ function run_model()
     test_tdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
 
     # stations
-    train_stn_names = [:중구, :종로구]
+    train_stn_names = [:중구, :종로구, :용산구, :광진구, :성동구,
+    :중랑구, :동대문구, :성북구, :도봉구, :은평구,
+    :서대문구, :마포구, :강서구, :구로구, :영등포구]
 
     #=
     train_stns = [
@@ -97,7 +99,7 @@ function run_model()
 
     sample_size = 72
     output_size = 24
-    epoch_size = 10
+    epoch_size = 300
     batch_size = 32
     input_size = sample_size * length(train_features)
 
@@ -154,12 +156,6 @@ function run_model()
     train_size, valid_size, test_size,
     sample_size, input_size, batch_size, output_size, epoch_size, eltype,
     μσs, "PM10", test_dates)
-    #=
-    PM10_model, PM10_μσ = train_DNN(df, :PM10, norm_prefix, norm_train_features,
-    sample_size, input_size, batch_size, output_size, epoch_size, default_FloatType,
-    train_valid_wd_idxs, test_wd_idxs, train_chnk, train_idxs, valid_idxs, test_idxs, μσs,
-    "PM10", test_dates)
-    =#
 
     @info "PM25 Training..."
     flush(stdout); flush(stderr)
@@ -172,12 +168,6 @@ function run_model()
     train_size, valid_size, test_size,
     sample_size, input_size, batch_size, output_size, epoch_size, eltype,
     μσs, "PM25", test_dates)
-    #=
-    PM25_model, PM25_μσ = train_DNN(df, :PM25, norm_prefix, norm_train_features,
-    sample_size, input_size, batch_size, output_size, epoch_size, default_FloatType,
-    train_valid_wd_idxs, test_wd_idxs, train_chnk, train_idxs, valid_idxs, test_idxs, μσs,
-    "PM25", test_dates)
-    =#
 end
 
 run_model()
