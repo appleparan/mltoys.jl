@@ -178,7 +178,11 @@ function IOA(dataset, model, μσ::AbstractNDSparse)
         _IOA = IOA(y, ŷ, mean(y))
 
         if abs(_IOA) != Inf
+            if _IOA < 0 || _IOA > 1.0
+                @show "Assertion Error: IOA, ", _IOA
+            end
             @assert 0.0 <= _IOA <= 1.0
+
             push!(IOA_arr, _IOA)
         end
     end
