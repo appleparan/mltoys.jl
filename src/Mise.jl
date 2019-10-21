@@ -72,11 +72,7 @@ include("plots.jl")
 
 include("DNN/preprocess.jl")
 include("DNN/model.jl")
-#include("jongro02_LSTM/model.jl")
 include("OU/model.jl")
-#include("jongro04_MCMC/model.jl")
-
-#include("postprocess/post_jongro01_DNN.jl")
 
 # input
 export join_data, filter_raw_data, filter_jongro, read_jongro,
