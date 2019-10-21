@@ -220,7 +220,7 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     #loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
     loss(x, y) = Flux.mse(model(x), y)
     # TODO : How to pass feature size
-    accuracy(data) = IOA(data, model, μσ)
+    accuracy(data) = RMSE(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -245,7 +245,7 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     #loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
     loss(x, y) = Flux.mse(model(x), y)
     # TODO : How to pass feature size
-    accuracy(data) = IOA(data, model, μσ)
+    accuracy(data) = RMSE(data, model, μσ)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
