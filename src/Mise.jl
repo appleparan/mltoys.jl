@@ -70,10 +70,10 @@ include("activation.jl")
 include("evaluation.jl")
 include("plots.jl")
 
-include("jongro01_DNN/preprocess.jl")
-include("jongro01_DNN/model.jl")
+include("DNN/preprocess.jl")
+include("DNN/model.jl")
 #include("jongro02_LSTM/model.jl")
-#include("jongro03_OU/model.jl")
+include("OU/model.jl")
 #include("jongro04_MCMC/model.jl")
 
 #include("postprocess/post_jongro01_DNN.jl")
