@@ -64,25 +64,18 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     @info "    Valid ACC : ", accuracy(valid_set)
     flush(stdout); flush(stderr)
 
-    @info " $(string(ycol)) RMSE for test   : ", RMSE(test_set, model, μσ)
-    @info " $(string(ycol)) MAE for test    : ", MAE(test_set, model, μσ)
-    @info " $(string(ycol)) MSPE for test   : ", MSPE(test_set, model, μσ)
-    @info " $(string(ycol)) MAPE for test   : ", MAPE(test_set, model, μσ)
-    @info " $(string(ycol)) R2 for test     : ", R2(test_set, model, μσ)
-    @info " $(string(ycol)) Adj-R2 for test : ", AdjR2(test_set, model, μσ)
-    @info " $(string(ycol)) NSE for test    : ", NSE(test_set, model, μσ)
-    @info " $(string(ycol)) IOA for test    : ", IOA(test_set, model, μσ)
-    @info " $(string(ycol)) RIOA for test   : ", RefinedIOA(test_set, model, μσ)
+    eval_metrics = [:RMSE, :MAE, :MSPE, :MAPE]
+    # test set
+    for metric in eval_metrics
+        metric_func = :($(metric)($(test_set), $(model), $(μσ)))
+        @info " $(string(ycol)) $(string(metric)) for test   : ", eval(metric_func)
+    end
 
-    @info " $(string(ycol)) RMSE for valid  : ", RMSE(valid_set, model, μσ)
-    @info " $(string(ycol)) MAE for valid   : ", MAE(valid_set, model, μσ)
-    @info " $(string(ycol)) MSPE for valid   : ", MSPE(valid_set, model, μσ)
-    @info " $(string(ycol)) MAPE for valid   : ", MAPE(valid_set, model, μσ)
-    @info " $(string(ycol)) R2 for valid    : ", R2(valid_set, model, μσ)
-    @info " $(string(ycol)) Adj-R2 for valid: ", AdjR2(valid_set, model, μσ)
-    @info " $(string(ycol)) NSE for valid   : ", NSE(valid_set, model, μσ)
-    @info " $(string(ycol)) IOA for valid   : ", IOA(valid_set, model, μσ)
-    @info " $(string(ycol)) RIOA for valid  : ", RefinedIOA(valid_set, model, μσ)
+    # valid set
+    for metric in eval_metrics
+        metric_func = :($(metric)($(valid_set), $(model), $(μσ)))
+        @info " $(string(ycol)) $(string(metric)) for valid  : ", eval(metric_func)
+    end
 
     if ycol == :PM10 || ycol == :PM25
         forecast_all, forecast_high = classification(test_set, model, ycol, μσ)
@@ -113,7 +106,8 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     # TODO : how to generalize date range? how to split based on test_dates?
     # 1/4 : because train size is 3 days, result should be start from 1/4
     # 12/29 : same reason 1/4, but this results ends with 12/31 00:00 ~ 12/31 23:00
-    plot_evaluation(df_evals, ycol, "/mnt/")
+    push!(eval_metrics, :learn_rate)
+    plot_evaluation(df_evals, ycol, eval_metrics, "/mnt/")
 
     model, μσ
 end
@@ -128,16 +122,13 @@ function train_DNN!(model::C,
     @info("    Beginning training loop...")
     flush(stdout); flush(stderr)
 
-    _acc = 0.0
+    _acc = Inf
     # for adjR2 -∞ is the worst
-    best_acc = -Inf
+    best_acc = Inf
     last_improvement = 0
 
     df_eval = DataFrame(epoch = Int64[], learn_rate = Float64[], ACC = Float64[],
-        RMSE = Float64[], MAE = Float64[], MSPE = Float64[], MAPE = Float64[], 
-        NSE = Float64[], PBIAS = Float64[],
-        IOA = Float64[], RefinedIOA = Float64[],
-        R2 = Float64[], AdjR2 = Float64[])
+        RMSE = Float64[], MAE = Float64[], MSPE = Float64[], MAPE = Float64[])
 
     for epoch_idx in 1:epoch_size
         best_acc, last_improvement
@@ -145,10 +136,10 @@ function train_DNN!(model::C,
         Flux.train!(loss, Flux.params(model), train_set, opt)
 
         # record evaluation
-        rmse, mae, mspe, mape, nse, pbias, ioa, refinedioa, r2, adjr2 =
+        rmse, mae, mspe, mape =
             evaluations(valid_set, model, μσ, norm_feas,
-            [:RMSE, :MAE, :MSPE, :MAPE, :NSE, :PBIAS, :IOA, :RefinedIOA, :R2, :AdjR2])
-        push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape nse pbias ioa refinedioa r2 adjr2])
+            [:RMSE, :MAE, :MSPE, :MAPE])
+        push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape])
 
         # Calculate accuracy:
         _acc = Tracker.data(accuracy(valid_set))
@@ -157,13 +148,13 @@ function train_DNN!(model::C,
         flush(stdout); flush(stderr)
 
         # If our accuracy is good enough, quit out.
-        if _acc > 0.999
+        if _acc < 0.001
             @info("    -> Early-exiting: We reached our target accuracy")
             break
         end
 
         # If this is the best accuracy we've seen so far, save the model out
-        if _acc > best_acc
+        if _acc < best_acc
             @info "    -> New best accuracy! Saving model out to " * filename
             flush(stdout)
 

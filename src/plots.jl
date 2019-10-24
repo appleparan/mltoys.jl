@@ -300,10 +300,8 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
     nothing
 end
 
-function plot_evaluation(df::DataFrame, ycol::Symbol, output_dir::String)
+function plot_evaluation(df::DataFrame, ycol::Symbol, eval_syms, output_dir::String)
     ENV["GKSwstype"] = "100"
-
-    eval_syms = [:RMSE, :MAE, :MSPE, :MAPE, :NSE, :PBIAS, :IOA, :R2, :AdjR2, :learn_rate, :ACC]
 
     last_epoch = df[end, :epoch]
 

@@ -48,9 +48,13 @@ function run_model()
     test_tdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
 
     # stations
+    train_stn_names = [:중구, :종로구, :용산구, :광진구, :성동구]
+    
+    #=
     train_stn_names = [:중구, :종로구, :용산구, :광진구, :성동구,
     :중랑구, :동대문구, :성북구, :도봉구, :은평구,
     :서대문구, :마포구, :강서구, :구로구, :영등포구]
+    =#
 
     #=
     train_stns = [
