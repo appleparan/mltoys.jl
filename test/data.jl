@@ -441,98 +441,32 @@ end
     end
 end
 
-#=
-@testset "LSTM input" begin
-    @testset "getX_LSTM" begin
-        df = DataFrame(
-            A = 1:12,
-            B = 13:24,
-            C = 25:36)
-        sample_size = 4
-        idx = 1:4
-        features = [:A, :B, :C]
-        X = getX_LSTM(df, idx, features, sample_size)
-        @test X == [[1, 2, 3, 4] [13, 14, 15, 16] [25, 26, 27, 28]]
+@testset "CNN to RNN Batch Input Conversion" begin
+    @testset "Batch Serialization" begin
+        m = 3
+        n = 5
+        a = reshape(1:m*n, m, n)
+        @test size(a) == (m, n)
 
-        idx = 3:6
-        X = getX_LSTM(df, idx, features, sample_size)
-        @test X == [[3, 4, 5, 6] [15, 16, 17, 18] [27, 28, 29, 30]]
+        # 2D -> Arrays of 1D
+        b = serializeBatch(a)
+        @test size(b) == (n,)
+        @test size(collect(b[1])) == (m,)
     end
 
-    @testset "make_input_LSTM" begin
-        sample_size = 24
-        input_size = sample_size * 2
-        output_size = 12
-
-        Jan_2015 = ZonedDateTime(2015, 1, 1, tz"Asia/Seoul")
-        Jan_2015_hours = collect(Jan_2015:Hour(1):Jan_2015 + Day(30))
-        len_df = length(Jan_2015_hours)
-
-        df = DataFrame(
-            date = Jan_2015_hours,
-            A = collect(         1:  len_df),
-            B = collect(  len_df+1:2*len_df),
-            C = collect(2*len_df+1:3*len_df)
-        )
-
-        idx = 1:sample_size
-        X, Y = make_input_LSTM(df, :C, [idx], [:A, :B], sample_size, output_size)
-
-        #=
-        output should be
-        X = [[1,...,24] [len_df,...,len_df+24]]
-        Y = [2*len_df,...,2*len_df+12]
-        =#
-
-        # back to cpu for test
-        X = X |> cpu
-        Y = Y |> cpu
-
-        @test_broken size(X) == (1, sample_size, 2)
-        @test_broken size(Y) == (1, output_size,)
-
-        @test_broken X[1, :, :] == hcat([[collect(1:sample_size)] [collect(len_df + 1:len_df + sample_size)]]...)
-        @test_broken Y[1, :] == collect((sample_size + 2*len_df + 1):(sample_size + 2*len_df + output_size))
-    end
-
-    @testset "is_sparse_Y_only_missings" begin
-        pairs = [
-            [ 5, 6, 7, 8, 9,10],
-            [11,12,13,14,15,missing],
-            [17,18,19,20,missing,missing],
-            [23,24,25,missing,missing,missing],
-            [29,30,missing,missing,missing,missing]]
-
-        m_ratio = 0.5
-        @test is_sparse_Y(pairs[1], m_ratio) == false
-        @test is_sparse_Y(pairs[2], m_ratio) == false
-        @test is_sparse_Y(pairs[3], m_ratio) == false
-        @test is_sparse_Y(pairs[4], m_ratio) == true
-        @test is_sparse_Y(pairs[5], m_ratio) == true
-
-        m_ratio = 0.3
-        @test is_sparse_Y(pairs[1], m_ratio) == false
-        @test is_sparse_Y(pairs[2], m_ratio) == false
-        @test is_sparse_Y(pairs[3], m_ratio) == true
-        @test is_sparse_Y(pairs[4], m_ratio) == true
-        @test is_sparse_Y(pairs[5], m_ratio) == true
-
-    end
-
-    @testset "is_sparse_Y_missings_and_zeros" begin
-        pairs = [
-            [ 5, 6, 7, 8, 9,10],
-            [11,12,13,14,0.0,missing],
-            [17,18,0.0,0.0,missing,missing],
-            [23,24,0.0,missing,missing,missing],
-            [29,30,missing,missing,missing,missing]]
-
-        m_ratio = 0.5
-        @test is_sparse_Y(pairs[1], m_ratio) == false
-        @test is_sparse_Y(pairs[2], m_ratio) == false
-        @test is_sparse_Y(pairs[3], m_ratio) == true
-        @test is_sparse_Y(pairs[4], m_ratio) == true
-        @test is_sparse_Y(pairs[5], m_ratio) == true
+    @testset "Batch Serialization" begin
+        m1 = 3
+        m2 = 4
+        n = 5
+        X = reshape(1:m1*n, m1, n)
+        Y = reshape(101:(100+m2*n), m2, n)
+        Z = serializeBatch(X, Y)
+        # Z => 
+        @show Z
+        @test size(Z) == (n,)
+        @test size(collect(Z[1])) == (2,)
+        # row size should be maintained
+        @test size(Z[1][1]) == (m1,)
+        @test size(Z[1][2]) == (m2,)
     end
 end
-=#

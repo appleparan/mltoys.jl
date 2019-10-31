@@ -85,7 +85,8 @@ export join_data, filter_raw_data, filter_jongro, read_jongro,
     split_sizes3, split_sizes2,
     remove_sparse_input!, is_sparse_Y,
     getX, getY, make_pair_DNN, make_batch_DNN, 
-    getX_LSTM, getY_LSTM, make_input_LSTM,
+    serializeBatch, make_batch_LSTNet,
+    
 # activation
 # evaluation
     evaluations, RMSE, MAE, RSR, NSE, PBIAS,

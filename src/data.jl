@@ -268,7 +268,6 @@ function remove_sparse_input!(X, Y, missing_ratio=0.5)
     nothing
 end
 
-
 """
     getX(df::DataFrame, features, sample_size)
 
@@ -321,6 +320,7 @@ function make_pair_DNN(df::DataFrame,
     return (_X, _Y)
 end
 
+
 """
     make_minibatch_DNN(df, ycol, chnks, features, sample_size, output_size, batch_size, Float32)
 
@@ -359,7 +359,7 @@ become
  [5, 11, 17, 23, 29;
   6, 12, 18, 24, 30])
 
-https://discourse.julialang.org/t/flux-support-for-mini-batches/14718/3?u=appleparan
+https://discourse.julialang.org/t/flux-support-for-mini-batches/14718/3
 """
 function make_batch_DNN(dfs::Array{DataFrame, 1}, ycol::Symbol, features::Array{Symbol, 1},
     sample_size::I, output_size::I, batch_size::I,
@@ -394,6 +394,83 @@ function make_batch_DNN(dfs::Array{DataFrame, 1}, ycol::Symbol, features::Array{
 end
 
 """
+    getX(df::DataFrame, idxs, features, sample_size)
+
+Get 2D input X from DataFrame.
+
+return size: (sample_size, length(features))
+"""
+function getX(df::DataFrame, idxs::UnitRange{I}, features::Array{Symbol, 1}, sample_size::I) where I <: Integer
+    X = convert(Matrix, df[idxs, features])
+
+    X
+end
+
+"""
+    make_minibatch_DNN(df, ycol, chnks, features, sample_size, output_size, batch_size, Float32)
+
+Create mini-batch for CNN. get list of idxes and construct batched input from single Dataframe
+Input data order is WHCN (Width x Height x Channel x Batch)
+
+if test case, batch_size = 1. (like pair)
+
+"""
+function make_batch_LSTNet(df::Array{DataFrame, 1},
+    idxs::Array{UnitRange{I}, 1},
+    ycol::Symbol, features::Array{Symbol, 1},
+    sample_size::I, output_size::I, kernel_length::I, batch_size::I,
+    missing_ratio::AbstractFloat=0.5, eltype::DataType=Float32) where I <: Integer
+
+    # check Dataframe array size be `batch_size`
+    @assert length(idxs) == batch_size
+
+    X = zeros(eltype, sample_size, length(features), 1, batch_size)
+    Y = zeros(eltype, output_size, batch_size)
+    
+    # zero padding on input matrix
+    for (i, idx) in enumerate(idxs)
+        # get X (2D)
+        _X = eltype.(getX(df, idx[1]:(idx[1] + sample_size), sample_size, features))
+        # get Y (1D)
+        _Y = eltype.(getY(df, (idx[1] + sample_size + 1):(idx[1] + sample_size + output_size),
+            ycol, sample_size))
+
+        # WHCN order, Channel is 1 because this is not an image
+        X[:, kernel_length:(kernel_length + sample_size - 1), 1, i] = transpose(_X)
+        Y[:, i] = _Y
+    end
+
+    X = X |> gpu
+    Y = Y |> gpu
+
+    X, Y
+end
+
+"""
+    serializeBatch(X, Y)
+
+Reconstruct batch for RNN by serialize batch array.
+Output will be arryas of 1D
+"""
+function serializeBatch(X, Y; dims=2)
+    # after CNN, X and Y should have same size
+    @assert size(X, 2) == size(Y, 2)
+
+    collect(zip(eachslice(X, dims=dims), eachslice(Y, dims=dims)))
+end
+
+"""
+    serializeBatch(X)
+
+Convert 2D batch array to array of 1D array
+(m x n) array -> n-of m x 1 arrays
+
+i.e.
+X = (m x n) -> [(m x 1), ...]  
+"""
+serializeBatch(A; dims=2) = collect(eachslice(A, dims=dims))
+
+"""
     is_sparse_Y(Y, ratio = 0.5)
 
 Check Y is sparse, 0s are more than `raito`
@@ -411,50 +488,4 @@ function is_sparse_Y(Y, missing_ratio=0.5)
     end
     
     false
-end
-
-"""
-    make_input_LSTM(df, ycol, idx, features, hours)
-
-Create pairs in `df` along with `idx` (row) and `features` (columns)
-output determined by ycol
-pairs doesn't need to consider batch_size
-
-A size of LSTM X input must be (sample size, num_selected_columns)
-A size of LSTM Y output must be (output_size,)
-
-https://machinelearningmastery.com/how-to-develop-lstm-models-for-time-series-forecasting/
-"""
-# Bundle images together with labels and group into minibatchess
-# idxs would be < Array{Integer, 1} or < Array{UnitRange{Integer}, 1}
-function make_input_LSTM(df::DataFrame, ycol::Symbol,
-    idxs::Array{<:UnitRange{I}, 1}, features::Array{Symbol, 1},
-    sample_size::I, output_size::I,
-    p::Progress=Progress(length(idxs))) where I <: Integer
-
-    X = Array{Real}(undef, 0, sample_size, length(features))
-    Y = Array{Real}(undef, 0, output_size)
-
-    for idx in idxs
-        _X = getX(df, idx, features, sample_size)
-        _Y = getY(df, idx, ycol, sample_size, output_size)
-
-        @assert size(_X) == (sample_size, length(features))
-        @assert size(_Y) == (output_size,)
-
-        # even sparse, progressmeter should be go on
-        ProgressMeter.next!(p)
-
-        if is_sparse_Y(_Y)
-            continue
-        end
-
-        X = cat(X, reshape(_X, 1, size(_X)[1], size(_X)[2]), dims=1)
-        Y = cat(Y, reshape(_Y, 1, size(_Y)[1]), dims=1)
-    end
-
-    X = X |> gpu
-    Y = Y |> gpu
-
-    X, Y
 end
