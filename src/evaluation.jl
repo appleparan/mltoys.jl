@@ -66,6 +66,68 @@ end
 MAE(y, ŷ, μ::Real=zero(AbstractFloat)) = sum(abs.(y .- ŷ)) / length(y)
 
 ```
+    MSPE(dataset, model, μσ::AbstractNDSparse)
+
+Mean Square Percentage Error 
+
+computed average of squared version of percentage errors 
+by which forecasts of a model differ from actual values of the quantity being forecast.
+https://en.wikipedia.org/wiki/Mean_percentage_error
+```
+function MSPE(dataset, model, μσ::AbstractNDSparse)
+    MSPE_arr = Real[]
+    _μ = μσ["total", "μ"][:value]
+    _σ = μσ["total", "σ"][:value]
+
+    for (x, y) in dataset
+        ŷ = Flux.Tracker.data(model(x |> gpu))
+        @assert size(ŷ) == size(y)
+
+        _MSPE = MSPE(y, ŷ, mean(y))
+
+        if abs(_MSPE) != Inf
+            #@assert 0 <= _MSPE <= 100.0
+            push!(MSPE_arr, _MSPE)
+        end
+    end
+
+    mean(MSPE_arr)
+end
+
+MSPE(y, ŷ, μ::Real=zero(AbstractFloat)) = 100.0 / length(y) * sum(abs2.((y .- ŷ) ./ y))
+
+```
+    MAPE(dataset, model, μσ::AbstractNDSparse)
+
+Mean Absolute Percentage Error 
+
+computed average of absolute version of percentage errors 
+by which forecasts of a model differ from actual values of the quantity being forecast.
+https://en.wikipedia.org/wiki/Mean_percentage_error
+```
+function MAPE(dataset, model, μσ::AbstractNDSparse)
+    MAPE_arr = Real[]
+    _μ = μσ["total", "μ"][:value]
+    _σ = μσ["total", "σ"][:value]
+
+    for (x, y) in dataset
+        ŷ = Flux.Tracker.data(model(x |> gpu))
+        @assert size(ŷ) == size(y)
+
+        _MAPE = MAPE(y, ŷ, mean(y))
+
+        if abs(_MAPE) != Inf
+            #@assert 0 <= _MAPE <= 100.0
+            push!(MAPE_arr, _MAPE)
+        end
+    end
+
+    mean(MAPE_arr)
+end
+
+MAPE(y, ŷ, μ::Real=zero(AbstractFloat)) = 100.0 / length(y) * sum(abs.((y .- ŷ) ./ y))
+
+```
     RSR(dataset, model, μσ)
 
 http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.532.2506&rep=rep1&type=pdf
@@ -311,68 +373,6 @@ function AdjR2(y, ŷ, μ::AbstractFloat, k::Int=13)
 
     1.0 - (1.0 - _R2^2) * (length(y) - 1.0) / (length(y) - k - 1.0)
 end
-
-```
-    MSPE(dataset, model, μσ::AbstractNDSparse)
-
-Mean Square Percentage Error 
-
-computed average of squared version of percentage errors 
-by which forecasts of a model differ from actual values of the quantity being forecast.
-https://en.wikipedia.org/wiki/Mean_percentage_error
-```
-function MSPE(dataset, model, μσ::AbstractNDSparse)
-    MSPE_arr = Real[]
-    _μ = μσ["total", "μ"][:value]
-    _σ = μσ["total", "σ"][:value]
-
-    for (x, y) in dataset
-        ŷ = Flux.Tracker.data(model(x |> gpu))
-        @assert size(ŷ) == size(y)
-
-        _MSPE = MSPE(y, ŷ, mean(y))
-
-        if abs(_MSPE) != Inf
-            #@assert 0 <= _MSPE <= 100.0
-            push!(MSPE_arr, _MSPE)
-        end
-    end
-
-    mean(MSPE_arr)
-end
-
-MSPE(y, ŷ, μ::Real=zero(AbstractFloat)) = 100.0 / length(y) * sum(abs2.((y .- ŷ) ./ y))
-
-```
-    MAPE(dataset, model, μσ::AbstractNDSparse)
-
-Mean Absolute Percentage Error 
-
-computed average of absolute version of percentage errors 
-by which forecasts of a model differ from actual values of the quantity being forecast.
-https://en.wikipedia.org/wiki/Mean_percentage_error
-```
-function MAPE(dataset, model, μσ::AbstractNDSparse)
-    MAPE_arr = Real[]
-    _μ = μσ["total", "μ"][:value]
-    _σ = μσ["total", "σ"][:value]
-
-    for (x, y) in dataset
-        ŷ = Flux.Tracker.data(model(x |> gpu))
-        @assert size(ŷ) == size(y)
-
-        _MAPE = MAPE(y, ŷ, mean(y))
-
-        if abs(_MAPE) != Inf
-            #@assert 0 <= _MAPE <= 100.0
-            push!(MAPE_arr, _MAPE)
-        end
-    end
-
-    mean(MAPE_arr)
-end
-
-MAPE(y, ŷ, μ::Real=zero(AbstractFloat)) = 100.0 / length(y) * sum(abs.((y .- ŷ) ./ y))
 
 function classification(dataset::Array{T1, 1}, model, ycol::Symbol, μσ::AbstractNDSparse) where T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}} where F <: AbstractFloat
     class_all_arr = []
