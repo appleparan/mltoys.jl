@@ -3,6 +3,20 @@ function get_date_range(df::DataFrame, date_col_name::Symbol = :date)
 end
 
 function filter_raw_data(df::DataFrame,
+    test_fdate::D, test_tdate::D) where D<:Union{DateTime, ZonedDateTime}
+
+    # filter dataframe by total date range and station Code
+    df = @from i in df begin
+        @where test_fdate <= i.date <= test_tdate
+        @orderby i.date
+        @select i
+        @collect DataFrame
+    end
+
+    df
+end
+
+function filter_raw_data(df::DataFrame,
     train_fdate::D, train_tdate::D,
     test_fdate::D, test_tdate::D) where D<:Union{DateTime, ZonedDateTime}
 
@@ -82,7 +96,7 @@ function window_df(df::DataFrame, sample_size::I, output_size::I,
 
     total_it = Dates.Hour((to_date - Dates.Hour(window_size - 1)) - from_date).value
     p = Progress(total_it, dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
-    @info "    Construct Training Set window for current station..."
+    @info "    Construct windows for current station..."
 
     for _wd_from_date = from_date:Dates.Hour(1):(to_date - Dates.Hour(window_size - 1))
         ProgressMeter.next!(p);
@@ -320,9 +334,8 @@ function make_pair_DNN(df::DataFrame,
     return (_X, _Y)
 end
 
-
 """
-    make_minibatch_DNN(df, ycol, chnks, features, sample_size, output_size, batch_size, Float32)
+    make_minibatch_DNN(df, ycol, chnks, features, sample_size, output_size, batch_size, Float64)
 
 Create batch consists of pairs in `df` along with `idx` (row) and `features` (columns)
 The batch is higher dimensional input consists of multiple pairs
@@ -400,14 +413,27 @@ Get 2D input X from DataFrame.
 
 return size: (sample_size, length(features))
 """
-function getX(df::DataFrame, idxs::UnitRange{I}, features::Array{Symbol, 1}, sample_size::I) where I <: Integer
+function getX(df::DataFrame, idxs::UnitRange{I}, features::Array{Symbol, 1}) where I <: Integer
     X = convert(Matrix, df[idxs, features])
 
     X
 end
 
 """
-    make_minibatch_DNN(df, ycol, chnks, features, sample_size, output_size, batch_size, Float32)
+    getY(df, ycol, sample_size, output_size)
+
+Get 1D output Y from DataFrame.
+
+return size: (output_size,)
+"""
+function getY(df::DataFrame, idxs::UnitRange{I}, ycol::Symbol) where I <: Integer
+    Y = Array(df[idxs, ycol])
+
+    Y
+end
+
+"""
+    make_minibatch_DNN(df, ycol, chnks, features, sample_size, output_size, batch_size, Float64)
 
 Create mini-batch for CNN. get list of idxes and construct batched input from single Dataframe
 Input data order is WHCN (Width x Height x Channel x Batch)
@@ -415,28 +441,29 @@ Input data order is WHCN (Width x Height x Channel x Batch)
 if test case, batch_size = 1. (like pair)
 
 """
-function make_batch_LSTNet(df::Array{DataFrame, 1},
-    idxs::Array{UnitRange{I}, 1},
+function make_batch_LSTNet(dfs::Array{DataFrame, 1},
     ycol::Symbol, features::Array{Symbol, 1},
-    sample_size::I, output_size::I, kernel_length::I, batch_size::I,
-    missing_ratio::AbstractFloat=0.5, eltype::DataType=Float32) where I <: Integer
+    sample_size::I, kernel_length::I, output_size::I, batch_size::I,
+    eltype::DataType=Float32) where I <: Integer
 
-    # check Dataframe array size be `batch_size`
-    @assert length(idxs) == batch_size
-
-    X = zeros(eltype, sample_size, length(features), 1, batch_size)
+    # O = (W - K + 2P) / S + 1
+    # W = Input size, O = Output size
+    # K = Kernel size, P = Padding size, S = Stride size
+    pad_sample_size = kernel_length - 1
+    X = zeros(eltype, pad_sample_size + sample_size, length(features), 1, batch_size)
     Y = zeros(eltype, output_size, batch_size)
     
     # zero padding on input matrix
-    for (i, idx) in enumerate(idxs)
+    for (i, df) in enumerate(dfs)
         # get X (2D)
-        _X = eltype.(getX(df, idx[1]:(idx[1] + sample_size), sample_size, features))
+        _X = eltype.(getX(df, 1:sample_size, features))
         # get Y (1D)
-        _Y = eltype.(getY(df, (idx[1] + sample_size + 1):(idx[1] + sample_size + output_size),
-            ycol, sample_size))
+        _Y = eltype.(getY(df, (sample_size + 1):(sample_size + output_size),
+            ycol))
 
         # WHCN order, Channel is 1 because this is not an image
-        X[:, kernel_length:(kernel_length + sample_size - 1), 1, i] = transpose(_X)
+        # left zero padding
+        X[(pad_sample_size + 1):end, :, 1, i] = _X
         Y[:, i] = _Y
     end
 
@@ -469,6 +496,48 @@ i.e.
 X = (m x n) -> [(m x 1), ...]  
 """
 serializeBatch(A; dims=2) = collect(eachslice(A, dims=dims))
+
+"""
+    unpack_seq(X)
+
+(sample_size, 1, hidCNN, batch_size)
+-> [(hidCNN, batch_size),...]
+"""
+function unpack_seq(x::AbstractArray{N, 4}) where {N<:Number}
+    @assert size(x, 2) == 1
+
+    # (sample_size, 1, hidCNN, batch_size) ->
+    # (hidCNN, batch_size, 1, sample_size)
+
+    x = permutedims(x, [3, 4, 1, 2]) |> gpu
+    unpacked = [x[:, :, seq, 1] |> gpu for seq in axes(x, 3)]
+
+    unpacked
+end
+
+"""
+    unpack_seq(X)
+
+(sample_size, hidCNN, batch_size)
+-> [(hidCNN, batch_size),...]
+"""
+function unpack_seq(x::AbstractArray{N, 3}) where {N<:Number}
+    # (sample_size, hidCNN, batch_size)
+    # -> (hidCNN, batch_size, sample_size)
+    x = permutedims(x, [2, 3, 1]) |> gpu
+    unpacked = [x[:, :, seq] |> gpu for seq in axes(x, 3)]
+
+    unpacked
+end
+
+"""
+    matrix2arrays(X)
+
+2D matrix to array of arrays
+"""
+function matrix2arrays(x::AbstractArray{N, 2}) where {N<:Number}
+    [x[i, :] |> gpu for i in axes(x, 1)]
+end
 
 """
     is_sparse_Y(Y, ratio = 0.5)
