@@ -89,8 +89,8 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
         Base.Filesystem.mkpath("/mnt/$(i_pad)/")
     end
 
-    #dnn_table = predict_model_norm(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/")
-    dnn_table = predict_model_minmax(test_set, model, ycol, total_min, total_max, output_size, "/mnt/")
+    dnn_table = predict_model_zscore(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/")
+    #dnn_table = predict_model_minmax(test_set, model, ycol, total_min, total_max, output_size, "/mnt/")
     dfs_out = export_CSV(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", String(ycol))
     df_corr = compute_corr(dnn_table, output_size, "/mnt/", String(ycol))
 
@@ -163,7 +163,9 @@ function train_DNN!(model::C,
             # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
             μ, σ = μσ["total", "μ"].value, μσ["total", "σ"].value
-            BSON.@save filepath cpu_model weights epoch_idx _acc μ σ
+            total_min = float(μσs[String(ycol), "minimum"].value)
+            total_max = float(μσs[String(ycol), "maximum"].value)
+            BSON.@save filepath cpu_model weights epoch_idx _acc μ σ total_min total_max
             best_acc = _acc
             last_improvement = epoch_idx
         end
@@ -191,10 +193,9 @@ end
 
 function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
-    # answer from SO: https://stats.stackexchange.com/a/180052
-    #unit_size = min(Int(round(input_size * 3/3)), 768)
+
     unit_size = 16
-    #unit_size = Int(round(input_size * 0.33))
+
     @show "Unit size in PM10: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
 
@@ -208,8 +209,16 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
         Dense(unit_size, output_size)
     ) |> gpu
 
-    #loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
-    loss(x, y) = Flux.mse(model(x), y)
+    lambda(x, y) = 10^(log10(Flux.mse(model(x), y)) - 1)
+    # L1
+    #loss(x, y) = Flux.mse(model(x), y) +
+    #    lambda(x, y) *
+    #    sum(x1 -> LinearAlgebra.norm(x1, 1), Flux.params(model))
+    # L2
+    loss(x, y) = Flux.mse(model(x), y) + lambda(x, y) * sum(LinearAlgebra.norm, Flux.params(model))
+    # no regularzation on loss
+    #loss(x, y) = Flux.mse(model(x), y)
+
     # TODO : How to pass feature size
     accuracy(data) = RMSE(data, model, μσ)
     opt = Flux.ADAM()
@@ -219,10 +228,9 @@ end
 
 function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
     @info("    Compiling model...")
-    # answer from SO: https://stats.stackexchange.com/a/180052
-    #unit_size = min(Int(round(input_size * 2/3)), 512)
-    unit_size = 16
-    #unit_size = Int(round(input_size * 0.33))
+
+    unit_size = 32
+
     @show "Unit size in PM25: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
@@ -233,8 +241,16 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
         Dense(unit_size, output_size)
     ) |> gpu
 
-    #loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
-    loss(x, y) = Flux.mse(model(x), y)
+    lambda(x, y) = 10^(log10(Flux.mse(model(x), y)) - 1)
+    # L1
+    #loss(x, y) = Flux.mse(model(x), y) +
+    #    lambda(x, y) *
+    #    sum(x1 -> LinearAlgebra.norm(x1, 1), Flux.params(model))
+    # L2
+    loss(x, y) = Flux.mse(model(x), y) + lambda(x, y) * sum(LinearAlgebra.norm, Flux.params(model))
+    # no regularzation on loss
+    #loss(x, y) = Flux.mse(model(x), y)
+
     # TODO : How to pass feature size
     accuracy(data) = RMSE(data, model, μσ)
     opt = Flux.ADAM()

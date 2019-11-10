@@ -1,4 +1,4 @@
-function predict_model_norm(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
+function predict_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String) where T <: Tuple
 
     dnn_table = Array{IndexedTable}(undef, output_size)

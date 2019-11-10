@@ -15,7 +15,9 @@ function mkpath_resdir(res_dir::String, output_size::Integer)
 end
 
 function post_station(input_path::String, model_path::String, res_dir::String,
-    sample_size::Integer, output_size::Integer, test_sdate::ZonedDateTime, test_fdate::ZonedDateTime)
+    sample_size::Integer, output_size::Integer,
+    test_fdate::ZonedDateTime, test_tdate::ZonedDateTime,
+    eltype::DataType)
     
     stn_codes = [111121, 111123, 111131, 111141, 111142,
         111151, 111152, 111161, 111171, 111181,
@@ -35,10 +37,9 @@ function post_station(input_path::String, model_path::String, res_dir::String,
         lon = Real[],
         colname = String[],
         RMSE = Real[],
-        RSR = Real[],
-        PBIAS = Real[],
-        NSE = Real[],
-        IOA = Real[],)
+        MAE = Real[],
+        MSPE = Real[],
+        MAPE = Real[])
     
     #stn_codes = [ 111123, 111142, 111161, 111273]
     #stn_names = ["종로구", "성동구", "성북구", "송파구"]
@@ -46,13 +47,21 @@ function post_station(input_path::String, model_path::String, res_dir::String,
     @info "    Test with other station"
     p = Progress(length(stn_codes), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
 
-    for (stn_code, stn_name) in Base.Iterators.zip(stn_codes, stn_names)        
-        stn_df = read_station(input_path, stn_code)
+    stations = (; zip(Symbol.(stn_names), stn_codes)...)
+    df = load_data_DNN("/input/jongro_seoul.csv", stations)
+    df = filter_raw_data(df, test_fdate, test_tdate)
+
+    for (stn_code, stn_name) in Base.Iterators.zip(stn_codes, stn_names)
+        stn_df = filter_station_DNN(df, stn_code)
 
         row_PM10 = test_station(model_path, stn_df, :PM10, stn_code, stn_name,
-            sample_size, output_size, res_dir, "PM10_" * string(stn_code) * "_$(stn_name)", test_sdate, test_fdate)
+            sample_size, output_size, res_dir,
+            "PM10_" * string(stn_code) * "_$(stn_name)", test_fdate, test_tdate,
+            eltype, false)
         row_PM25 = test_station(model_path, stn_df, :PM25, stn_code, stn_name,
-            sample_size, output_size, res_dir, "PM25_" * string(stn_code) * "_$(stn_name)", test_sdate, test_fdate)
+            sample_size, output_size, res_dir,
+            "PM25_" * string(stn_code) * "_$(stn_name)", test_fdate, test_tdate,
+            eltype, false)
 
         push!(stn_stats_df, row_PM10)
         push!(stn_stats_df, row_PM25)
@@ -63,7 +72,10 @@ function post_station(input_path::String, model_path::String, res_dir::String,
 end
 
 function post_feature(input_path::String, model_path::String, res_dir::String,
-    sample_size::Integer, output_size::Integer, test_sdate::ZonedDateTime, test_fdate::ZonedDateTime)
+    sample_size::Integer, output_size::Integer,
+    test_fdate::ZonedDateTime, test_tdate::ZonedDateTime,
+    eltype::DataType)
+
     fea_stats_df = DataFrame(
         code = Int64[],
         name = String[],
@@ -71,30 +83,34 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
         lon = Real[],
         colname = String[],
         RMSE = Real[],
-        RSR = Real[],
-        PBIAS = Real[],
-        NSE = Real[],
-        IOA = Real[],
+        MAE = Real[],
+        MSPE = Real[],
+        MAPE = Real[],
         rm_fea = String[])
     
+    stn_codes = [111123]
+    stn_names = ["jongro"]
     stn_code = 111123
     stn_name = "jongro"
 
-    stn_df = read_station(input_path, stn_code)
+    stations = (; zip(Symbol.(stn_names), stn_codes)...)
+    stn_df = load_data_DNN("/input/jongro_seoul.csv", stations)
+    stn_df = filter_raw_data(stn_df, test_fdate, test_tdate)
     rm_features = [[:SO2], [:CO], [:O3], [:NO2],[:PM10], [:PM25],  [:temp], [:u, :v], [:pres], [:humid], [:prep, :snow]]
     rm_features_str = ["SO2", "CO", "O3", "NO2", "PM10", "PM25", "temp", "u_v", "pres", "humid", "prep_snow"]
 
     #rm_features = [[:PM10], [:PM25]]
     #rm_features_str = ["PM10", "PM25"]
     
-    @info "    Test with removed featuers"
+    @info "    Test by removing some features"
     p = Progress(length(rm_features), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
 
     features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
     norm_prefix = "norm_"
     _norm_feas = [Symbol(eval(norm_prefix * String(f))) for f in features]
     stn_df2 = copy(stn_df)
-    zscore!(stn_df2, features, _norm_feas)
+    #zscore!(stn_df2, features, _norm_feas)
+    min_max_scaling!(stn_df2, features, _norm_feas)
 
     for (idx, r_fea) in enumerate(rm_features)
         r_fea_str = join(string.(r_fea))
@@ -107,7 +123,8 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
         features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
         norm_prefix = "norm_"
         _norm_feas = [Symbol(eval(norm_prefix * String(f))) for f in features]
-        zscore!(rmf_df, features, _norm_feas)
+        #zscore!(rmf_df, features, _norm_feas)
+        min_max_scaling!(rmf_df, features, _norm_feas)
 
         for r_f in r_fea
             norm_r_fea = Symbol(norm_prefix, string(r_f))
@@ -116,9 +133,11 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
         end
 
         row_PM10 = test_station(model_path, rmf_df, stn_df2, :PM10, stn_code, stn_name,
-            sample_size, output_size, res_dir, "PM10_rm_$(r_fea_str)", test_sdate, test_fdate, true)
+            sample_size, output_size, res_dir, "PM10_rm_$(r_fea_str)", test_fdate, test_tdate,
+            eltype, true)
         row_PM25 = test_station(model_path, rmf_df, stn_df2, :PM25, stn_code, stn_name,
-            sample_size, output_size, res_dir, "PM25_rm_$(r_fea_str)", test_sdate, test_fdate, true)
+            sample_size, output_size, res_dir, "PM25_rm_$(r_fea_str)", test_fdate, test_tdate,
+            eltype, true)
 
         push!(row_PM10, rm_features_str[idx])
         push!(row_PM25, rm_features_str[idx])
@@ -130,9 +149,9 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
     end
 
     row_PM10 = test_station(model_path, stn_df, :PM10, stn_code, stn_name,
-            sample_size, output_size, res_dir, "PM10_rm_FULL", test_sdate, test_fdate, false)
+            sample_size, output_size, res_dir, "PM10_rm_FULL", test_fdate, test_tdate, false)
     row_PM25 = test_station(model_path, stn_df, :PM25, stn_code, stn_name,
-        sample_size, output_size, res_dir, "PM25_rm_FULL", test_sdate, test_fdate, false)
+        sample_size, output_size, res_dir, "PM25_rm_FULL", test_fdate, test_tdate, false)
 
     push!(row_PM10, "FULL")
     push!(row_PM25, "FULL")
@@ -143,7 +162,9 @@ function post_feature(input_path::String, model_path::String, res_dir::String,
 end
 
 function post_forecast(input_path::String, model_path::String, res_dir::String,
-    sample_size::Integer, output_size::Integer, test_sdate::ZonedDateTime, test_fdate::ZonedDateTime)
+    sample_size::Integer, output_size::Integer,
+    test_fdate::ZonedDateTime, test_tdate::ZonedDateTime,
+    eltype::DataType)
     
     stn_codes = [111121, 111123, 111131, 111141, 111142,
         111151, 111152, 111161, 111171, 111181,
@@ -168,13 +189,21 @@ function post_forecast(input_path::String, model_path::String, res_dir::String,
     @info "    Test with other station"
     p = Progress(length(stn_codes), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
 
-    for (stn_code, stn_name) in Base.Iterators.zip(stn_codes, stn_names)        
-        stn_df = read_station(input_path, stn_code)
+    stations = (; zip(Symbol.(stn_names), stn_codes)...)
+    df = load_data_DNN("/input/jongro_seoul.csv", stations)
+    df = filter_raw_data(df, test_fdate, test_tdate)
+
+    for (stn_code, stn_name) in Base.Iterators.zip(stn_codes, stn_names)
+        stn_df = filter_station_DNN(df, stn_code)
 
         row_PM10 = test_classification(model_path, stn_df, :PM10, stn_code, stn_name,
-            sample_size, output_size, res_dir, "PM10_" * string(stn_code) * "_$(stn_name)", test_sdate, test_fdate)
+            sample_size, output_size, res_dir,
+            "PM10_" * string(stn_code) * "_$(stn_name)", test_fdate, test_tdate,
+            eltype, false)
         row_PM25 = test_classification(model_path, stn_df, :PM25, stn_code, stn_name,
-            sample_size, output_size, res_dir, "PM25_" * string(stn_code) * "_$(stn_name)", test_sdate, test_fdate)
+            sample_size, output_size, res_dir,
+            "PM25_" * string(stn_code) * "_$(stn_name)", test_fdate, test_tdate,
+            eltype, false)
 
         push!(fore_stats_df, row_PM10)
         push!(fore_stats_df, row_PM25)
@@ -188,32 +217,38 @@ function run()
     input_path = "/input/input.csv"
     model_path = "/mnt/"
 
-    sample_size = 72
+    sample_size = 48
     output_size = 24
 
-    test_sdate = ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul")
-    test_fdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
+    # For GPU
+    eltype::DataType = Float64
 
+    test_fdate = ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul")
+    test_tdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
+
+    
     @info "Postprocessing per station"
     res_dir = "/mnt/post/station/"
     Base.Filesystem.mkpath(res_dir)
     mkpath_resdir(res_dir, output_size)
     post_station(input_path, model_path, res_dir,
-        sample_size, output_size, test_sdate, test_fdate)
-
+        sample_size, output_size, test_fdate, test_tdate, eltype)
+    
+    #=
     @info "Postprocessing per feature removing"
     res_dir = "/mnt/post/feature/"
     Base.Filesystem.mkpath(res_dir)
     mkpath_resdir(res_dir, output_size)
     post_feature(input_path, model_path, res_dir,
-        sample_size, output_size, test_sdate, test_fdate)
+        sample_size, output_size, test_fdate, test_tdate, eltype)
 
     @info "Postprocessing for forecasting"
     res_dir = "/mnt/post/forecast/"
     Base.Filesystem.mkpath(res_dir)
     mkpath_resdir(res_dir, output_size)
     post_forecast(input_path, model_path, res_dir,
-        sample_size, output_size, test_sdate, test_fdate)
+        sample_size, output_size, test_fdate, test_tdate, eltype)
+    =#
 end
 
 run()

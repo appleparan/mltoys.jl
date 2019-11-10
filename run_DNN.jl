@@ -49,12 +49,7 @@ function run_model()
 
     # stations
     train_stn_names = [:중구, :종로구, :용산구, :광진구, :성동구]
-    
-    #=
-    train_stn_names = [:중구, :종로구, :용산구, :광진구, :성동구,
-    :중랑구, :동대문구, :성북구, :도봉구, :은평구,
-    :서대문구, :마포구, :강서구, :구로구, :영등포구]
-    =#
+    #train_stn_names = [:종로구]
 
     #=
     train_stns = [
@@ -84,8 +79,8 @@ function run_model()
     norm_train_features = [Symbol(eval(norm_prefix * String(f))) for f in train_features]
 
     μσs = mean_and_std_cols(df, train_features)
-    #zscore!(df, features, norm_features)
-    min_max_scaling!(df, train_features, norm_train_features)
+    zscore!(df, features, norm_features)
+    #min_max_scaling!(df, train_features, norm_train_features)
 
     # convert Float types
     for fea in features
@@ -101,7 +96,7 @@ function run_model()
     #plot_totaldata(df, :PM10, "/mnt/")
     #plot_pcorr(df, norm_features, features, "/mnt/")
 
-    sample_size = 72
+    sample_size = 24
     output_size = 24
     epoch_size = 300
     batch_size = 32
@@ -111,6 +106,8 @@ function run_model()
     train_valid_wd = []
     test_wd = []
 
+    # DNN's windowed dataframe is already filterred with dates.
+    # size(df) = (sample_size, length(features))
     for name in train_stn_names
         code = seoul_stations[name]
         stn_df = filter_station_DNN(df, code)

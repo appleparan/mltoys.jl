@@ -192,6 +192,13 @@ function zscore!(df::DataFrame, cols::Array{Symbol, 1}, new_cols::Array{Symbol, 
     end
 end
 
+function zscore!(df::DataFrame, cols::Array{String, 1}, new_cols::Array{String, 1}, μσs::Array{Real, 1})
+    for (col, new_col, ) in zip(cols, new_cols)
+        μ, σ = μσs[ycol, "μ"].value, μσs[ycol, "σ"].value
+        zscore!(df, col, new_col, μ, σ)
+    end
+end
+
 function zscore!(df::DataFrame, cols::Array{String, 1}, new_cols::Array{String, 1}, μs::Array{Real, 1}, σs::Array{Real, 1})
     for (col, new_col, μ, σ) in zip(cols, new_cols, μs, σs)
         zscore!(df, col, new_col, μ, σ)
@@ -200,6 +207,13 @@ end
 
 function zscore!(df::DataFrame, cols::Array{Symbol, 1}, new_cols::Array{Symbol, 1}, μs::Array{Real, 1}, σs::Array{Real, 1})
     for (col, new_col, μ, σ) in zip(cols, new_cols, μs, σs)
+        zscore!(df, col, new_col, μ, σ)
+    end
+end
+
+function zscore!(df::DataFrame, cols::Array{Symbol, 1}, new_cols::Array{Symbol, 1}, μσs::Array{Real, 1})
+    for (col, new_col, ) in zip(cols, new_cols)
+        μ, σ = μσs[String(ycol), "μ"].value, μσs[String(ycol), "σ"].value
         zscore!(df, col, new_col, μ, σ)
     end
 end

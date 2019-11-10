@@ -133,7 +133,7 @@ function read_jongro(input_path="/input/jongro_single.csv")
     @info "Start preprocessing..."
     flush(stdout); flush(stderr)
     if eltype(df[!, :date]) != ZonedDateTime
-        df[!, :date] = ZonedDateTime.(df[!, :date], tz"Asia/Seoul")
+        df[!, :date] = ZonedDateTime.(df[!, :date])
     end
 
     # no and staitonCode must not have missing value
