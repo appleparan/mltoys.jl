@@ -224,12 +224,12 @@ end
 find mean and std value in df[:, col]
 """
 function min_max_scaling!(df::DataFrame, cols::Array{String, 1}, new_cols::Array{String, 1},
-    new_min::F = -1.0, new_max::F = 1.0) where F<:AbstractFloat
+    new_min::F = 0.0, new_max::F = 10.0) where F<:AbstractFloat
     min_max_scaling!(df, Symbol.(cols), Symbol.(new_cols), new_min, new_max)
 end
 
 function min_max_scaling!(df::DataFrame, cols::Array{Symbol, 1}, new_cols::Array{Symbol, 1},
-    new_min::F = -1.0, new_max::F = 1.0) where F<:AbstractFloat
+    new_min::F = 0.0, new_max::F = 10.0) where F<:AbstractFloat
 
     for (col, new_col) in zip(cols, new_cols)
         min_max_scaling!(df, col, new_col, new_min, new_max)

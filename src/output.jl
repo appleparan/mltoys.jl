@@ -28,7 +28,8 @@ function predict_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
 end
 
 function predict_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
-    _min::AbstractFloat, _max::AbstractFloat, output_size::Integer, output_dir::String) where T <: Tuple
+    _min::AbstractFloat, _max::AbstractFloat, a::Real, b::Real,
+    output_size::Integer, output_dir::String) where T <: Tuple
 
     dnn_table = Array{IndexedTable}(undef, output_size)
     table_path = Array{String}(undef, output_size)
@@ -43,9 +44,9 @@ function predict_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
 
         cpu_y = y |> cpu
         cpu_ŷ = ŷ |> cpu
-
-        org_y = (cpu_y .- (-1.0)) .* 0.5 .* (_max - _min) .+ _min
-        org_ŷ = (Flux.Tracker.data(cpu_ŷ) .- (-1.0)) .* 0.5 .* (_max - _min) .+ _min
+        # https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)
+        org_y = (cpu_y .- a) .* (_max - _min) .* (b - a) .+ _min
+        org_ŷ = (Flux.Tracker.data(cpu_ŷ) .- a) .* (_max - _min) .* (b - a) .+ _min
 
         for i = 1:output_size
             tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
