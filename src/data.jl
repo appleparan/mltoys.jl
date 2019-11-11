@@ -324,14 +324,14 @@ function make_pair_DNN(df::DataFrame,
 
     # for validation, sparse check not applied
     # GPU
-    _X = vec(_X) |> gpu
-    _Y = _Y |> gpu
+    _X = vec(_X)
+    _Y = _Y
     @assert length(_X) == sample_size * length(features)
     @assert length(_Y) == output_size
     @assert ndims(_X) == 1
     @assert ndims(_Y) == 1
 
-    return (_X, _Y)
+    _X, _Y
 end
 
 """
@@ -400,8 +400,8 @@ function make_batch_DNN(dfs::Array{DataFrame, 1}, ycol::Symbol, features::Array{
         Y[:, i] = _Y
     end
 
-    X = X |> gpu
-    Y = Y |> gpu
+    X = X
+    Y = Y
 
     (X, Y)
 end

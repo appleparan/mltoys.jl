@@ -21,14 +21,14 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     # extract from ndsparse
     total_μ = μσs[String(ycol), "μ"].value
     total_σ = μσs[String(ycol), "σ"].value
-    total_min = float(μσs[String(ycol), "minimum"].value)
     total_max = float(μσs[String(ycol), "maximum"].value)
+    total_min = float(μσs[String(ycol), "minimum"].value)
 
     # compute mean and std by each train/valid/test set
     μσ = ndsparse((
-        dataset = ["total", "total"],
-        type = ["μ", "σ"]),
-        (value = [total_μ, total_σ],))
+        dataset = ["total", "total", "total", "total"],
+        type = ["μ", "σ", "maximum", "minimum"]),
+        (value = [total_μ, total_σ, total_max, total_min],))
 
     # construct compile function symbol
     compile = eval(Symbol(:compile, "_", ycol, "_DNN"))
@@ -56,8 +56,13 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     test_set = [(ProgressMeter.next!(p);
         make_pair_DNN(df, norm_ycol, norm_feas, sample_size, output_size, eltype)) for df in test_wd]
 
+    train_set = gpu.(train_set)
+    valid_set = gpu.(valid_set)
+    test_set = gpu.(test_set)
+
     # *_set : normalized
-    df_evals = train_DNN!(model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, norm_feas, filename)
+    df_evals = train_DNN!(model, train_set, valid_set,
+        loss, accuracy, opt, epoch_size, μσ, norm_feas, filename)
     
     # TODO : (current) validation with zscore, (future) validation with original value?
     @info "    Test ACC  : ", accuracy(test_set)
@@ -163,9 +168,9 @@ function train_DNN!(model::C,
             # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
             μ, σ = μσ["total", "μ"].value, μσ["total", "σ"].value
-            total_min = float(μσs[String(ycol), "minimum"].value)
-            total_max = float(μσs[String(ycol), "maximum"].value)
-            BSON.@save filepath cpu_model weights epoch_idx _acc μ σ total_min total_max
+            total_max, total_min =
+                float(μσ["total", "maximum"].value), float(μσ["total", "minimum"].value)
+            BSON.@save filepath cpu_model weights epoch_idx _acc μ σ total_max total_min
             best_acc = _acc
             last_improvement = epoch_idx
         end
@@ -196,7 +201,6 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
 
     unit_size = 16
 
-    @show "Unit size in PM10: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
 
     # not sigmoid, elu used to reduce vanishing gradient problem
@@ -208,6 +212,9 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
 
         Dense(unit_size, output_size)
     ) |> gpu
+
+    @info "Unit size in PM10: ", unit_size
+    @info "Model     in PM10: ", model
 
     lambda(x, y) = 10^(log10(Flux.mse(model(x), y)) - 1)
     # L1
@@ -231,7 +238,6 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
 
     unit_size = 32
 
-    @show "Unit size in PM25: ", unit_size
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
     model = Chain(
         Dense(input_size, unit_size, leakyrelu),
@@ -240,6 +246,9 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
 
         Dense(unit_size, output_size)
     ) |> gpu
+
+    @info "Unit size in PM25: ", unit_size
+    @info "Model     in PM25: ", model
 
     lambda(x, y) = 10^(log10(Flux.mse(model(x), y)) - 1)
     # L1
