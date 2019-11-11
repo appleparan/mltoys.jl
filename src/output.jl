@@ -45,8 +45,8 @@ function predict_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
         cpu_y = y |> cpu
         cpu_ŷ = ŷ |> cpu
         # https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)
-        org_y = (cpu_y .- a) .* (_max - _min) .* (b - a) .+ _min
-        org_ŷ = (Flux.Tracker.data(cpu_ŷ) .- a) .* (_max - _min) .* (b - a) .+ _min
+        org_y = (cpu_y .- a) .* (_max - _min) ./ (b - a) .+ _min
+        org_ŷ = (Flux.Tracker.data(cpu_ŷ) .- a) .* (_max - _min) ./ (b - a) .+ _min
 
         for i = 1:output_size
             tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
