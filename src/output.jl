@@ -1,5 +1,6 @@
 function predict_DNNmodel_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
-    μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String, f::Function) where T <: Tuple
+    μ::AbstractFloat, σ::AbstractFloat,output_size::Integer, output_dir::String,
+    f::Function=Flux.Tracker.data) where T <: Tuple
 
     dnn_table = Array{IndexedTable}(undef, output_size)
     table_path = Array{String}(undef, output_size)
@@ -33,7 +34,7 @@ end
 
 function predict_DNNmodel_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     _min::AbstractFloat, _max::AbstractFloat, a::AbstractFloat, b::AbstractFloat,
-    output_size::Integer, output_dir::String, f::Function) where T <: Tuple
+    output_size::Integer, output_dir::String, f::Function=Flux.Tracker.data) where T <: Tuple
 
     dnn_table = Array{IndexedTable}(undef, output_size)
     table_path = Array{String}(undef, output_size)
@@ -64,7 +65,8 @@ function predict_DNNmodel_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symb
 end
 
 function predict_RNNmodel_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
-    μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String, f::Function) where T <: Tuple
+    μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String,
+    f::Function=Flux.Tracker.data) where T <: Tuple
 
     dnn_table = Array{IndexedTable}(undef, output_size)
     table_path = Array{String}(undef, output_size)
@@ -98,7 +100,7 @@ end
 
 function predict_RNNmodel_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     _min::AbstractFloat, _max::AbstractFloat, a::AbstractFloat, b::AbstractFloat,
-    output_size::Integer, output_dir::String, f::Function) where T <: Tuple
+    output_size::Integer, output_dir::String, f::Function=Flux.Tracker.data) where T <: Tuple
 
     dnn_table = Array{IndexedTable}(undef, output_size)
     table_path = Array{String}(undef, output_size)
