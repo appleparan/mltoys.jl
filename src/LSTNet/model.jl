@@ -167,14 +167,18 @@ function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
             @info "    -> New best accuracy! Saving model out to " * filename
             flush(stdout)
 
-            cpu_state = state |> cpu
-            weights = Tracker.data.(Flux.params(cpu_state))
+            cpu_modelCNN = state[1] |> cpu
+            weightsCNN = Tracker.data.(Flux.params(cpu_modelCNN))
+            cpu_modelGRU = state[2] |> cpu
+            weightsGRU = Tracker.data.(Flux.params(cpu_modelGRU))
+            cpu_modelDNN = state[3] |> cpu
+            weightsDNN = Tracker.data.(Flux.params(cpu_modelDNN))
             # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
             μ, σ = μσ["total", "μ"].value, μσ["total", "σ"].value
             total_max, total_min =
                 float(μσ["total", "maximum"].value), float(μσ["total", "minimum"].value)
-            BSON.@save filepath cpu_model weights epoch_idx _acc μ σ total_max total_min
+            BSON.@save filepath cpu_modelCNN weightsCNN cpu_modelGRU weightsGRU cpu_modelDNN weightsDNN epoch_idx _acc μ σ total_max total_min
             best_acc = _acc
             last_improvement = epoch_idx
         end
