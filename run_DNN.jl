@@ -2,7 +2,7 @@ using Random
 
 using Dates, TimeZones
 using MicroLogging
-
+using StatsBase
 using Mise
 
 function run_model()
@@ -79,8 +79,8 @@ function run_model()
     norm_train_features = [Symbol(eval(norm_prefix * String(f))) for f in train_features]
 
     μσs = mean_and_std_cols(df, train_features)
-    zscore!(df, features, norm_features)
-    #min_max_scaling!(df, train_features, norm_train_features)
+    #zscore!(df, features, norm_features)
+    min_max_scaling!(df, train_features, norm_train_features, 0.0, 10.0)
 
     # convert Float types
     for fea in features

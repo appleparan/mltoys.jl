@@ -1,5 +1,5 @@
 """
-    train(df, ycol, norm_prefix, norm_feas,
+    train(df, ycol, norm_prefix, norm_features,
         sample_size, input_size, batch_size, output_size, epoch_size,
         total_wd_idxs, test_wd_idxs,
         train_chnk, valid_idxs, test_idxs,
@@ -7,7 +7,7 @@
 
 """
 function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1}, test_wd::Array{DataFrame, 1}, 
-    ycol::Symbol, norm_prefix::String, feas::Array{Symbol},
+    ycol::Symbol, norm_prefix::String, features::Array{Symbol},
     train_size::Integer, valid_size::Integer, test_size::Integer,
     sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer,
     epoch_size::Integer, eltype::DataType,
@@ -16,7 +16,7 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     @info "DNN training starts.."
 
     norm_ycol = Symbol(norm_prefix, ycol)
-    norm_feas = [Symbol(eval(norm_prefix * String(f))) for f in feas]
+    norm_features = [Symbol(eval(norm_prefix * String(f))) for f in features]
 
     # extract from ndsparse
     total_μ = μσs[String(ycol), "μ"].value
@@ -41,7 +41,7 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     p = Progress(div(length(train_wd), batch_size) + 1, dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
 
     train_set = [(ProgressMeter.next!(p);
-        make_batch_DNN(collect(dfs), norm_ycol, norm_feas,
+        make_batch_DNN(collect(dfs), norm_ycol, norm_features,
             sample_size, output_size, batch_size, 0.5, eltype))
         for dfs in Base.Iterators.partition(train_wd, batch_size)]
 
@@ -49,20 +49,20 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     @info "    Construct Valid Set..."
     p = Progress(length(valid_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     valid_set = [(ProgressMeter.next!(p);
-        make_pair_DNN(df, norm_ycol, norm_feas, sample_size, output_size, eltype)) for df in valid_wd]
+        make_pair_DNN(df, norm_ycol, norm_features, sample_size, output_size, eltype)) for df in valid_wd]
 
     @info "    Construct Test Set..."
     p = Progress(length(test_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     test_set = [(ProgressMeter.next!(p);
-        make_pair_DNN(df, norm_ycol, norm_feas, sample_size, output_size, eltype)) for df in test_wd]
+        make_pair_DNN(df, norm_ycol, norm_features, sample_size, output_size, eltype)) for df in test_wd]
 
     train_set = gpu.(train_set)
     valid_set = gpu.(valid_set)
     test_set = gpu.(test_set)
 
-    # *_set : normalized
+    # *_set : normalized values
     df_evals = train_DNN!(model, train_set, valid_set,
-        loss, accuracy, opt, epoch_size, μσ, norm_feas, filename)
+        loss, accuracy, opt, epoch_size, μσ, norm_features, filename)
     
     # TODO : (current) validation with zscore, (future) validation with original value?
     @info "    Test ACC  : ", accuracy(test_set)
@@ -94,8 +94,9 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
         Base.Filesystem.mkpath("/mnt/$(i_pad)/")
     end
 
-    dnn_table = predict_model_zscore(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/")
-    #dnn_table = predict_model_minmax(test_set, model, ycol, total_min, total_max, 0.0, 10.0, output_size, "/mnt/")
+    # back to unnormalized for comparison
+    dnn_table = predict_DNNmodel_zscore(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/")
+    #dnn_table = predict_DNNmodel_minmax(test_set, model, ycol, total_min, total_max, 0.0, 10.0, output_size, "/mnt/")
     dfs_out = export_CSV(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", String(ycol))
     df_corr = compute_corr(dnn_table, output_size, "/mnt/", String(ycol))
 
@@ -120,7 +121,7 @@ end
 function train_DNN!(model::C,
     train_set::Array{T2, 1}, valid_set::Array{T1, 1},
     loss, accuracy, opt,
-    epoch_size::Integer, μσ::AbstractNDSparse, norm_feas::Array{Symbol},
+    epoch_size::Integer, μσ::AbstractNDSparse, norm_features::Array{Symbol},
     filename::String) where {C <: Flux.Chain, F <: AbstractFloat, T2 <: Tuple{AbstractArray{F, 2}, AbstractArray{F, 2}},
     T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}}}
 
@@ -142,7 +143,7 @@ function train_DNN!(model::C,
 
         # record evaluation
         rmse, mae, mspe, mape =
-            evaluations(valid_set, model, μσ, norm_feas,
+            evaluations(valid_set, model, μσ, norm_features,
             [:RMSE, :MAE, :MSPE, :MAPE])
         push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape])
 
@@ -221,9 +222,11 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     #loss(x, y) = Flux.mse(model(x), y) +
     #    lambda(x, y) *
     #    sum(x1 -> LinearAlgebra.norm(x1, 1), Flux.params(model))
-    # L2
-    loss(x, y) = Flux.mse(model(x), y) + lambda(x, y) * sum(LinearAlgebra.norm, Flux.params(model))
-    # no regularzation on loss
+    # L2 
+    # disable due to Flux#930 issue
+    #loss(x, y) = Flux.mse(model(x), y) + lambda(x, y) * sum(LinearAlgebra.norm, Flux.params(model))
+    loss(x, y) = Flux.mse(model(x), y)
+    # no regularization
     #loss(x, y) = Flux.mse(model(x), y)
 
     # TODO : How to pass feature size
@@ -256,8 +259,10 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     #    lambda(x, y) *
     #    sum(x1 -> LinearAlgebra.norm(x1, 1), Flux.params(model))
     # L2
-    loss(x, y) = Flux.mse(model(x), y) + lambda(x, y) * sum(LinearAlgebra.norm, Flux.params(model))
-    # no regularzation on loss
+    # disable regularization due to Flux#930 issue
+    #loss(x, y) = Flux.mse(model(x), y) + lambda(x, y) * sum(LinearAlgebra.norm, Flux.params(model))
+    loss(x, y) = Flux.mse(model(x), y)
+    # no regularization
     #loss(x, y) = Flux.mse(model(x), y)
 
     # TODO : How to pass feature size

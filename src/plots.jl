@@ -153,7 +153,6 @@ function plot_corr_OU(corr_arr::Array{F, 1},
     nothing
 end
 
-
 function plot_DNN_scatter(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
     output_size::Integer, output_dir::String, output_prefix::String)
 
