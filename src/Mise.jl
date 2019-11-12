@@ -87,7 +87,8 @@ export join_data, filter_raw_data, filter_jongro, read_jongro,
     split_sizes3, split_sizes2,
     remove_sparse_input!, is_sparse_Y,
     getX, getY, make_pair_DNN, make_batch_DNN, 
-    serializeBatch, unpack_seq, matrix2arrays, make_batch_LSTNet,
+    serializeBatch, unpack_seq, matrix2arrays,
+    make_pair_LSTNet, make_batch_LSTNet,
 # activation
 # evaluation
     evaluations, RMSE, MAE, RSR, NSE, PBIAS,
@@ -105,7 +106,9 @@ export join_data, filter_raw_data, filter_jongro, read_jongro,
 # post processing
     compute_corr, test_features, test_station, test_classification,
 # output
-    predict_model_zscore, predict_model_minmax, export_CSV,
+    predict_DNNmodel_zscore, predict_DNNmodel_minmax,
+    predict_RNNmodel_zscore, predict_RNNmodel_minmax,
+    export_CSV,
 # plot
     plot_corr_input,
     plot_totaldata,

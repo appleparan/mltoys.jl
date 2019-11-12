@@ -1,5 +1,5 @@
-function predict_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
-    μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String) where T <: Tuple
+function predict_DNNmodel_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
+    μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String, f::Function) where T <: Tuple
 
     dnn_table = Array{IndexedTable}(undef, output_size)
     table_path = Array{String}(undef, output_size)
@@ -15,8 +15,44 @@ function predict_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
         cpu_y = y |> cpu
         cpu_ŷ = ŷ |> cpu
 
+        # 24 hour data according to x
         org_y = cpu_y .* σ .+ μ
-        org_ŷ = Flux.Tracker.data(cpu_ŷ) .* σ .+ μ
+        # 24 hour data according to prediction
+        org_ŷ = f(cpu_ŷ) .* σ .+ μ
+
+        for i = 1:output_size
+            # 1 hour 
+            tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
+
+            dnn_table[i] = merge(dnn_table[i], tmp_table)
+        end
+    end
+
+    dnn_table
+end
+
+function predict_DNNmodel_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
+    _min::AbstractFloat, _max::AbstractFloat, a::AbstractFloat, b::AbstractFloat,
+    output_size::Integer, output_dir::String, f::Function) where T <: Tuple
+
+    dnn_table = Array{IndexedTable}(undef, output_size)
+    table_path = Array{String}(undef, output_size)
+
+    for i = 1:output_size
+        table_path[i] = output_dir * "$(String(ycol))_$(lpad(i,2,'0'))_table.csv"
+        dnn_table[i] = table((y = [], ŷ = [],))
+    end
+
+    # https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)
+    c = ((_max - _min) / (b - a))
+    for (x, y) in dataset
+        ŷ = model(x |> gpu)
+
+        cpu_y = y |> cpu
+        cpu_ŷ = ŷ |> cpu
+
+        org_y = (cpu_y .- a) .* c .+ _min
+        org_ŷ = (f(cpu_ŷ) .- a) .* c .+ _min
 
         for i = 1:output_size
             tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
@@ -27,9 +63,8 @@ function predict_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     dnn_table
 end
 
-function predict_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
-    _min::AbstractFloat, _max::AbstractFloat, a::Real, b::Real,
-    output_size::Integer, output_dir::String) where T <: Tuple
+function predict_RNNmodel_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
+    μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String, f::Function) where T <: Tuple
 
     dnn_table = Array{IndexedTable}(undef, output_size)
     table_path = Array{String}(undef, output_size)
@@ -42,11 +77,47 @@ function predict_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     for (x, y) in dataset
         ŷ = model(x |> gpu)
 
-        cpu_y = y |> cpu
-        cpu_ŷ = ŷ |> cpu
-        # https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)
-        org_y = (cpu_y .- a) .* (_max - _min) ./ (b - a) .+ _min
-        org_ŷ = (Flux.Tracker.data(cpu_ŷ) .- a) .* (_max - _min) ./ (b - a) .+ _min
+        cpu_y = y[:, 1] |> cpu
+        cpu_ŷ = ŷ[:, 1] |> cpu
+
+        # 24 hour data according to x
+        org_y = cpu_y .* σ .+ μ
+        # 24 hour data according to prediction
+        org_ŷ = f(cpu_ŷ) .* σ .+ μ
+
+        for i = 1:output_size
+            # 1 hour 
+            tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
+
+            dnn_table[i] = merge(dnn_table[i], tmp_table)
+        end
+    end
+
+    dnn_table
+end
+
+function predict_RNNmodel_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
+    _min::AbstractFloat, _max::AbstractFloat, a::AbstractFloat, b::AbstractFloat,
+    output_size::Integer, output_dir::String, f::Function) where T <: Tuple
+
+    dnn_table = Array{IndexedTable}(undef, output_size)
+    table_path = Array{String}(undef, output_size)
+
+    for i = 1:output_size
+        table_path[i] = output_dir * "$(String(ycol))_$(lpad(i,2,'0'))_table.csv"
+        dnn_table[i] = table((y = [], ŷ = [],))
+    end
+
+    # https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)
+    c = ((_max - _min) / (b - a))
+    for (x, y) in dataset
+        ŷ = model(x |> gpu)
+
+        cpu_y = y[:, 1] |> cpu
+        cpu_ŷ = ŷ[:, 1] |> cpu
+
+        org_y = (cpu_y .- a) .* c .+ _min
+        org_ŷ = (f(cpu_ŷ) .- a) .* c .+ _min
 
         for i = 1:output_size
             tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
@@ -56,6 +127,7 @@ function predict_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
 
     dnn_table
 end
+
 
 function export_CSV(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1},
     ycol::Symbol, output_size::Integer, output_dir::String, output_prefix::String)

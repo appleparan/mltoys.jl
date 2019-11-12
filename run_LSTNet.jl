@@ -42,18 +42,18 @@ function run_model()
     │ 5   │ 111123      │ 2015-01-01T05:00:00+09:00 │ 37.572   │ 127.005   │ 0.005   │ 0.2     │ 0.019   │ 0.006   │ 127.0   │ 5.0     │ -9.1    │ 5.35625 │ 1.94951 │ 1011.8  │ missing  │ missing  │
     =#
     total_fdate, total_tdate = get_date_range(df)
-    train_fdate = ZonedDateTime(2017, 1, 1, 1, tz"Asia/Seoul")
+    train_fdate = ZonedDateTime(2012, 1, 1, 1, tz"Asia/Seoul")
     train_tdate = ZonedDateTime(2017, 12, 31, 23, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 1, 1, 0, tz"Asia/Seoul")
     test_tdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
 
     # stations (LSTNet lmit 1 station)
-    train_stn_names = [:종로구]
+    train_stn_names = [:종로구, :광진구, :강서구, :강남구]
+    train_stn_names = [:종로구, :강서구]
+    #train_stn_names = [:종로구]
+
     # test set is Jongro only
     test_stn_names = [:종로구]
-
-    @assert length(train_stn_names) == 1
-    @assert length(test_stn_names) == 1
     
     df = filter_raw_data(df, train_fdate, train_tdate, test_fdate, test_tdate)
     @show first(df, 10)
@@ -71,8 +71,8 @@ function run_model()
     norm_train_features = [Symbol(eval(norm_prefix * String(f))) for f in train_features]
 
     μσs = mean_and_std_cols(df, train_features)
-    #zscore!(df, features, norm_features)
-    min_max_scaling!(df, train_features, norm_train_features)
+    zscore!(df, features, norm_features)
+    #min_max_scaling!(df, train_features, norm_train_features, 0.0, 10.0)
 
     # convert Float types
     for fea in features
@@ -83,7 +83,7 @@ function run_model()
         df[!, nfea] = eltype.(df[!, nfea])
     end
 
-    sample_size = 72
+    sample_size = 48
     output_size = 24
     # kernel_length  hours for extract locality 
     kernel_length = 3

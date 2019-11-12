@@ -1,5 +1,8 @@
+data_(x) = vcat(x...)
+tdata_(x) = Tracker.data(vcat(x...))
+
 """
-    train(df, ycol, norm_prefix, norm_feas,
+    train(df, ycol, norm_prefix, norm_features,
         sample_size, input_size, batch_size, output_size, epoch_size,
         total_wd_idxs, test_wd_idxs,
         train_chnk, valid_idxs, test_idxs,
@@ -7,7 +10,7 @@
 
 """
 function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1}, test_wd::Array{DataFrame, 1}, 
-    ycol::Symbol, norm_prefix::String, feas::Array{Symbol},
+    ycol::Symbol, norm_prefix::String, features::Array{Symbol},
     train_size::Integer, valid_size::Integer, test_size::Integer,
     sample_size::Integer, batch_size::Integer, kernel_length::Integer,
     output_size::Integer, epoch_size::Integer, eltype::DataType,
@@ -16,7 +19,7 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     @info "LSTNet training starts.."
 
     norm_ycol = Symbol(norm_prefix, ycol)
-    norm_feas = [Symbol(eval(norm_prefix * String(f))) for f in feas]
+    norm_features = [Symbol(eval(norm_prefix * String(f))) for f in features]
 
     # extract from ndsparse
     total_μ = μσs[String(ycol), "μ"].value
@@ -26,14 +29,14 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
 
     # compute mean and std by each train/valid/test set
     μσ = ndsparse((
-        dataset = ["total", "total"],
-        type = ["μ", "σ"]),
-        (value = [total_μ, total_σ],))
+        dataset = ["total", "total", "total", "total"],
+        type = ["μ", "σ", "maximum", "minimum"]),
+        (value = [total_μ, total_σ, total_max, total_min],))
 
     # construct compile function symbol
     compile = eval(Symbol(:compile, "_", ycol, "_LSTNet"))
     model, state, loss, accuracy, opt = 
-        compile((kernel_length, length(feas)), batch_size, output_size)
+        compile((kernel_length, length(features)), batch_size, output_size, μσ)
 
     # |> gpu doesn't work to *_set directly
     # construct minibatch for train_set
@@ -42,7 +45,7 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     p = Progress(div(length(train_wd), batch_size) + 1, dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
 
     train_set = [(ProgressMeter.next!(p);
-        make_batch_LSTNet(collect(dfs), norm_ycol, norm_feas,
+        make_batch_LSTNet(collect(dfs), norm_ycol, norm_features,
             sample_size, kernel_length, output_size, batch_size, eltype))
         for dfs in Base.Iterators.partition(train_wd, batch_size)]
 
@@ -50,20 +53,24 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     @info "    Construct Valid Set..."
     p = Progress(length(valid_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     valid_set = [(ProgressMeter.next!(p);
-        make_batch_LSTNet([df], norm_ycol, norm_feas,
-            sample_size, kernel_length, output_size, 1, eltype))
-        for df in valid_wd]
+        make_batch_LSTNet(collect(dfs), norm_ycol, norm_features,
+            sample_size, kernel_length, output_size, batch_size, eltype))
+        for dfs in Base.Iterators.partition(valid_wd, batch_size)]
 
     @info "    Construct Test Set..."
     p = Progress(length(test_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     # batch_size should be 1 except raining
     test_set = [(ProgressMeter.next!(p);
-        make_batch_LSTNet([df], norm_ycol, norm_feas,
-            sample_size, kernel_length, output_size, 1, eltype))
+        make_pair_LSTNet(df, norm_ycol, norm_features,
+            sample_size, kernel_length, output_size, eltype))
         for df in test_wd]
+    test_batch_set = [(ProgressMeter.next!(p);
+        make_batch_LSTNet(collect(dfs), norm_ycol, norm_features,
+            sample_size, kernel_length, output_size, batch_size, eltype))
+        for dfs in Base.Iterators.partition(test_wd, batch_size)]
 
     # *_set : normalized
-    df_evals = train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, norm_feas, filename)
+    df_evals = train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, norm_features, filename)
     
     # TODO : (current) validation with zscore, (future) validation with original value?
     @info "    Test ACC  : ", accuracy(test_set)
@@ -74,25 +81,16 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     
     # test set evaluation
     for metric in eval_metrics
-        metric_func = :($(metric)(test_set, model, μσ))
+        # pure test set is too slow on evaluation, 
+        # batched test set is used only in evaluation
+        metric_func = :($(metric)($(test_batch_set), $(model), $(μσ), $(tdata_)))
         @info " $(string(ycol)) $(string(metric)) for test   : ", eval(metric_func)
     end
 
     # valid set evaluation
     for metric in eval_metrics
-        metric_func = :($(metric)(valid_set, model, μσ))
+        metric_func = :($(metric)($(valid_set), $(model), $(μσ), $(tdata_)))
         @info " $(string(ycol)) $(string(metric)) for valid  : ", eval(metric_func)
-    end
-
-    if ycol == :PM10 || ycol == :PM25
-        forecast_all, forecast_high = classification(test_set, model, ycol, μσ)
-        @info " $(string(ycol)) Forecasting accuracy (all) for test : ", forecast_all
-        @info " $(string(ycol)) Forecasting accuracy (high) for test : ", forecast_high
-    end
-    if ycol == :PM10 || ycol == :PM25
-        forecast_all, forecast_high = classification(test_set, model, ycol, μσ)
-        @info " $(string(ycol)) Forecasting accuracy (all) for test : ", forecast_all
-        @info " $(string(ycol)) Forecasting accuracy (high) for test : ", forecast_high
     end
 
     # create directory per each time
@@ -101,8 +99,9 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
         Base.Filesystem.mkpath("/mnt/$(i_pad)/")
     end
 
-    #dnn_table = predict_model_norm(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/")
-    dnn_table = predict_model_minmax(test_set, model, ycol, total_min, total_max, output_size, "/mnt/")
+    # batched set can't be used to create table (predict_model_* )
+    dnn_table = predict_RNNmodel_zscore(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/", tdata_)
+    #dnn_table = predict_RNNmodel_minmax(test_set, model, ycol, total_min, total_max, 0.0, 10.0, output_size, "/mnt/", tdata_)
     dfs_out = export_CSV(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", String(ycol))
     df_corr = compute_corr(dnn_table, output_size, "/mnt/", String(ycol))
 
@@ -126,16 +125,16 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
 end
 
 function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
-    epoch_size::Integer, μσ::AbstractNDSparse, norm_feas::Array{Symbol},
+    epoch_size::Integer, μσ::AbstractNDSparse, norm_features::Array{Symbol},
     filename::String) where {F <: AbstractFloat, T2 <: Tuple{AbstractArray{F, 2}, AbstractArray{F, 2}},
     T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}}}
 
     @info("    Beginning training loop...")
     flush(stdout); flush(stderr)
 
-    _acc = 0.0
+    _acc = Inf
     # for adjR2 -∞ is the worst
-    best_acc = -Inf
+    best_acc = Inf
     last_improvement = 0
 
     df_eval = DataFrame(epoch = Int64[], learn_rate = Float64[], ACC = Float64[],
@@ -143,31 +142,28 @@ function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
 
     for epoch_idx in 1:epoch_size
         best_acc, last_improvement
-        @show size(train_set[1][1])
-        @show size(train_set[1][2])
         # train model with normalized data set
         Flux.train!(loss, Flux.params(state), train_set, opt)
 
         # record evaluation
         rmse, mae, mspe, mape =
-            evaluations(valid_set, model, μσ, norm_feas,
-            [:RMSE, :MAE, :MSPE, :MAPE])
+            evaluations(valid_set, model, μσ, norm_features,
+            [:RMSE, :MAE, :MSPE, :MAPE], tdata_)
         push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape])
 
         # Calculate accuracy:
-        _acc = Tracker.data(accuracy(valid_set))
+        _acc = accuracy(valid_set)
         _loss = Tracker.data(loss(train_set[1][1], train_set[1][2]))
         @info(@sprintf("epoch [%d]: loss[1]: %.8E Valid accuracy: %.8f Time: %s", epoch_idx, _loss, _acc, now()))
         flush(stdout); flush(stderr)
 
-        # If our accuracy is good enough, quit out.
-        if _acc > 0.999
+        if _acc < 0.001
             @info("    -> Early-exiting: We reached our target accuracy")
             break
         end
 
         # If this is the best accuracy we've seen so far, save the model out
-        if _acc > best_acc
+        if _acc < best_acc
             @info "    -> New best accuracy! Saving model out to " * filename
             flush(stdout)
 
@@ -176,7 +172,9 @@ function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
             # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
             μ, σ = μσ["total", "μ"].value, μσ["total", "σ"].value
-            BSON.@save filepath cpu_state weights epoch_idx _acc μ σ
+            total_max, total_min =
+                float(μσ["total", "maximum"].value), float(μσ["total", "minimum"].value)
+            BSON.@save filepath cpu_model weights epoch_idx _acc μ σ total_max total_min
             best_acc = _acc
             last_improvement = epoch_idx
         end
@@ -210,13 +208,12 @@ sample_size and output_size is Integer
 """
 function compile_PM10_LSTNet(
     kernel_size::Tuple{I, I},
-    sample_size::I, output_size::I) where I<:Integer
+    sample_size::I, output_size::I,
+    μσ::AbstractNDSparse) where I<:Integer
 
     @info("    Compiling model...")
-    # hidCNN ; # of output channel 
-    hidCNN = 16
-    # hidRNn : length of context vector
-    hidRNN = 24
+    # hidRNN : length of context vector
+    hidRNN = 32
 
     kernel_length = kernel_size[1]
     # WHCN order : reverse to python framework (row-major && column-major)
@@ -228,17 +225,17 @@ function compile_PM10_LSTNet(
     # 1. CNN
     #   extract short-term patterns in the time dimension 
     #   as well as local dependencies between variables
-    #   * Channel : 1 => hidCNN 
+    #   * Channel : 1 => hidRNN 
     #   * Kernel Size : (kernel_length, length(features)
     #   * Input Size : (sample_size + pad_sample_size, length(features), 1, batch_size)
-    #   * Output Size : (sample_size, 1, hidCNN, batch_size)
+    #   * Output Size : (sample_size, 1, hidRNN, batch_size)
     modelCNN = Chain(
-        Conv(kernel_size, 1 => hidCNN, leakyrelu),
+        Conv(kernel_size, 1 => hidRNN, leakyrelu),
         Dropout(0.2)) |> gpu
     
     # 2. GRU
     #   * Input shape : (sample_size, 1, hidCNN, batch_size) ->
-    #                   [(hidCNN, batch_size),...]
+    #                   [(hidRNN, batch_size),...]
     # modelGRU is a Single GRU Cell
     # hidCNN is a embedding size in NLP
     # sample_size is a sequnce length in NLP
@@ -247,103 +244,79 @@ function compile_PM10_LSTNet(
     # Check figure in 'Build the Model' Section in 
     # https://www.tensorflow.org/tutorials/text/text_generation
     # SEQ_LENGTH = sample_size
-    # Char Embdding = hidCNN
+    # Char Embdding = hidRNN
     # logits = output value itself
-    modelTrainer = GRU(hidCNN, hidRNN) |> gpu
-    modelPredictor = GRU(hidRNN, hidRNN) |> gpu
+    modelGRU = GRU(hidRNN, hidRNN) |> gpu
 
     # DNN converts GRU output to single real output value
     modelDNN = Chain(
-        Dense(hidRNN, 1),
-        Dropout(0.2)) |> gpu
+        Dense(hidRNN, 1)) |> gpu
 
-    # predict output seqeunce recursively by current state yhat
-    # this starts after update state after input sequence
-    # yhat must be single array (hidRNN, batch_size)
-    # using Channel, implement Lazy sequence for recursive predict_recur and collect them.
-    # check fib_ch
     function predict_recur(_yhat, seq_len::Integer)
+        # _yhat : current output of RNN (length : hidRNN)
+        # size(_yhat) = (hidRNN x batch_size)
         yhat = _yhat
         # (seq_len x batch_size) array for output
-        c = []
+        r = []
 
-        @show seq_len
-        @show size(_yhat)
-        for i in 1:seq_len
+        for _ in 1:seq_len
             # predict next output by giving input as one by one
-            yhat2 = modelPredictor.(yhat)
-            push!(c, modelDNN(yhat2))
+            yhat2 = modelGRU(yhat)
+            push!(r, modelDNN(yhat2))
             yhat = yhat2
         end
 
-        @show size(c)
-        @show size(c[1])
-        @show size(transpose(hcat(c...)))
-        # return as (seq_len x batch_size )
-        #if ndims(_yhat) == 1
-            return transpose(hcat(c...))
-        #else 
-        #    return c
-        #end
+        r
     end
 
-    state = (modelCNN, modelTrainer, modelPredictor, modelDNN)
+    state = (modelCNN, modelGRU, modelDNN)
 
     # define model by combining multiple models
     # x : batched input for CNN (sample_size, (length(features), 1, batch_size))
     function model(x)
         # to avoid segfault due to GC
-        GC.@preserve modelCNN modelTrainer modelPredictor modelDNN
+        GC.@preserve modelCNN modelGRU modelDNN
 
         # do CNN to extract local features
         ŷ_CNN = modelCNN(x)
 
         # 4D -> Array of 2Ds (hidCNN, batch)
-        # [(hidCNN, batch), ...]
-        Flux.reset!(modelTrainer)
-        Flux.reset!(modelPredictor)
         x_RNN = unpack_seq(ŷ_CNN)
 
         # RNN
         # `modelGRU.` performs GRU for input sequence
         # `predict_GRU` performs prediction after input seqeunce
-        y_RNN_end = modelTrainer.(x_RNN)
+        Flux.reset!(modelGRU)
+        # broadcast : train columns. Each column (single batch) have been trained
+        # @test trained[end] == modelGRU.state # true
+        trained = modelGRU.(x_RNN)
 
-        # copy hidden state from Trainer
-        modelPredictor.state = modelTrainer.state
-
-        # y_RNN_end[end] is a last sequence,
-        # collect
-        ŷ_RNN = predict_recur(y_RNN_end[end], output_size)
-        #Flux.reset!(state)
+        # predict
+        ŷ_RNN = predict_recur(modelGRU.state, output_size)
 
         ŷ_RNN
     end
 
-    # Each row of model(x) is different result from model
-    # Not sure to use loss function as matrix, so just mse. to each array and norm whole result
-    #loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
-    #loss(x, y) = LinearAlgebra.norm(Flux.mse.(model(x), matrix2arrays(y)))
-    # not to use LinearAlgebra.norm because of force promotion to Float64
-    # which is not compatible to TrackedReal
-    loss(x, y) = sqrt(sum((Flux.mse.(model(x), matrix2arrays(y))).^2))
-    
-    # TODO : How to pass feature size
-    accuracy(data) = RMSE(data, model, μσ)
+    loss(x, y) = Flux.mse(data_(model(x)), y)
+
+    accuracy(data) = RMSE(data, model, μσ, tdata_)
     opt = Flux.ADAM()
 
+    @info "hidRNN       in PM10: ", hidRNN
+    @info "ModelCNN     in PM10: ", modelCNN
+    @info "ModelGRU     in PM10: ", modelGRU
+    @info "ModelDNN     in PM10: ", modelDNN
     model, state, loss, accuracy, opt
 end
 
 function compile_PM25_LSTNet(
     kernel_size::Tuple{I, I},
-    sample_size::I, output_size::I) where I<:Integer
+    sample_size::I, output_size::I,
+    μσ::AbstractNDSparse) where I<:Integer
 
     @info("    Compiling model...")
-    # hidCNN ; # of output channel 
-    hidCNN = 24
     # hidRNn : length of context vector
-    hidRNN = 24
+    hidRNN = 32
 
     kernel_length = kernel_size[1]
     # WHCN order : reverse to python framework (row-major && column-major)
@@ -355,17 +328,17 @@ function compile_PM25_LSTNet(
     # 1. CNN
     #   extract short-term patterns in the time dimension 
     #   as well as local dependencies between variables
-    #   * Channel : 1 => hidCNN 
+    #   * Channel : 1 => hidRNN 
     #   * Kernel Size : (kernel_length, length(features)
     #   * Input Size : (sample_size + pad_sample_size, length(features), 1, batch_size)
-    #   * Output Size : (sample_size, 1, hidCNN, batch_size)
+    #   * Output Size : (sample_size, 1, hidRNN, batch_size)
     modelCNN = Chain(
-        Conv(kernel_size, 1 => hidCNN, leakyrelu),
+        Conv(kernel_size, 1 => hidRNN, leakyrelu),
         Dropout(0.2)) |> gpu
     
     # 2. GRU
     #   * Input shape : (sample_size, 1, hidCNN, batch_size) ->
-    #                   [(hidCNN, batch_size),...]
+    #                   [(hidRNN, batch_size),...]
     # modelGRU is a Single GRU Cell
     # hidCNN is a embedding size in NLP
     # sample_size is a sequnce length in NLP
@@ -376,70 +349,65 @@ function compile_PM25_LSTNet(
     # SEQ_LENGTH = sample_size
     # Char Embdding = hidCNN
     # logits = output value itself
-    modelTrainer = GRU(hidCNN, hidRNN) |> gpu
-    modelPredictor = GRU(hidRNN, hidRNN) |> gpu
+    modelGRU = GRU(hidRNN, hidRNN) |> gpu
 
     # DNN converts GRU output to single real output value
     modelDNN = Chain(
-        Dense(hidRNN, 1),
-        Dropout(0.2)) |> gpu
+        Dense(hidRNN, 1)) |> gpu
 
-    # predict output seqeunce recursively by current state yhat
-    # this starts after update state after input sequence
-    # yhat must be single array (hidRNN, batch_size)
-    # using Channel, implement Lazy sequence for recursive predict_recur and collect them.
-    # check fib_ch
-    function predict_recur(yhat, out_seq_len::Integer)
-        _yhat = yhat
+    function predict_recur(_yhat, seq_len::Integer)
+        # _yhat : current output of RNN (length : hidRNN)
+        # size(_yhat) = (hidRNN x batch_size)
+        yhat = _yhat
         # (seq_len x batch_size) array for output
-        c = zeros(typeof(yhat[1][1]), out_seq_len, size(yhat, 2)) |> gpu
+        r = []
 
-        for i in 1:out_seq_len
-            # predict next
-            yhat2 = modelPredictor(_yhat)
-            c[i, :] = vec(modelDNN(yhat2))
-            _yhat = yhat2
+        for _ in 1:seq_len
+            # predict next output by giving input as one by one
+            yhat2 = modelGRU(yhat)
+            push!(r, modelDNN(yhat2))
+            yhat = yhat2
         end
 
-        c
+        r
     end
 
-    state = (modelCNN, modelTrainer, modelPredictor, modelDNN)
+    state = (modelCNN, modelGRU, modelDNN)
 
     # define model by combining multiple models
-    # x : batched input for CNN ((length(features), sample_size, 1, batch_size))
+    # x : batched input for CNN (sample_size, (length(features), 1, batch_size))
     function model(x)
+        # to avoid segfault due to GC
+        GC.@preserve modelCNN modelGRU modelDNN
+
         # do CNN to extract local features
         ŷ_CNN = modelCNN(x)
 
         # 4D -> Array of 2Ds (hidCNN, batch)
-        # [(hidCNN, batch), ...]
-        x_RNN = unpack_seq(ŷ_CNN) |> gpu
+        x_RNN = unpack_seq(ŷ_CNN)
 
         # RNN
         # `modelGRU.` performs GRU for input sequence
         # `predict_GRU` performs prediction after input seqeunce
-        y_RNN_end = modelTrainer.(x_RNN)
+        Flux.reset!(modelGRU)
+        # broadcast : train columns. Each column (single batch) have been trained
+        # @test trained[end] == modelGRU.state # true
+        trained = modelGRU.(x_RNN)
 
-        # copy hidden state from Trainer
-        modelPredictor.state = modelTrainer.state
-
-        # y_RNN_end[end] is a last sequence,
-        ŷ_RNN = predict_recur(y_RNN_end[end], output_size)
-
-        # Put into DNN and get result
-        ŷ = modelDNN.(ŷ_RNN)
-
-        Flux.reset!(state)
+        # predict
+        ŷ_RNN = predict_recur(modelGRU.state, output_size)
 
         ŷ_RNN
     end
 
-    #loss(x, y) = Flux.mse(model(x), y) + sum(LinearAlgebra.norm, Flux.params(model))
-    loss(x, y) = Flux.mse(model(x), y)
-    # TODO : How to pass feature size
-    accuracy(data) = RMSE(data, model, μσ)
-    opt = Flux.ADAM()
+    loss(x, y) = Flux.mse(data_(model(x)), y)
 
+    accuracy(data) = RMSE(data, model, μσ, tdata_)
+    opt = Flux.ADAM()
+    
+    @info "hidRNN       in PM25: ", hidRNN
+    @info "ModelCNN     in PM25: ", modelCNN
+    @info "ModelGRU     in PM25: ", modelGRU
+    @info "ModelDNN     in PM25: ", modelDNN
     model, state, loss, accuracy, opt
 end

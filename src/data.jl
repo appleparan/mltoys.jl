@@ -400,9 +400,6 @@ function make_batch_DNN(dfs::Array{DataFrame, 1}, ycol::Symbol, features::Array{
         Y[:, i] = _Y
     end
 
-    X = X
-    Y = Y
-
     (X, Y)
 end
 
@@ -433,13 +430,49 @@ function getY(df::DataFrame, idxs::UnitRange{I}, ycol::Symbol) where I <: Intege
 end
 
 """
-    make_minibatch_DNN(df, ycol, chnks, features, sample_size, output_size, batch_size, Float64)
+    make_pair_LSTNet(df, ycol, features,
+    sample_size, kernel_length, output_size,
+    eltype=Float32)
 
-Create mini-batch for CNN. get list of idxes and construct batched input from single Dataframe
-Input data order is WHCN (Width x Height x Channel x Batch)
+Create batch CNN Input for LSTNet with batch_size == 1
+Used in valid/test set
+"""
+function make_pair_LSTNet(df::DataFrame,
+    ycol::Symbol, features::Array{Symbol, 1},
+    sample_size::I, kernel_length::I, output_size::I,
+    eltype::DataType=Float32) where I <: Integer
 
-if test case, batch_size = 1. (like pair)
+    # O = (W - K + 2P) / S + 1
+    # W = Input size, O = Output size
+    # K = Kernel size, P = Padding size, S = Stride size
+    pad_sample_size = kernel_length - 1
+    X = zeros(eltype, pad_sample_size + sample_size, length(features), 1, 1)
+    Y = zeros(eltype, output_size, 1)
 
+    # get X (2D)
+    _X = eltype.(getX(df, 1:sample_size, features))
+    # get Y (1D)
+    _Y = eltype.(getY(df, (sample_size + 1):(sample_size + output_size),
+        ycol))
+
+    # WHCN order, Channel is 1 because this is not an image
+    # left zero padding
+    X[(pad_sample_size + 1):end, :, 1, 1] = _X
+    Y[:, 1] = _Y
+
+    X = X |> gpu
+    Y = Y |> gpu
+
+    X, Y
+end
+
+"""
+    make_batch_LSTNet(dfs, ycol, features,
+    sample_size, kernel_length, output_size, batch_size,
+    eltype=Float32)
+
+Create batch CNN Input for LSTNet
+Used in train set
 """
 function make_batch_LSTNet(dfs::Array{DataFrame, 1},
     ycol::Symbol, features::Array{Symbol, 1},
@@ -507,7 +540,7 @@ function unpack_seq(x::AbstractArray{N, 4}) where {N<:Number}
     @assert size(x, 2) == 1
 
     # (sample_size, 1, hidCNN, batch_size) ->
-    # (hidCNN, batch_size, 1, sample_size)
+    # [(hidCNN, batch_size), ...] (length: sample_size)
 
     x = permutedims(x, [3, 4, 1, 2]) |> gpu
     unpacked = [x[:, :, seq, 1] |> gpu for seq in axes(x, 3)]

@@ -1,8 +1,9 @@
-evaluations(dataset, model, μσ::AbstractNDSparse, feas::Array{Symbol},
-    metrics::Array{String}) =
-    evaluations(dataset, model, μσ::AbstractNDSparse, feas, Symbol.(metrics))
+evaluations(dataset, model, μσ::AbstractNDSparse, features::Array{Symbol},
+    metrics::Array{String}, f::Function=Flux.Tracker.data) =
+    evaluations(dataset, model, μσ::AbstractNDSparse, features, Symbol.(metrics), f)
 
-function evaluations(dataset, model, μσ::AbstractNDSparse, feas::Array{Symbol}, metrics::Array{Symbol})
+function evaluations(dataset, model, μσ::AbstractNDSparse,
+    features::Array{Symbol}, metrics::Array{Symbol}, f::Function=Flux.Tracker.data)
     _μ = μσ["total", "μ"][:value]
 
     # initialize array per metric, i.e. RSR_arr
@@ -10,9 +11,10 @@ function evaluations(dataset, model, μσ::AbstractNDSparse, feas::Array{Symbol}
 
     for metric in metrics
         if metric == :AdjR2
-            metric_func = :($(metric)($dataset, $model, $μσ, $(length)($feas)))
+            # not implemented
+            metric_func = :($(metric)($dataset, $model, $μσ, $(length)($feas), $f))
         else
-            metric_func = :($(metric)($dataset, $model, $μσ))
+            metric_func = :($(metric)($dataset, $model, $μσ, $f))
         end
         push!(metric_vals, eval(metric_func))
     end
@@ -22,17 +24,18 @@ function evaluations(dataset, model, μσ::AbstractNDSparse, feas::Array{Symbol}
 end
 
 ```
-    RMSE(dataset, model, μσ)
+    RMSE(dataset, model, μσ, f = Flux.Tracker.data)
 
 RMSE-observations standard deviation ratio 
 ```
-function RMSE(dataset, model, μσ::AbstractNDSparse)
+function RMSE(dataset, model, μσ::AbstractNDSparse, f::Function = Flux.Tracker.data)
     RMSE_arr = Real[]
     _μ = μσ["total", "μ"][:value]
     _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
-        ŷ = Flux.Tracker.data(model(x |> gpu))
+        ŷ = f(model(x |> gpu))
+
         @assert size(ŷ) == size(y)
 
         push!(RMSE_arr, RMSE(y, ŷ))
@@ -48,13 +51,13 @@ RMSE(y, ŷ, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2.(y .- ŷ)) / length(y)
 
 Mean Absolute Error
 ```
-function MAE(dataset, model, μσ::AbstractNDSparse)
+function MAE(dataset, model, μσ::AbstractNDSparse, f::Function = Flux.Tracker.data)
     MAE_arr = Real[]
     _μ = μσ["total", "μ"][:value]
     _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
-        ŷ = Flux.Tracker.data(model(x |> gpu))
+        ŷ = f(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         push!(MAE_arr, MAE(y, ŷ))
@@ -74,13 +77,13 @@ computed average of squared version of percentage errors
 by which forecasts of a model differ from actual values of the quantity being forecast.
 https://en.wikipedia.org/wiki/Mean_percentage_error
 ```
-function MSPE(dataset, model, μσ::AbstractNDSparse)
+function MSPE(dataset, model, μσ::AbstractNDSparse, f::Function = Flux.Tracker.data)
     MSPE_arr = Real[]
     _μ = μσ["total", "μ"][:value]
     _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
-        ŷ = Flux.Tracker.data(model(x |> gpu))
+        ŷ = f(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         _MSPE = MSPE(y, ŷ, mean(y))
@@ -105,13 +108,13 @@ computed average of absolute version of percentage errors
 by which forecasts of a model differ from actual values of the quantity being forecast.
 https://en.wikipedia.org/wiki/Mean_percentage_error
 ```
-function MAPE(dataset, model, μσ::AbstractNDSparse)
+function MAPE(dataset, model, μσ::AbstractNDSparse, f::Function = Flux.Tracker.data)
     MAPE_arr = Real[]
     _μ = μσ["total", "μ"][:value]
     _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
-        ŷ = Flux.Tracker.data(model(x |> gpu))
+        ŷ = f(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         _MAPE = MAPE(y, ŷ, mean(y))
@@ -137,7 +140,7 @@ RMSE-observations standard deviation ratio
 
 0 is best
 ```
-function RSR(dataset, model, μσ::AbstractNDSparse)
+function RSR(dataset, model, μσ::AbstractNDSparse, f::Function = Flux.Tracker.data)
     RSR_arr = Real[]
     _μ = μσ["total", "μ"][:value]
     _σ = μσ["total", "σ"][:value]
@@ -145,7 +148,7 @@ function RSR(dataset, model, μσ::AbstractNDSparse)
     i = 0
     for (x, y) in dataset
         i += 1
-        ŷ = Flux.Tracker.data(model(x |> gpu))
+        ŷ = f(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         _RSR = RSR(y, ŷ, mean(y))
@@ -170,13 +173,13 @@ relative magnitude of the residual variance (“noise”)
 compared to the measured data variance (“information”.
 1 is best, -∞ is worst
 ```
-function NSE(dataset, model, μσ::AbstractNDSparse)
+function NSE(dataset, model, μσ::AbstractNDSparse, f::Function = Flux.Tracker.data)
     NSE_arr = Real[]
     _μ = μσ["total", "μ"][:value]
     _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
-        ŷ = Flux.Tracker.data(model(x |> gpu))
+        ŷ = f(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         _NSE = NSE(y, ŷ, mean(y))
@@ -198,13 +201,13 @@ indicate model overestimation bias (Gupta et al., 1999)
 + : underfitting
 - : overfitting
 ```
-function PBIAS(dataset, model, μσ::AbstractNDSparse)
+function PBIAS(dataset, model, μσ::AbstractNDSparse, f::Function = Flux.Tracker.data)
     PBIAS_arr = Real[]
     _μ = μσ["total", "μ"][:value]
     _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
-        ŷ = Flux.Tracker.data(model(x |> gpu))
+        ŷ = f(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         push!(PBIAS_arr, PBIAS(y, ŷ))
@@ -228,13 +231,13 @@ however, it is overly sensitive to extreme values due to the squared differences
 
 1 is best, 0 is worst
 ```
-function IOA(dataset, model, μσ::AbstractNDSparse)
+function IOA(dataset, model, μσ::AbstractNDSparse, f::Function = Flux.Tracker.data)
     IOA_arr = Real[]
     _μ = μσ["total", "μ"][:value]
     _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
-        ŷ = Flux.Tracker.data(model(x |> gpu))
+        ŷ = f(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         _IOA = IOA(y, ŷ, mean(y))
@@ -265,13 +268,13 @@ Willmott,C. J., Robeson, S. M. and Matsuura, K. (2011).
 A refined index of model performance. Int. J. Climatol. DOI: 10.1002/joc.2419
 1 is best, 0 is worst
 ```
-function RefinedIOA(dataset, model, μσ::AbstractNDSparse)
+function RefinedIOA(dataset, model, μσ::AbstractNDSparse, f::Function = Flux.Tracker.data)
     RefinedIOA_arr = Real[]
     _μ = μσ["total", "μ"][:value]
     _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
-        ŷ = Flux.Tracker.data(model(x |> gpu))
+        ŷ = f(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         _RefinedIOA = RefinedIOA(y, ŷ, mean(y))
@@ -321,13 +324,13 @@ Problems with R² that are corrected with an adjusted R²
     you can run into the problem of over-fitting the data.
     When you over-fit data, a misleadingly high R² value can lead to misleading projections.
 ```
-function R2(dataset, model, μσ::AbstractNDSparse)
+function R2(dataset, model, μσ::AbstractNDSparse, f::Function = Flux.Tracker.data)
     R2_arr = Real[]
     _μ = μσ["total", "μ"][:value]
     _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
-        ŷ = Flux.Tracker.data(model(x |> gpu))
+        ŷ = f(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         _R2 = R2(y, ŷ, mean(y))
@@ -349,13 +352,13 @@ R2(y, ŷ, μ::AbstractFloat) = 1.0 - sum(abs2.(y .- ŷ)) / sum(abs2.(y .- μ))
 the percentage of variation explained by only the independent variables that actually affect the dependent variable.
 https://medium.com/usf-msds/choosing-the-right-metric-for-machine-learning-models-part-1-a99d7d7414e4
 ```
-function AdjR2(dataset, model, μσ::AbstractNDSparse, k::Int=13)
+function AdjR2(dataset, model, μσ::AbstractNDSparse, k::Int=13, f::Function = Flux.Tracker.data)
     AdjR2_arr = Real[]
     _μ = μσ["total", "μ"][:value]
     _σ = μσ["total", "σ"][:value]
 
     for (x, y) in dataset
-        ŷ = Flux.Tracker.data(model(x |> gpu))
+        ŷ = f(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         _AdjR2 = AdjR2(y, ŷ, mean(y), k)
@@ -374,7 +377,7 @@ function AdjR2(y, ŷ, μ::AbstractFloat, k::Int=13)
     1.0 - (1.0 - _R2^2) * (length(y) - 1.0) / (length(y) - k - 1.0)
 end
 
-function classification(dataset::Array{T1, 1}, model, ycol::Symbol, μσ::AbstractNDSparse) where T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}} where F <: AbstractFloat
+function classification(dataset::Array{T1, 1}, model, ycol::Symbol, μσ::AbstractNDSparse, f::Function = Flux.Tracker.data) where {T1<:Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}} where F<:AbstractFloat}
     class_all_arr = []
     class_high_arr = []
     _μ = μσ["total", "μ"][:value]
@@ -382,7 +385,7 @@ function classification(dataset::Array{T1, 1}, model, ycol::Symbol, μσ::Abstra
 
     # TODO : if y is not 24 hour data, adjust them to use daily average
     for (x, y) in dataset
-        ŷ = Flux.Tracker.data(model(x |> gpu))
+        ŷ = f(model(x |> gpu))
         @assert size(ŷ) == size(y)
 
         # daliy average
