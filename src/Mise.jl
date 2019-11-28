@@ -15,8 +15,6 @@ import StatsBase: zscore!
 
 # ML
 using Flux
-# for temporal fix
-using ForwardDiff
 
 # MCMC
 #using Mamba
@@ -47,13 +45,6 @@ using StatsPlots
 
 if isa(Sys.which("python3"), String)
     using ExcelReaders
-end
-
-if isa(Sys.which("nvcc"), String)
-    using CuArrays
-    # temporal workaround for CuArrays #378
-    CuArrays.culiteral_pow(::typeof(^), x::ForwardDiff.Dual{Nothing,Float32,1}, ::Val{2}) = x*x
-    CuArrays.culiteral_pow(::typeof(^), x::ForwardDiff.Dual{Nothing,Float64,1}, ::Val{2}) = x*x
 end
 
 ENV["GKSwstype"] = "100"
