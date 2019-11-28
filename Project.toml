@@ -1,7 +1,7 @@
 name = "Mise"
 uuid = "6dc3ed62-a2a0-11e9-0761-b94fb01a3247"
 authors = ["Jongsu Liam Kim <jongsukim8@gmail.com>"]
-version = "0.1.0"
+version = "0.0.2"
 
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
