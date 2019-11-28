@@ -23,114 +23,148 @@ function evaluations(dataset, model, statvals::AbstractNDSparse,
     Tuple(metric_vals)
 end
 
-```
+# column sum
+_RMSE(y::AbstractVector, ŷ::AbstractVector) = sqrt(sum((y .- ŷ).^2, dims=[1]) * 1 // length(y))
+_RMSE(y::AbstractMatrix, ŷ::AbstractMatrix) = sqrt(sum((y .- ŷ).^2, dims=[1]) * 1 // size(y, 1))
+
+"""
     RMSE(dataset, model, statvals, f = Flux.Tracker.data)
 
-RMSE-observations standard deviation ratio 
-```
+Root Mean Squared Error
+"""
 function RMSE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
     RMSE_arr = Real[]
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
 
-    for (x, y) in dataset
-        ŷ = f(model(x |> gpu))
+    # sum(f, itr) + do block
+    # no allocation + mapreduce => faster!
+    let cnt = 0
+        # column sum for batches
+        _rmsesum = sum(dataset) do xy
+            _rmseval = _RMSE(xy[2], f(model(xy[1] |> gpu)))
 
-        @assert size(ŷ) == size(y)
+            # replace Inf, NaN to zero, no impact on sum
+            replace!(_rmseval, Inf => 0, -Inf => 0, NaN => 0)
+            # number of columns which is not Inf and not NaN
+            cnt += count(x -> !(isnan(x) || isinf(x)), _rmseval)
 
-        push!(RMSE_arr, RMSE(y, ŷ))
+            _rmseval
+        end
+
+        # rmse mean
+        _rmsesum / cnt
     end
-
-    mean(RMSE_arr)
 end
 
-RMSE(y, ŷ, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2.(y .- ŷ)) / length(y))
+# column sum
+_MAE(y::AbstractVector, ŷ::AbstractVector) = sum(abs.(y .- ŷ), dims=[1]) * 1 // length(y)
+_MAE(y::AbstractMatrix, ŷ::AbstractMatrix) = sum(abs.(y .- ŷ), dims=[1]) * 1 // size(y, 1)
 
-```
+"""
     MAE(dataset, model, statvals)
 
-Mean Absolute Error
-```
+Compute Mean Absolute Error
+"""
 function MAE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
     MAE_arr = Real[]
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
 
-    for (x, y) in dataset
-        ŷ = f(model(x |> gpu))
-        @assert size(ŷ) == size(y)
+    # sum(f, itr) + do block
+    # no allocation + mapreduce => faster!
+    let cnt = 0
+        _maesum = sum(dataset) do xy
+            _maeval = _MAE(xy[2], f(model(xy[1] |> gpu)))
 
-        push!(MAE_arr, MAE(y, ŷ))
+            # replace Inf, NaN to zero, no impact on sum
+            replace!(_maeval, Inf => 0, -Inf => 0, NaN => 0)
+            # number of columns which is not Inf and not NaN
+            cnt += count(x -> !(isnan(x) || isinf(x)), _maeval)
+
+            _maeval
+        end
+
+        # mae mean
+        _maesum / cnt
     end
-
-    mean(MAE_arr)
 end
 
-MAE(y, ŷ, μ::Real=zero(AbstractFloat)) = sum(abs.(y .- ŷ)) / length(y)
+# column sum
+_MSPE(y::AbstractVector, ŷ::AbstractVector) = 100 // length(y) * sum(((y .- ŷ) ./ y).^2, dims=[1])
+_MSPE(y::AbstractMatrix, ŷ::AbstractMatrix) = 100 // size(y, 1) * sum(((y .- ŷ) ./ y).^2, dims=[1])
 
-```
+"""
     MSPE(dataset, model, statvals::AbstractNDSparse)
 
-Mean Square Percentage Error 
+Compute Mean Square Percentage Error
 
 computed average of squared version of percentage errors 
 by which forecasts of a model differ from actual values of the quantity being forecast.
 https://en.wikipedia.org/wiki/Mean_percentage_error
-```
+"""
 function MSPE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
     MSPE_arr = Real[]
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
 
-    for (x, y) in dataset
-        ŷ = f(model(x |> gpu))
-        @assert size(ŷ) == size(y)
+    # sum(f, itr) + do block
+    # no allocation + mapreduce => faster!
+    let cnt = 0
+        _mspesum = sum(dataset) do xy
+            _mspeval = _MSPE(xy[2], f(model(xy[1] |> gpu)))
 
-        _MSPE = MSPE(y, ŷ, mean(y))
+            # replace Inf, NaN to zero, no impact on sum
+            replace!(_mspeval, Inf => 0, -Inf => 0, NaN => 0)
+            # number of columns which is not Inf and not NaN
+            cnt += count(x -> !(isnan(x) || isinf(x)), _mspeval)
 
-        if abs(_MSPE) != Inf
-            #@assert 0 <= _MSPE <= 100.0
-            push!(MSPE_arr, _MSPE)
+            _mspeval
         end
-    end
 
-    mean(MSPE_arr)
+        # mspe mean
+        _mspesum / cnt
+    end
 end
 
-MSPE(y, ŷ, μ::Real=zero(AbstractFloat)) = 100.0 / length(y) * sum(abs2.((y .- ŷ) ./ y))
+# column sum
+_MAPE(y::AbstractVector, ŷ::AbstractVector) = 100 // length(y) * sum(abs.((y .- ŷ) ./ y), dims=[1])
+_MAPE(y::AbstractMatrix, ŷ::AbstractMatrix) = 100 // size(y, 1) * sum(abs.((y .- ŷ) ./ y), dims=[1])
 
-```
+"""
     MAPE(dataset, model, statvals::AbstractNDSparse)
 
-Mean Absolute Percentage Error 
+Compute Mean Absolute Percentage Error
 
 computed average of absolute version of percentage errors 
 by which forecasts of a model differ from actual values of the quantity being forecast.
 https://en.wikipedia.org/wiki/Mean_percentage_error
-```
+"""
 function MAPE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
     MAPE_arr = Real[]
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
 
-    for (x, y) in dataset
-        ŷ = f(model(x |> gpu))
-        @assert size(ŷ) == size(y)
+    # sum(f, itr) + do block
+    # no allocation + mapreduce => faster!
+    let cnt = 0
+        _mapesum = sum(dataset) do xy
+            _mapeval = _MAPE(xy[2], f(model(xy[1] |> gpu)))
 
-        _MAPE = MAPE(y, ŷ, mean(y))
+            # replace Inf, NaN to zero, no impact on sum
+            replace!(_mapeval, Inf => 0, -Inf => 0, NaN => 0)
+            # number of columns which is not Inf and not NaN
+            cnt += count(x -> !(isnan(x) || isinf(x)), _mapeval)
 
-        if abs(_MAPE) != Inf
-            #@assert 0 <= _MAPE <= 100.0
-            push!(MAPE_arr, _MAPE)
+            _mapeval
         end
-    end
 
-    mean(MAPE_arr)
+        # mape mean
+        _mapesum / cnt
+    end
 end
 
-MAPE(y, ŷ, μ::Real=zero(AbstractFloat)) = 100.0 / length(y) * sum(abs.((y .- ŷ) ./ y))
-
-```
+"""
     RSR(dataset, model, statvals)
 
 http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.532.2506&rep=rep1&type=pdf
@@ -139,7 +173,7 @@ MODEL EVALUATION GUIDELINES FOR SYSTEMATIC QUANTIFICATION OF ACCURACY IN WATERSH
 RMSE-observations standard deviation ratio
 
 0 is best
-```
+"""
 function RSR(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
     RSR_arr = Real[]
     _μ = statvals["total", "μ"][:value]
@@ -161,9 +195,9 @@ function RSR(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Trac
     mean(RSR_arr)
 end
 
-RSR(y, ŷ, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2.(y .- ŷ))) / sqrt(sum(abs2.(y .- μ)))
+RSR(y, ŷ, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2, (y .- ŷ))) / sqrt(sum(abs2, (y .- μ)))
 
-```
+"""
     NSE(dataset, model, statvals)
 
     Nash–Sutcliffe model efficiency coefficient
@@ -172,7 +206,7 @@ normalized statistic that determines the
 relative magnitude of the residual variance (“noise”)
 compared to the measured data variance (“information”.
 1 is best, -∞ is worst
-```
+"""
 function NSE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
     NSE_arr = Real[]
     _μ = statvals["total", "μ"][:value]
@@ -194,13 +228,13 @@ end
 
 NSE(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sqrt(sum(abs2.(y .- ŷ))) / sqrt(sum(abs2.(y .- μ))) 
 
-```
+"""
     PBIAS(dataset, model, statvals)
 The optimal value of PBIAS is 0.0, with low-magnitude values indicating accurate model simulation. Positive values indicate model underestimation bias, and negative values
 indicate model overestimation bias (Gupta et al., 1999)
 + : underfitting
 - : overfitting
-```
+"""
 function PBIAS(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
     PBIAS_arr = Real[]
     _μ = statvals["total", "μ"][:value]
@@ -218,7 +252,7 @@ end
 
 PBIAS(y, ŷ, μ::Real=zero(AbstractFloat)) = sum(y .- ŷ) / (sum(y) + eps()) * 100.0
 
-```
+"""
     IOA(dataset, model, statvals)
 
 Index of Agreement
@@ -230,7 +264,7 @@ The index of agreement can detect additive and proportional differences in the o
 however, it is overly sensitive to extreme values due to the squared differences (Legates and McCabe, 1999).
 
 1 is best, 0 is worst
-```
+"""
 function IOA(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
     IOA_arr = Real[]
     _μ = statvals["total", "μ"][:value]
@@ -258,7 +292,7 @@ end
 IOA(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- ŷ)) /
         sum(abs2.(abs.(ŷ .- μ) .+ abs.(y .- μ)))
 
-        ```
+"""
     RefinedIOA(dataset, model, statvals)
 
 Refined Index of Agreement
@@ -267,7 +301,7 @@ Refined Index of Agreement
 Willmott,C. J., Robeson, S. M. and Matsuura, K. (2011).
 A refined index of model performance. Int. J. Climatol. DOI: 10.1002/joc.2419
 1 is best, 0 is worst
-```
+"""
 function RefinedIOA(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
     RefinedIOA_arr = Real[]
     _μ = statvals["total", "μ"][:value]
@@ -302,7 +336,7 @@ function RefinedIOA(y, ŷ, μ::Real=zero(AbstractFloat))
     d
 end
 
-```
+"""
     R2(dataset, model, statvals)
 
     R-Squared
@@ -323,7 +357,7 @@ Problems with R² that are corrected with an adjusted R²
 2.  Similarly, if your model has too many terms and too many high-order polynomials
     you can run into the problem of over-fitting the data.
     When you over-fit data, a misleadingly high R² value can lead to misleading projections.
-```
+"""
 function R2(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
     R2_arr = Real[]
     _μ = statvals["total", "μ"][:value]
@@ -346,12 +380,12 @@ end
 
 R2(y, ŷ, μ::AbstractFloat) = 1.0 - sum(abs2.(y .- ŷ)) / sum(abs2.(y .- μ))
 
-```
+"""
     AdjR2(dataset, model, statvals::AbstractNDSparse)
 
 the percentage of variation explained by only the independent variables that actually affect the dependent variable.
 https://medium.com/usf-msds/choosing-the-right-metric-for-machine-learning-models-part-1-a99d7d7414e4
-```
+"""
 function AdjR2(dataset, model, statvals::AbstractNDSparse, k::Int=13, f::Function = Flux.Tracker.data)
     AdjR2_arr = Real[]
     _μ = statvals["total", "μ"][:value]

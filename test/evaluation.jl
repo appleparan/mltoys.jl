@@ -1,11 +1,3 @@
-@testset "RMSE" begin
-    @testset "best case (should be zero)" begin
-        n = 100
-        a = rand(n)
-        @test RMSE(a, a, 0.0) == 0.0
-    end
-end
-
 @testset "RSR" begin
     @testset "best case (should be zero)" begin
         n = 100
@@ -17,7 +9,7 @@ end
         n = 100
         a = ones(n)
         b = zeros(n)
-        @test RMSE(a, b, 0.0) == 1.0
+        @test RSR(a, b, 0.0) == 1.0
     end
 end
 
