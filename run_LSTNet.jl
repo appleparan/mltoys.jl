@@ -70,7 +70,7 @@ function run_model()
     train_features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
     norm_train_features = [Symbol(eval(norm_prefix * String(f))) for f in train_features]
 
-    μσs = mean_and_std_cols(df, train_features)
+    statvals = extract_col_statvals(df, train_features)
     zscore!(df, features, norm_features)
     #min_max_scaling!(df, train_features, norm_train_features, 0.0, 10.0)
 
@@ -85,8 +85,6 @@ function run_model()
 
     sample_size = 48
     output_size = 24
-    # kernel_length  hours for extract locality 
-    kernel_length = 3
     epoch_size = 300
     batch_size = 32
 
@@ -131,6 +129,8 @@ function run_model()
     # simply collect dates, determine exact date for prediction (for 1h, 24h, and so on) later
     test_dates = collect(test_fdate + Hour(sample_size - 1):Hour(1):test_tdate - Hour(output_size))
 
+    # kernel_length  hours for extract locality 
+    kernel_length = 3
     @info "PM10 Training..."
     flush(stdout); flush(stderr)
     
@@ -139,23 +139,25 @@ function run_model()
         sample_size, output_size, kernel_length, epoch_size, batch_size
 
     # free minibatch after training because of memory usage
-    PM10_model, PM10_μσ = train_LSTNet(train_wd, valid_wd, test_wd,
+    PM10_model, PM10_statval = train_LSTNet(train_wd, valid_wd, test_wd,
     :PM10, norm_prefix, train_features,
     train_size, valid_size, test_size,
     sample_size, batch_size, kernel_length, output_size, epoch_size, eltype,
-    μσs, "PM10", test_dates)
+    statvals, "PM10", test_dates)
 
+    # kernel_length  hours for extract locality 
+    kernel_length = 3
     @info "PM25 Training..."
     flush(stdout); flush(stderr)
     
     @info "training feature : " train_features
     @info "sizes (sample, output, epoch, batch) : ", sample_size, output_size, epoch_size, batch_size
 
-    PM25_model, PM25_μσ = train_LSTNet(train_wd, valid_wd, test_wd,
+    PM25_model, PM25_statval = train_LSTNet(train_wd, valid_wd, test_wd,
     :PM25, norm_prefix, train_features,
     train_size, valid_size, test_size,
     sample_size, batch_size, kernel_length, output_size, epoch_size, eltype,
-    μσs, "PM25", test_dates)
+    statvals, "PM25", test_dates)
 end
 
 run_model()

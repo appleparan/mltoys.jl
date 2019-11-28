@@ -3,7 +3,7 @@
         sample_size, input_size, batch_size, output_size, epoch_size,
         total_wd_idxs, test_wd_idxs,
         train_chnk, valid_idxs, test_idxs,
-        μσs, filename, test_dates)
+        statvals, filename, test_dates)
 
 """
 function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1}, test_wd::Array{DataFrame, 1}, 
@@ -11,7 +11,7 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     train_size::Integer, valid_size::Integer, test_size::Integer,
     sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer,
     epoch_size::Integer, eltype::DataType,
-    μσs::AbstractNDSparse, filename::String, test_dates::Array{ZonedDateTime,1}) where I <: Integer
+    statvals::AbstractNDSparse, filename::String, test_dates::Array{ZonedDateTime,1}) where I <: Integer
 
     @info "DNN training starts.."
 
@@ -19,20 +19,20 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     norm_features = [Symbol(eval(norm_prefix * String(f))) for f in features]
 
     # extract from ndsparse
-    total_μ = μσs[String(ycol), "μ"].value
-    total_σ = μσs[String(ycol), "σ"].value
-    total_max = float(μσs[String(ycol), "maximum"].value)
-    total_min = float(μσs[String(ycol), "minimum"].value)
+    total_μ = statvals[String(ycol), "μ"].value
+    total_σ = statvals[String(ycol), "σ"].value
+    total_max = float(statvals[String(ycol), "maximum"].value)
+    total_min = float(statvals[String(ycol), "minimum"].value)
 
     # compute mean and std by each train/valid/test set
-    μσ = ndsparse((
+    statval = ndsparse((
         dataset = ["total", "total", "total", "total"],
         type = ["μ", "σ", "maximum", "minimum"]),
         (value = [total_μ, total_σ, total_max, total_min],))
 
     # construct compile function symbol
     compile = eval(Symbol(:compile, "_", ycol, "_DNN"))
-    model, loss, accuracy, opt = compile(input_size, batch_size, output_size, μσ)
+    model, loss, accuracy, opt = compile(input_size, batch_size, output_size, statval)
 
     # |> gpu doesn't work to *_set directly
     # construct minibatch for train_set
@@ -62,7 +62,7 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
 
     # *_set : normalized values
     df_evals = train_DNN!(model, train_set, valid_set,
-        loss, accuracy, opt, epoch_size, μσ, norm_features, filename)
+        loss, accuracy, opt, epoch_size, statval, norm_features, filename)
     
     # TODO : (current) validation with zscore, (future) validation with original value?
     @info "    Test ACC  : ", accuracy(test_set)
@@ -72,18 +72,18 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     eval_metrics = [:RMSE, :MAE, :MSPE, :MAPE]
     # test set
     for metric in eval_metrics
-        metric_func = :($(metric)($(test_set), $(model), $(μσ)))
+        metric_func = :($(metric)($(test_set), $(model), $(statval)))
         @info " $(string(ycol)) $(string(metric)) for test   : ", eval(metric_func)
     end
 
     # valid set
     for metric in eval_metrics
-        metric_func = :($(metric)($(valid_set), $(model), $(μσ)))
+        metric_func = :($(metric)($(valid_set), $(model), $(statval)))
         @info " $(string(ycol)) $(string(metric)) for valid  : ", eval(metric_func)
     end
 
     if ycol == :PM10 || ycol == :PM25
-        forecast_all, forecast_high = classification(test_set, model, ycol, μσ)
+        forecast_all, forecast_high = classification(test_set, model, ycol, statval)
         @info " $(string(ycol)) Forecasting accuracy (all) for test : ", forecast_all
         @info " $(string(ycol)) Forecasting accuracy (high) for test : ", forecast_high
     end
@@ -119,13 +119,13 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     push!(eval_metrics, :learn_rate)
     plot_evaluation(df_evals, ycol, eval_metrics, "/mnt/")
 
-    model, μσ
+    model, statval
 end
 
 function train_DNN!(model::C,
     train_set::Array{T2, 1}, valid_set::Array{T1, 1},
     loss, accuracy, opt,
-    epoch_size::Integer, μσ::AbstractNDSparse, norm_features::Array{Symbol},
+    epoch_size::Integer, feat::AbstractNDSparse, norm_features::Array{Symbol},
     filename::String) where {C <: Flux.Chain, F <: AbstractFloat, T2 <: Tuple{AbstractArray{F, 2}, AbstractArray{F, 2}},
     T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}}}
 
@@ -147,7 +147,7 @@ function train_DNN!(model::C,
 
         # record evaluation
         rmse, mae, mspe, mape =
-            evaluations(valid_set, model, μσ, norm_features,
+            evaluations(valid_set, model, statval, norm_features,
             [:RMSE, :MAE, :MSPE, :MAPE])
         push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape])
 
@@ -172,9 +172,9 @@ function train_DNN!(model::C,
             weights = Tracker.data.(Flux.params(cpu_model))
             # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
-            μ, σ = μσ["total", "μ"].value, μσ["total", "σ"].value
+            μ, σ = statval["total", "μ"].value, statval["total", "σ"].value
             total_max, total_min =
-                float(μσ["total", "maximum"].value), float(μσ["total", "minimum"].value)
+                float(statval["total", "maximum"].value), float(statval["total", "minimum"].value)
             BSON.@save filepath cpu_model weights epoch_idx _acc μ σ total_max total_min
             best_acc = _acc
             last_improvement = epoch_idx
@@ -201,7 +201,7 @@ function train_DNN!(model::C,
     df_eval
 end
 
-function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
+function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, statval::AbstractNDSparse)
     @info("    Compiling model...")
 
     unit_size = 16
@@ -234,13 +234,13 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     #loss(x, y) = Flux.mse(model(x), y)
 
     # TODO : How to pass feature size
-    accuracy(data) = RMSE(data, model, μσ)
+    accuracy(data) = RMSE(data, model, statval)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
 end
 
-function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, μσ::AbstractNDSparse)
+function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, statval::AbstractNDSparse)
     @info("    Compiling model...")
 
     unit_size = 32
@@ -270,7 +270,7 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     #loss(x, y) = Flux.mse(model(x), y)
 
     # TODO : How to pass feature size
-    accuracy(data) = RMSE(data, model, μσ)
+    accuracy(data) = RMSE(data, model, statval)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt

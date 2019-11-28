@@ -79,7 +79,7 @@ include("postprocess/post_DNN.jl")
 # input
 export join_data, filter_raw_data, filter_jongro, read_jongro,
 # utils
-    mean_and_std_cols, hampel!, zscore!, min_max_scaling!,
+    extract_col_statvals, zscore!, min_max_scaling!,
     exclude_elem, findrow,
     WHO_PM10, WHO_PM25,
 # data

@@ -6,7 +6,7 @@ tdata_(x) = Tracker.data(vcat(x...))
         sample_size, input_size, batch_size, output_size, epoch_size,
         total_wd_idxs, test_wd_idxs,
         train_chnk, valid_idxs, test_idxs,
-        μσs, filename, test_dates)
+        statvals, filename, test_dates)
 
 """
 function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1}, test_wd::Array{DataFrame, 1}, 
@@ -14,7 +14,7 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     train_size::Integer, valid_size::Integer, test_size::Integer,
     sample_size::Integer, batch_size::Integer, kernel_length::Integer,
     output_size::Integer, epoch_size::Integer, eltype::DataType,
-    μσs::AbstractNDSparse, filename::String, test_dates::Array{ZonedDateTime,1}) where I <: Integer
+    statvals::AbstractNDSparse, filename::String, test_dates::Array{ZonedDateTime,1}) where I <: Integer
 
     @info "LSTNet training starts.."
 
@@ -22,13 +22,13 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     norm_features = [Symbol(eval(norm_prefix * String(f))) for f in features]
 
     # extract from ndsparse
-    total_μ = μσs[String(ycol), "μ"].value
-    total_σ = μσs[String(ycol), "σ"].value
-    total_min = float(μσs[String(ycol), "minimum"].value)
-    total_max = float(μσs[String(ycol), "maximum"].value)
+    total_μ = statvals[String(ycol), "μ"].value
+    total_σ = statvals[String(ycol), "σ"].value
+    total_min = float(statvals[String(ycol), "minimum"].value)
+    total_max = float(statvals[String(ycol), "maximum"].value)
 
     # compute mean and std by each train/valid/test set
-    μσ = ndsparse((
+    statval = ndsparse((
         dataset = ["total", "total", "total", "total"],
         type = ["μ", "σ", "maximum", "minimum"]),
         (value = [total_μ, total_σ, total_max, total_min],))
@@ -36,7 +36,7 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     # construct compile function symbol
     compile = eval(Symbol(:compile, "_", ycol, "_LSTNet"))
     model, state, loss, accuracy, opt = 
-        compile((kernel_length, length(features)), batch_size, output_size, μσ)
+        compile((kernel_length, length(features)), batch_size, output_size, statval)
 
     # |> gpu doesn't work to *_set directly
     # construct minibatch for train_set
@@ -70,7 +70,8 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
         for dfs in Base.Iterators.partition(test_wd, batch_size)]
 
     # *_set : normalized
-    df_evals = train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt, epoch_size, μσ, norm_features, filename)
+    df_evals = train_LSTNet!(state, model, train_set, valid_set,
+        loss, accuracy, opt, epoch_size, statval, norm_features, filename)
     
     # TODO : (current) validation with zscore, (future) validation with original value?
     @info "    Test ACC  : ", accuracy(test_set)
@@ -83,13 +84,13 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     for metric in eval_metrics
         # pure test set is too slow on evaluation, 
         # batched test set is used only in evaluation
-        metric_func = :($(metric)($(test_batch_set), $(model), $(μσ), $(tdata_)))
+        metric_func = :($(metric)($(test_batch_set), $(model), $(statval), $(tdata_)))
         @info " $(string(ycol)) $(string(metric)) for test   : ", eval(metric_func)
     end
 
     # valid set evaluation
     for metric in eval_metrics
-        metric_func = :($(metric)($(valid_set), $(model), $(μσ), $(tdata_)))
+        metric_func = :($(metric)($(valid_set), $(model), $(statval), $(tdata_)))
         @info " $(string(ycol)) $(string(metric)) for valid  : ", eval(metric_func)
     end
 
@@ -121,11 +122,11 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     push!(eval_metrics, :learn_rate)
     plot_evaluation(df_evals, ycol, eval_metrics, "/mnt/")
 
-    model, μσ
+    model, statval
 end
 
 function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
-    epoch_size::Integer, μσ::AbstractNDSparse, norm_features::Array{Symbol},
+    epoch_size::Integer, statval::AbstractNDSparse, norm_features::Array{Symbol},
     filename::String) where {F <: AbstractFloat, T2 <: Tuple{AbstractArray{F, 2}, AbstractArray{F, 2}},
     T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}}}
 
@@ -147,7 +148,7 @@ function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
 
         # record evaluation
         rmse, mae, mspe, mape =
-            evaluations(valid_set, model, μσ, norm_features,
+            evaluations(valid_set, model, statval, norm_features,
             [:RMSE, :MAE, :MSPE, :MAPE], tdata_)
         push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape])
 
@@ -175,9 +176,9 @@ function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
             weightsDNN = Tracker.data.(Flux.params(cpu_modelDNN))
             # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
-            μ, σ = μσ["total", "μ"].value, μσ["total", "σ"].value
+            μ, σ = statval["total", "μ"].value, feat["total", "σ"].value
             total_max, total_min =
-                float(μσ["total", "maximum"].value), float(μσ["total", "minimum"].value)
+                float(statval["total", "maximum"].value), float(feat["total", "minimum"].value)
             BSON.@save filepath cpu_modelCNN weightsCNN cpu_modelGRU weightsGRU cpu_modelDNN weightsDNN epoch_idx _acc μ σ total_max total_min
             best_acc = _acc
             last_improvement = epoch_idx
@@ -213,11 +214,11 @@ sample_size and output_size is Integer
 function compile_PM10_LSTNet(
     kernel_size::Tuple{I, I},
     sample_size::I, output_size::I,
-    μσ::AbstractNDSparse) where I<:Integer
+    statval::AbstractNDSparse) where I<:Integer
 
     @info("    Compiling model...")
     # hidRNN : length of context vector
-    hidRNN = 32
+    hidRNN = 16
 
     kernel_length = kernel_size[1]
     # WHCN order : reverse to python framework (row-major && column-major)
@@ -303,7 +304,7 @@ function compile_PM10_LSTNet(
 
     loss(x, y) = Flux.mse(data_(model(x)), y)
 
-    accuracy(data) = RMSE(data, model, μσ, tdata_)
+    accuracy(data) = RMSE(data, model, statval, tdata_)
     opt = Flux.ADAM()
 
     @info "hidRNN       in PM10: ", hidRNN
@@ -316,11 +317,11 @@ end
 function compile_PM25_LSTNet(
     kernel_size::Tuple{I, I},
     sample_size::I, output_size::I,
-    μσ::AbstractNDSparse) where I<:Integer
+    statval::AbstractNDSparse) where I<:Integer
 
     @info("    Compiling model...")
     # hidRNn : length of context vector
-    hidRNN = 32
+    hidRNN = 16
 
     kernel_length = kernel_size[1]
     # WHCN order : reverse to python framework (row-major && column-major)
@@ -406,7 +407,7 @@ function compile_PM25_LSTNet(
 
     loss(x, y) = Flux.mse(data_(model(x)), y)
 
-    accuracy(data) = RMSE(data, model, μσ, tdata_)
+    accuracy(data) = RMSE(data, model, statval, tdata_)
     opt = Flux.ADAM()
     
     @info "hidRNN       in PM25: ", hidRNN
