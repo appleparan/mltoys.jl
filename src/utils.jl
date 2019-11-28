@@ -1,7 +1,7 @@
 """
     extract_col_feats(df, cols)
 
-find mean, std, minimum, maximum in df[:, col]
+find mean, std, minimum, maximum in df[!, col]
 """
 function extract_col_statvals(df::DataFrame, cols::Array{Symbol, 1})
     syms = []
@@ -35,12 +35,12 @@ function extract_col_statvals(df::DataFrame, cols::Array{Symbol, 1})
         (value = vals,))
 end
 
-# TODO : How to pass optional argument to nested function?
+
 """
     zscore!(df, col, new_col)
 
 Apply zscore (normalization) to dataframe `df`
-TODO: how to make μ and σ optional?
+No need to implement `zscore`, just implement `zscore!``.
 """
 function zscore!(df::DataFrame, col::Symbol, new_col::Symbol)
     to_be_normalized = df[!, col]
@@ -58,39 +58,88 @@ function zscore!(df::DataFrame, cols::Array{Symbol, 1}, new_cols::Array{Symbol, 
     end
 end
 
-function zscore!(df::DataFrame, cols::Array{Symbol, 1}, new_cols::Array{Symbol, 1}, μs::Array{Real, 1}, σs::Array{Real, 1})
-    for (col, new_col, μ, σ) in zip(cols, new_cols, μs, σs)
-        zscore!(df, col, new_col, μ, σ)
-    end
-end
-
 function zscore!(df::DataFrame, cols::Array{Symbol, 1}, new_cols::Array{Symbol, 1}, μσs::Array{Real, 1})
     for (col, new_col) in zip(cols, new_cols)
-        μ, σ = μσs[String(ycol), "μ"].value, μσs[String(ycol), "σ"].value
+        μ, σ = μσs[String(col), "μ"].value, μσs[String(col), "σ"].value
         zscore!(df, col, new_col, μ, σ)
     end
 end
 
 """
-    min_max_scaling_cols(df, cols)
+    unzscore(A, μ, σ)
 
-find mean and std value in df[:, col]
+unzscore in Array using given μ and σ
 """
-function min_max_scaling!(df::DataFrame, cols::Array{Symbol, 1}, new_cols::Array{Symbol, 1},
-    new_min::F, new_max::F) where F<:AbstractFloat
+unzscore(A, μ::Real, σ::Real) = A .* σ .+ μ
 
-    for (col, new_col) in zip(cols, new_cols)
-        min_max_scaling!(df, col, new_col, new_min, new_max)
+"""
+    unzscore!(df, zcol, ocol, μ, σ)
+
+revert zscore normalization (single column, zcol -> ocol)
+"""
+function unzscore!(df::DataFrame, zcol::Symbol, ocol::Symbol, μ::Real, σ::Real)
+    df[!, ocol] = unzscore(df[!, zcol], μ, σ)
+end
+
+"""
+    unzscore!(df, zcols, ocols, μσs)
+
+revert zscore normalization (single column, zcol -> ocol)
+"""
+function unzscore!(df::DataFrame, zcols::Array{Symbol, 1}, ocols::Array{Symbol, 1}, stattb::AbstractNDSparse)
+    for (zcol, ocol) in zip(zcols, ocols)
+        unzscore!(df, zcol, ocol,
+            stattb[String(ocol), "μ"].value, stattb[String(ocol), "σ"].value)
     end
 end
 
-function min_max_scaling!(df::DataFrame, col::Symbol, new_col::Symbol,
-    new_min::F, new_max::F) where F<:AbstractFloat
+minmax_scaling(X::AbstractVector, a::F, b::F) where F<:AbstractFloat =
+    a .+ (b - a) .* (X .- minimum(X)) ./ (maximum(X) - minimum(X))
 
-    to_be_normalized = df[!, col]
-    df[!, new_col] = new_min .+ (new_max - new_min) .*
-        (to_be_normalized .- minimum(to_be_normalized)) ./
-        (maximum(to_be_normalized) .- minimum(to_be_normalized))
+minmax_scaling!(df::DataFrame, ocol::Symbol, mcol::Symbol,
+    a::F, b::F) where F<:AbstractFloat =
+        df[!, mcol] = minmax_scaling(df[!, ocol], a, b)
+
+"""
+    minmax_scaling!(df, ocols, mcols, a, b)
+
+min-max normalization from df[!, ocols] to df[!, mcols], new range is (a, b)
+https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)
+
+Y = a + (X - min(X)) * (b - a) / (maximum(X) - minimum(X))
+"""
+function minmax_scaling!(df::DataFrame, ocols::Array{Symbol, 1}, mcols::Array{Symbol, 1},
+    a::F, b::F) where F<:AbstractFloat
+
+    for (ocol, mcol) in zip(ocols, mcols)
+        minmax_scaling!(df, ocol, mcol, a, b)
+    end
+end
+
+unminmax_scaling(Y::AbstractVector, minY::Real, maxY::Real, a::F, b::F) where F<:AbstractFloat = 
+    (Y .- a) .* ((maxY - minY) / (b - a)) .+ minY
+
+"""
+    unminmax_scaling!(df, mcol, ocol,  minY, maxY, a, b)
+
+revert min-max normalization (single column)
+"""
+function unminmax_scaling!(df::DataFrame,
+    mcol::Symbol, ocol::Symbol, minY::Real, maxY::Real, a::F, b::F) where F<:AbstractFloat
+    df[!, ocol] = unminmax_scaling(df[!, mcol], minY, maxY, a, b)
+end
+
+"""
+    unminmax_scaling!(df, mcols, ocols, minY, maxY, a, b)
+
+revert min-max normalization (multiple column)
+"""
+function unminmax_scaling!(df::DataFrame, zcols::Array{Symbol, 1}, ocols::Array{Symbol, 1},
+    stattb::AbstractNDSparse, a::F, b::F) where F<:AbstractFloat
+    for (zcol, ocol) in zip(zcols, ocols)
+        unminmax_scaling!(df, zcol, ocol,
+        stattb[String(ocol), "minimum"].value, stattb[String(ocol), "maximum"].value, a, b)
+    end
 end
 
 """
@@ -108,7 +157,7 @@ end
 """
     findrow(df, col, val)
 
-Find fist row number in df[:, `col`] as `val` by brute-force
+Find fist row number in df[!, `col`] as `val` by brute-force
 """
 function findrow(df::DataFrame, col::Symbol, val::Union{<:Real, DateTime, ZonedDateTime})
     

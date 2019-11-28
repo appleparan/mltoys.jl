@@ -79,7 +79,9 @@ include("postprocess/post_DNN.jl")
 # input
 export join_data, filter_raw_data, filter_jongro, read_jongro,
 # utils
-    extract_col_statvals, zscore!, min_max_scaling!,
+    extract_col_statvals, zscore!, unzscore, unzscore!,
+    minmax_scaling, minmax_scaling!,
+    unminmax_scaling, unminmax_scaling!,
     exclude_elem, findrow,
     WHO_PM10, WHO_PM25,
 # data
@@ -91,8 +93,8 @@ export join_data, filter_raw_data, filter_jongro, read_jongro,
     make_pair_LSTNet, make_batch_LSTNet,
 # activation
 # evaluation
-    evaluations, RMSE, MAE, RSR, NSE, PBIAS,
-    IOA, RefinedIOA, R2, AdjR2, MSPE, MAPE, classification,
+    evaluations, RMSE, MAE, MSPE, MAPE,
+    RSR, NSE, PBIAS, IOA, RefinedIOA, R2, AdjR2, classification,
 # loss
     huber_loss, huber_loss_mean, mse_rnn,
 # DNN

@@ -2,7 +2,7 @@ using Mise
 using Test
 
 using DataFrames
-using StatsBase: mean, std, zscore
+using StatsBase: mean, std, mean_and_std, zscore
 using Dates, TimeZones
 using Flux
 
