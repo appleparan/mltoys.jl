@@ -1,4 +1,4 @@
-function predict_DNNmodel_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
+function predict_DNN_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     μ::AbstractFloat, σ::AbstractFloat,output_size::Integer, output_dir::String,
     f::Function=Flux.Tracker.data) where T <: Tuple
 
@@ -16,15 +16,14 @@ function predict_DNNmodel_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symb
         cpu_y = y |> cpu
         cpu_ŷ = ŷ |> cpu
 
-        # 24 hour data according to x
-        org_y = cpu_y .* σ .+ μ
-        # 24 hour data according to prediction
-        org_ŷ = f(cpu_ŷ) .* σ .+ μ
+        # 24 hour data
+        org_y = unzscore(cpu_y, σ, μ)
+        # 24 hour prediction
+        org_ŷ = unzscore(f(cpu_ŷ), σ, μ)
 
         for i = 1:output_size
             # 1 hour 
             tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
-
             dnn_table[i] = merge(dnn_table[i], tmp_table)
         end
     end
@@ -32,7 +31,7 @@ function predict_DNNmodel_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symb
     dnn_table
 end
 
-function predict_DNNmodel_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
+function predict_DNN_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     _min::AbstractFloat, _max::AbstractFloat, a::AbstractFloat, b::AbstractFloat,
     output_size::Integer, output_dir::String, f::Function=Flux.Tracker.data) where T <: Tuple
 
@@ -52,10 +51,13 @@ function predict_DNNmodel_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symb
         cpu_y = y |> cpu
         cpu_ŷ = ŷ |> cpu
 
-        org_y = (cpu_y .- a) .* c .+ _min
-        org_ŷ = (f(cpu_ŷ) .- a) .* c .+ _min
+        # 24 hour data
+        org_y = unminmax_scaling(cpu_y, _min, _max, a, b)
+        # 24 hour prediction
+        org_ŷ = unminmax_scaling(f(cpu_ŷ), _min, _max, a, b)
 
         for i = 1:output_size
+            # 1 hour
             tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
             dnn_table[i] = merge(dnn_table[i], tmp_table)
         end
@@ -64,16 +66,16 @@ function predict_DNNmodel_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symb
     dnn_table
 end
 
-function predict_RNNmodel_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
+function predict_RNN_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String,
     f::Function=Flux.Tracker.data) where T <: Tuple
 
-    dnn_table = Array{IndexedTable}(undef, output_size)
+    rnn_table = Array{IndexedTable}(undef, output_size)
     table_path = Array{String}(undef, output_size)
 
     for i = 1:output_size
         table_path[i] = output_dir * "$(String(ycol))_$(lpad(i,2,'0'))_table.csv"
-        dnn_table[i] = table((y = [], ŷ = [],))
+        rnn_table[i] = table((y = [], ŷ = [],))
     end
 
     for (x, y) in dataset
@@ -82,32 +84,31 @@ function predict_RNNmodel_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symb
         cpu_y = y[:, 1] |> cpu
         cpu_ŷ = ŷ[:, 1] |> cpu
 
-        # 24 hour data according to x
-        org_y = cpu_y .* σ .+ μ
-        # 24 hour data according to prediction
-        org_ŷ = f(cpu_ŷ) .* σ .+ μ
+        # 24 hour data
+        org_y = unzscore(cpu_y, σ, μ)
+        # 24 hour prediction
+        org_ŷ = unzscore(f(cpu_ŷ), σ, μ)
 
         for i = 1:output_size
-            # 1 hour 
+            # 1 hour
             tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
-
-            dnn_table[i] = merge(dnn_table[i], tmp_table)
+            rnn_table[i] = merge(rnn_table[i], tmp_table)
         end
     end
 
-    dnn_table
+    rnn_table
 end
 
-function predict_RNNmodel_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
+function predict_RNN_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     _min::AbstractFloat, _max::AbstractFloat, a::AbstractFloat, b::AbstractFloat,
     output_size::Integer, output_dir::String, f::Function=Flux.Tracker.data) where T <: Tuple
 
-    dnn_table = Array{IndexedTable}(undef, output_size)
+    rnn_table = Array{IndexedTable}(undef, output_size)
     table_path = Array{String}(undef, output_size)
 
     for i = 1:output_size
         table_path[i] = output_dir * "$(String(ycol))_$(lpad(i,2,'0'))_table.csv"
-        dnn_table[i] = table((y = [], ŷ = [],))
+        rnn_table[i] = table((y = [], ŷ = [],))
     end
 
     # https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)
@@ -118,18 +119,20 @@ function predict_RNNmodel_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symb
         cpu_y = y[:, 1] |> cpu
         cpu_ŷ = ŷ[:, 1] |> cpu
 
-        org_y = (cpu_y .- a) .* c .+ _min
-        org_ŷ = (f(cpu_ŷ) .- a) .* c .+ _min
+        # 24 hour data
+        org_y = unminmax_scaling(cpu_y, _min, _max, a, b)
+        # 24 hour prediction
+        org_ŷ = unminmax_scaling(f(cpu_ŷ), _min, _max, a, b)
 
         for i = 1:output_size
+            # 1 hour
             tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
-            dnn_table[i] = merge(dnn_table[i], tmp_table)
+            rnn_table[i] = merge(rnn_table[i], tmp_table)
         end
     end
 
-    dnn_table
+    rnn_table
 end
-
 
 function export_CSV(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1},
     ycol::Symbol, output_size::Integer, output_dir::String, output_prefix::String)

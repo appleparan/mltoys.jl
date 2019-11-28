@@ -79,8 +79,8 @@ function run_model()
     norm_train_features = [Symbol(eval(norm_prefix * String(f))) for f in train_features]
 
     statvals = extract_col_statvals(df, train_features)
-    #zscore!(df, features, norm_features)
-    min_max_scaling!(df, train_features, norm_train_features, 0.0, 10.0)
+    zscore!(df, features, norm_features)
+    #minmax_scaling!(df, train_features, norm_train_features, 0.0, 10.0)
 
     # convert Float types
     for fea in features

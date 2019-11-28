@@ -101,17 +101,17 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     end
 
     # batched set can't be used to create table (predict_model_* )
-    dnn_table = predict_RNNmodel_zscore(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/", tdata_)
-    #dnn_table = predict_RNNmodel_minmax(test_set, model, ycol, total_min, total_max, 0.0, 10.0, output_size, "/mnt/", tdata_)
-    dfs_out = export_CSV(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", String(ycol))
-    df_corr = compute_corr(dnn_table, output_size, "/mnt/", String(ycol))
+    rnn_table = predict_RNN_model_zscore(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/", tdata_)
+    #rnn_table = predict_RNN_model_minmax(test_set, model, ycol, total_min, total_max, 0.0, 10.0, output_size, "/mnt/", tdata_)
+    dfs_out = export_CSV(DateTime.(test_dates), rnn_table, ycol, output_size, "/mnt/", String(ycol))
+    df_corr = compute_corr(rnn_table, output_size, "/mnt/", String(ycol))
 
-    plot_DNN_scatter(dnn_table, ycol, output_size, "/mnt/", String(ycol))
-    plot_DNN_histogram(dnn_table, ycol, output_size, "/mnt/", String(ycol))
+    plot_DNN_scatter(rnn_table, ycol, output_size, "/mnt/", String(ycol))
+    plot_DNN_histogram(rnn_table, ycol, output_size, "/mnt/", String(ycol))
 
     plot_datefmt = @dateformat_str "yyyymmddHH"
 
-    plot_DNN_lineplot(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", String(ycol))
+    plot_DNN_lineplot(DateTime.(test_dates), rnn_table, ycol, output_size, "/mnt/", String(ycol))
     plot_corr(df_corr, output_size, "/mnt/", String(ycol))
 
     # 3 months plot

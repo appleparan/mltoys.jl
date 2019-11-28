@@ -108,8 +108,8 @@ export join_data, filter_raw_data, filter_jongro, read_jongro,
 # post processing
     compute_corr, test_features, test_station, test_classification,
 # output
-    predict_DNNmodel_zscore, predict_DNNmodel_minmax,
-    predict_RNNmodel_zscore, predict_RNNmodel_minmax,
+    predict_DNN_model_zscore, predict_DNN_model_minmax,
+    predict_RNN_model_zscore, predict_RNN_model_minmax,
     export_CSV,
 # plot
     plot_corr_input,

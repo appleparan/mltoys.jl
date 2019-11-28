@@ -95,10 +95,10 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     end
 
     # back to unnormalized for comparison
-    dnn_table = predict_DNNmodel_zscore(test_set, model, ycol,
+    dnn_table = predict_DNN_model_zscore(test_set, model, ycol,
         total_μ, total_σ, output_size, "/mnt/", Flux.Tracker.data)
     #=
-    dnn_table = predict_DNNmodel_minmax(test_set, model, ycol,
+    dnn_table = predict_DNN_model_minmax(test_set, model, ycol,
         total_min, total_max, 0.0, 10.0, output_size, "/mnt/", Flux.Tracker.data)
     =#
     dfs_out = export_CSV(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", String(ycol))
