@@ -146,8 +146,8 @@ function train_DNN!(model::C,
         push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape])
 
         # Calculate accuracy:
-        _acc = accuracy(valid_set)
-        _loss = loss(train_set[1][1], train_set[1][2])
+        _acc = cpu.(accuracy(valid_set))
+        _loss = cpu.(loss(train_set[1][1], train_set[1][2]))
         @info(@sprintf("epoch [%d]: loss[1]: %.8E Valid accuracy: %.8f Time: %s", epoch_idx, _loss, _acc, now()))
         flush(stdout); flush(stderr)
 
