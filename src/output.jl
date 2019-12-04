@@ -1,6 +1,5 @@
 function predict_DNN_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
-    μ::AbstractFloat, σ::AbstractFloat,output_size::Integer, output_dir::String,
-    f::Function=Flux.Tracker.data) where T <: Tuple
+    μ::AbstractFloat, σ::AbstractFloat,output_size::Integer, output_dir::String) where T <: Tuple
 
     dnn_table = Array{IndexedTable}(undef, output_size)
     table_path = Array{String}(undef, output_size)
@@ -19,7 +18,7 @@ function predict_DNN_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Sym
         # 24 hour data
         org_y = unzscore(cpu_y, σ, μ)
         # 24 hour prediction
-        org_ŷ = unzscore(f(cpu_ŷ), σ, μ)
+        org_ŷ = unzscore(cpu_ŷ, σ, μ)
 
         for i = 1:output_size
             # 1 hour 
@@ -33,7 +32,7 @@ end
 
 function predict_DNN_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     _min::AbstractFloat, _max::AbstractFloat, a::AbstractFloat, b::AbstractFloat,
-    output_size::Integer, output_dir::String, f::Function=Flux.Tracker.data) where T <: Tuple
+    output_size::Integer, output_dir::String) where T <: Tuple
 
     dnn_table = Array{IndexedTable}(undef, output_size)
     table_path = Array{String}(undef, output_size)
@@ -54,7 +53,7 @@ function predict_DNN_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Sym
         # 24 hour data
         org_y = unminmax_scaling(cpu_y, _min, _max, a, b)
         # 24 hour prediction
-        org_ŷ = unminmax_scaling(f(cpu_ŷ), _min, _max, a, b)
+        org_ŷ = unminmax_scaling(cpu_ŷ, _min, _max, a, b)
 
         for i = 1:output_size
             # 1 hour
@@ -67,8 +66,7 @@ function predict_DNN_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Sym
 end
 
 function predict_RNN_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
-    μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String,
-    f::Function=Flux.Tracker.data) where T <: Tuple
+    μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String) where T <: Tuple
 
     rnn_table = Array{IndexedTable}(undef, output_size)
     table_path = Array{String}(undef, output_size)
@@ -87,7 +85,7 @@ function predict_RNN_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Sym
         # 24 hour data
         org_y = unzscore(cpu_y, σ, μ)
         # 24 hour prediction
-        org_ŷ = unzscore(f(cpu_ŷ), σ, μ)
+        org_ŷ = unzscore(cpu_ŷ, σ, μ)
 
         for i = 1:output_size
             # 1 hour
@@ -101,7 +99,7 @@ end
 
 function predict_RNN_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     _min::AbstractFloat, _max::AbstractFloat, a::AbstractFloat, b::AbstractFloat,
-    output_size::Integer, output_dir::String, f::Function=Flux.Tracker.data) where T <: Tuple
+    output_size::Integer, output_dir::String) where T <: Tuple
 
     rnn_table = Array{IndexedTable}(undef, output_size)
     table_path = Array{String}(undef, output_size)
@@ -122,7 +120,7 @@ function predict_RNN_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Sym
         # 24 hour data
         org_y = unminmax_scaling(cpu_y, _min, _max, a, b)
         # 24 hour prediction
-        org_ŷ = unminmax_scaling(f(cpu_ŷ), _min, _max, a, b)
+        org_ŷ = unminmax_scaling(cpu_ŷ, _min, _max, a, b)
 
         for i = 1:output_size
             # 1 hour

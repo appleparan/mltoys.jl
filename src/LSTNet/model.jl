@@ -1,6 +1,3 @@
-data_(x) = vcat(x...)
-tdata_(x) = Tracker.data(vcat(x...))
-
 """
     train(df, ycol, norm_prefix, norm_features,
         sample_size, input_size, batch_size, output_size, epoch_size,
@@ -84,13 +81,13 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     for metric in eval_metrics
         # pure test set is too slow on evaluation, 
         # batched test set is used only in evaluation
-        metric_func = :($(metric)($(test_batch_set), $(model), $(statval), $(tdata_)))
+        metric_func = :($(metric)($(test_batch_set), $(model), $(statval)))
         @info " $(string(ycol)) $(string(metric)) for test   : ", eval(metric_func)
     end
 
     # valid set evaluation
     for metric in eval_metrics
-        metric_func = :($(metric)($(valid_set), $(model), $(statval), $(tdata_)))
+        metric_func = :($(metric)($(valid_set), $(model), $(statval)))
         @info " $(string(ycol)) $(string(metric)) for valid  : ", eval(metric_func)
     end
 
@@ -148,8 +145,8 @@ function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
 
         # record evaluation
         rmse, mae, mspe, mape =
-            evaluations(valid_set, model, statval, norm_features,
-            [:RMSE, :MAE, :MSPE, :MAPE], tdata_)
+            evaluations(valid_set, model, statval,
+            [:RMSE, :MAE, :MSPE, :MAPE])
         push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape])
 
         # Calculate accuracy:

@@ -69,6 +69,7 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     @info "    Valid ACC : ", accuracy(valid_set)
     flush(stdout); flush(stderr)
 
+    _f(_x) = 1 * _x
     eval_metrics = [:RMSE, :MAE, :MSPE, :MAPE]
     # test set
     for metric in eval_metrics
@@ -82,12 +83,6 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
         @info " $(string(ycol)) $(string(metric)) for valid  : ", eval(metric_func)
     end
 
-    if ycol == :PM10 || ycol == :PM25
-        forecast_all, forecast_high = classification(test_set, model, ycol, statval)
-        @info " $(string(ycol)) Forecasting accuracy (all) for test : ", forecast_all
-        @info " $(string(ycol)) Forecasting accuracy (high) for test : ", forecast_high
-    end
-
     # create directory per each time
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
@@ -96,10 +91,10 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
 
     # back to unnormalized for comparison
     dnn_table = predict_DNN_model_zscore(test_set, model, ycol,
-        total_μ, total_σ, output_size, "/mnt/", Flux.Tracker.data)
+        total_μ, total_σ, output_size, "/mnt/")
     #=
     dnn_table = predict_DNN_model_minmax(test_set, model, ycol,
-        total_min, total_max, 0.0, 10.0, output_size, "/mnt/", Flux.Tracker.data)
+        total_min, total_max, 0.0, 10.0, output_size, "/mnt/")
     =#
     dfs_out = export_CSV(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", String(ycol))
     df_corr = compute_corr(dnn_table, output_size, "/mnt/", String(ycol))
@@ -125,7 +120,7 @@ end
 function train_DNN!(model::C,
     train_set::Array{T2, 1}, valid_set::Array{T1, 1},
     loss, accuracy, opt,
-    epoch_size::Integer, feat::AbstractNDSparse, norm_features::Array{Symbol},
+    epoch_size::Integer, statval::AbstractNDSparse, norm_features::Array{Symbol},
     filename::String) where {C <: Flux.Chain, F <: AbstractFloat, T2 <: Tuple{AbstractArray{F, 2}, AbstractArray{F, 2}},
     T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}}}
 
@@ -147,13 +142,13 @@ function train_DNN!(model::C,
 
         # record evaluation
         rmse, mae, mspe, mape =
-            evaluations(valid_set, model, statval, norm_features,
+            evaluations(valid_set, model, statval,
             [:RMSE, :MAE, :MSPE, :MAPE])
         push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape])
 
         # Calculate accuracy:
-        _acc = Tracker.data(accuracy(valid_set))
-        _loss = Tracker.data(loss(train_set[1][1], train_set[1][2]))
+        _acc = accuracy(valid_set)
+        _loss = loss(train_set[1][1], train_set[1][2])
         @info(@sprintf("epoch [%d]: loss[1]: %.8E Valid accuracy: %.8f Time: %s", epoch_idx, _loss, _acc, now()))
         flush(stdout); flush(stderr)
 
@@ -169,7 +164,7 @@ function train_DNN!(model::C,
             flush(stdout)
 
             cpu_model = model |> cpu
-            weights = Tracker.data.(Flux.params(cpu_model))
+            weights = Flux.params(cpu_model)
             # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
             μ, σ = statval["total", "μ"].value, statval["total", "σ"].value

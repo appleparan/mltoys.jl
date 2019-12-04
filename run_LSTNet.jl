@@ -49,7 +49,7 @@ function run_model()
 
     # stations (LSTNet lmit 1 station)
     train_stn_names = [:종로구, :광진구, :강서구, :강남구]
-    train_stn_names = [:종로구, :강서구]
+    #train_stn_names = [:종로구, :강서구]
     #train_stn_names = [:종로구]
 
     # test set is Jongro only
