@@ -76,19 +76,19 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     flush(stdout); flush(stderr)
 
     eval_metrics = [:RMSE, :MAE, :MSPE, :MAPE]
-    
-    # test set evaluation
+
+    # test set
     for metric in eval_metrics
         # pure test set is too slow on evaluation, 
         # batched test set is used only in evaluation
-        metric_func = :($(metric)($(test_batch_set), $(model), $(statval)))
-        @info " $(string(ycol)) $(string(metric)) for test   : ", eval(metric_func)
+        _eval = evaluation(test_set, model, statval, metric)
+        @info " $(string(ycol)) $(string(metric)) for test   : ", _eval
     end
 
-    # valid set evaluation
+    # valid set
     for metric in eval_metrics
-        metric_func = :($(metric)($(valid_set), $(model), $(statval)))
-        @info " $(string(ycol)) $(string(metric)) for valid  : ", eval(metric_func)
+        _eval = evaluation(valid_set, model, statval, metric)
+        @info " $(string(ycol)) $(string(metric)) for valid  : ", _eval
     end
 
     # create directory per each time
@@ -299,9 +299,9 @@ function compile_PM10_LSTNet(
         ŷ_RNN
     end
 
-    loss(x, y) = Flux.mse(data_(model(x)), y)
+    loss(x, y) = Flux.mse(model(x), y)
+    accuracy(data) = evaluation(data, model, statval, :RMSE)
 
-    accuracy(data) = RMSE(data, model, statval, tdata_)
     opt = Flux.ADAM()
 
     @info "hidRNN       in PM10: ", hidRNN
@@ -402,9 +402,9 @@ function compile_PM25_LSTNet(
         ŷ_RNN
     end
 
-    loss(x, y) = Flux.mse(data_(model(x)), y)
+    loss(x, y) = Flux.mse(model(x), y)
+    accuracy(data) = evaluation(data, model, statval, :RMSE)
 
-    accuracy(data) = RMSE(data, model, statval, tdata_)
     opt = Flux.ADAM()
     
     @info "hidRNN       in PM25: ", hidRNN

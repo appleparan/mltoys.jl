@@ -69,18 +69,17 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     @info "    Valid ACC : ", accuracy(valid_set)
     flush(stdout); flush(stderr)
 
-    _f(_x) = 1 * _x
     eval_metrics = [:RMSE, :MAE, :MSPE, :MAPE]
     # test set
     for metric in eval_metrics
-        metric_func = :($(metric)($(test_set), $(model), $(statval)))
-        @info " $(string(ycol)) $(string(metric)) for test   : ", eval(metric_func)
+        _eval = evaluation(test_set, model, statval, metric)
+        @info " $(string(ycol)) $(string(metric)) for test   : ", _eval
     end
 
     # valid set
     for metric in eval_metrics
-        metric_func = :($(metric)($(valid_set), $(model), $(statval)))
-        @info " $(string(ycol)) $(string(metric)) for valid  : ", eval(metric_func)
+        _eval = evaluation(valid_set, model, statval, metric)
+        @info " $(string(ycol)) $(string(metric)) for valid  : ", _eval
     end
 
     # create directory per each time
@@ -216,20 +215,19 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     @info "Unit size in PM10: ", unit_size
     @info "Model     in PM10: ", model
 
-    lambda(x, y) = 10^(log10(Flux.mse(model(x), y)) - 1)
     # L1
     #loss(x, y) = Flux.mse(model(x), y) +
     #    lambda(x, y) *
     #    sum(x1 -> LinearAlgebra.norm(x1, 1), Flux.params(model))
     # L2 
     # disable due to Flux#930 issue
+    #lambda(x, y) = 10^(log10(Flux.mse(model(x), y)) - 1)
     #loss(x, y) = Flux.mse(model(x), y) + lambda(x, y) * sum(LinearAlgebra.norm, Flux.params(model))
     loss(x, y) = Flux.mse(model(x), y)
     # no regularization
     #loss(x, y) = Flux.mse(model(x), y)
 
-    # TODO : How to pass feature size
-    accuracy(data) = RMSE(data, model, statval)
+    accuracy(data) = evaluation(data, model, statval, :RMSE)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -252,20 +250,19 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     @info "Unit size in PM25: ", unit_size
     @info "Model     in PM25: ", model
 
-    lambda(x, y) = 10^(log10(Flux.mse(model(x), y)) - 1)
     # L1
     #loss(x, y) = Flux.mse(model(x), y) +
     #    lambda(x, y) *
     #    sum(x1 -> LinearAlgebra.norm(x1, 1), Flux.params(model))
     # L2
     # disable regularization due to Flux#930 issue
+    #lambda(x, y) = 10^(log10(Flux.mse(model(x), y)) - 1)
     #loss(x, y) = Flux.mse(model(x), y) + lambda(x, y) * sum(LinearAlgebra.norm, Flux.params(model))
     loss(x, y) = Flux.mse(model(x), y)
     # no regularization
     #loss(x, y) = Flux.mse(model(x), y)
 
-    # TODO : How to pass feature size
-    accuracy(data) = RMSE(data, model, statval)
+    accuracy(data) = evaluation(data, model, statval, :RMSE)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
