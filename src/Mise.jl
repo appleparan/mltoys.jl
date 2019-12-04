@@ -15,6 +15,7 @@ import StatsBase: zscore!
 
 # ML
 using Flux
+using Zygote
 
 # MCMC
 #using Mamba

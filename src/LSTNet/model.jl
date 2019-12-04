@@ -150,8 +150,8 @@ function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
         push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape])
 
         # Calculate accuracy:
-        _acc = accuracy(valid_set)
-        _loss = Tracker.data(loss(train_set[1][1], train_set[1][2]))
+        _acc = cpu.(accuracy(valid_set))
+        _loss = cpu.(loss(train_set[1][1], train_set[1][2]))
         @info(@sprintf("epoch [%d]: loss[1]: %.8E Valid accuracy: %.8f Time: %s", epoch_idx, _loss, _acc, now()))
         flush(stdout); flush(stderr)
 
@@ -166,11 +166,11 @@ function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
             flush(stdout)
 
             cpu_modelCNN = state[1] |> cpu
-            weightsCNN = Tracker.data.(Flux.params(cpu_modelCNN))
+            weightsCNN = Flux.params(cpu_modelCNN)
             cpu_modelGRU = state[2] |> cpu
-            weightsGRU = Tracker.data.(Flux.params(cpu_modelGRU))
+            weightsGRU = Flux.params(cpu_modelGRU)
             cpu_modelDNN = state[3] |> cpu
-            weightsDNN = Tracker.data.(Flux.params(cpu_modelDNN))
+            weightsDNN = Flux.params(cpu_modelDNN)
             # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
             μ, σ = statval["total", "μ"].value, feat["total", "σ"].value
@@ -259,16 +259,18 @@ function compile_PM10_LSTNet(
         # size(_yhat) = (hidRNN x batch_size)
         yhat = _yhat
         # (seq_len x batch_size) array for output
-        r = []
-
-        for _ in 1:seq_len
+        buf = Zygote.Buffer(_yhat, seq_len, size(_yhat, 2))
+        for i in 1:seq_len
             # predict next output by giving input as one by one
+            # size(yhat) == (hidRNN, batch_size)
             yhat2 = modelGRU(yhat)
-            push!(r, modelDNN(yhat2))
+            # size(yhat3) == (1, batch_size)
+            #yhat3 = modelDNN(modelGRU.state)
+            buf[i, :] = modelDNN(modelGRU.state)
             yhat = yhat2
         end
 
-        r
+        copy(buf)
     end
 
     state = (modelCNN, modelGRU, modelDNN)
@@ -362,16 +364,19 @@ function compile_PM25_LSTNet(
         # size(_yhat) = (hidRNN x batch_size)
         yhat = _yhat
         # (seq_len x batch_size) array for output
-        r = []
 
-        for _ in 1:seq_len
+        buf = Zygote.Buffer(_yhat, seq_len, size(_yhat, 2))
+        for i in 1:seq_len
             # predict next output by giving input as one by one
+            # size(yhat) == (hidRNN, batch_size)
             yhat2 = modelGRU(yhat)
-            push!(r, modelDNN(yhat2))
+            # size(yhat3) == (1, batch_size)
+            #yhat3 = modelDNN(modelGRU.state)
+            buf[i, :] = modelDNN(modelGRU.state)
             yhat = yhat2
         end
 
-        r
+        copy(buf)
     end
 
     state = (modelCNN, modelGRU, modelDNN)
