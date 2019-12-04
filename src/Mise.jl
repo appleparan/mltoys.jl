@@ -84,7 +84,8 @@ export join_data, filter_raw_data, filter_jongro, read_jongro,
     make_pair_LSTNet, make_batch_LSTNet,
 # activation
 # evaluation
-    evaluations, RMSE, MAE, MSPE, MAPE,
+    evaluations, evaluation,
+    RMSE, MAE, MSPE, MAPE,
     RSR, NSE, PBIAS, IOA, RefinedIOA, R2, AdjR2, classification,
 # loss
     huber_loss, huber_loss_mean, mse_rnn,

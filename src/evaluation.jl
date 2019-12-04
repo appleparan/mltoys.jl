@@ -1,39 +1,84 @@
-evaluations(dataset, model, statvals::AbstractNDSparse, features::Array{Symbol},
-    metrics::Array{String}, f::Function=Flux.Tracker.data) =
-    evaluations(dataset, model, statvals::AbstractNDSparse, features, Symbol.(metrics), f)
+evaluations(dataset, model, statvals::AbstractNDSparse,
+    metrics::Array{String}) =
+    evaluations(dataset, model, statvals::AbstractNDSparse, Symbol.(metrics))
+"""
+    evaluations(dataset, model, statvals, metrics)
+"""
+function evaluations(dataset, model, statvals::AbstractNDSparse, metrics::Union{Array{Symbol}, Array{Function}})
+    metric_vals = map(metrics) do metric
+        evaluation(dataset, model, statvals, metric)
+    end # do - end
 
-function evaluations(dataset, model, statvals::AbstractNDSparse,
-    features::Array{Symbol}, metrics::Array{Symbol}, f::Function=Flux.Tracker.data)
-    _μ = statvals["total", "μ"][:value]
-
-    # initialize array per metric, i.e. RSR_arr
-    metric_vals = []
-
-    for metric in metrics
-        if metric == :AdjR2
-            # not implemented
-            metric_func = :($(metric)($dataset, $model, $statvals, $(length)($feas), $f))
-        else
-            metric_func = :($(metric)($dataset, $model, $statvals, $f))
-        end
-        push!(metric_vals, eval(metric_func))
-    end
-
-    # unpack return values
     Tuple(metric_vals)
 end
 
+"""
+    evaluation(dataset, model, statvals, metric)
+
+compute evaluation metric (predefined) given by dataset
+"""
+function evaluation(dataset, model, statvals::AbstractNDSparse, metric::Symbol)
+    eval(
+    quote
+        let _cnt = 0
+            # column sum for batches
+            _sum = sum($(dataset)) do xy
+                _val = $(Symbol("_", metric))(xy[2], $(model)(xy[1]))
+
+                # number of columns which is not Inf and not NaN
+                _cnt += count(x -> !(isnan(x) || isinf(x)), _val)
+
+                # If _val is Array -> use `replace!` to replace Inf, NaN to zero
+                # If _val is Number -> just assign zero
+                typeof(_val) <: AbstractArray ? replace!(_val, Inf => 0, -Inf => 0, NaN => 0) : ((isnan(_val) || isinf(_val)) && (_val = zero(_val)))
+
+                _val
+            end # do - end
+
+            # mean
+            _sum * 1 // _cnt
+        end # let - end
+    end) # quote - end
+end
+
+"""
+    evaluation(dataset, model, statvals, metric)
+
+compute evaluation metric (passed by Function or Anonymous Function) given by dataset
+"""
+function evaluation(dataset, model, statvals::AbstractNDSparse, metric)
+    eval(quote
+        let _cnt = 0
+            # column sum for batches
+            _sum = sum($(dataset)) do xy
+                _val = $(metric)(xy[2], $(model)(xy[1]))
+
+                # number of columns which is not Inf and not NaN
+                _cnt += count(x -> !(isnan(x) || isinf(x)), _val)
+
+                # If _val is Array -> use `replace!` to replace Inf, NaN to zero
+                # If _val is Number -> just assign zero
+                typeof(_val) <: AbstractArray ? replace!(_val, Inf => 0, -Inf => 0, NaN => 0) : ((isnan(_val) || isinf(_val)) && (_val = zero(_val)))
+
+                _val
+            end # do - end
+            @show _sum
+            # mean
+            _sum * 1 // _cnt
+        end # let - end
+    end) # quote - end
+end
+
 # column sum
-_RMSE(y::AbstractVector, ŷ::AbstractVector) = sqrt(sum((y .- ŷ).^2, dims=[1]) * 1 // length(y))
-_RMSE(y::AbstractMatrix, ŷ::AbstractMatrix) = sqrt(sum((y .- ŷ).^2, dims=[1]) * 1 // size(y, 1))
+_RMSE(y::AbstractVector, ŷ::AbstractVector) = sqrt.(sum((y .- ŷ).^2, dims=[1]) * 1 // length(y))
+_RMSE(y::AbstractMatrix, ŷ::AbstractMatrix) = sqrt.(sum((y .- ŷ).^2, dims=[1]) * 1 // size(y, 1))
 
 """
     RMSE(dataset, model, statvals, f = Flux.Tracker.data)
 
 Root Mean Squared Error
 """
-function RMSE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
-    RMSE_arr = Real[]
+function RMSE(dataset, model, statvals::AbstractNDSparse)
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
 
@@ -42,7 +87,7 @@ function RMSE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tra
     let cnt = 0
         # column sum for batches
         _rmsesum = sum(dataset) do xy
-            _rmseval = _RMSE(xy[2], f(model(xy[1] |> gpu)))
+            _rmseval = _RMSE(xy[2], model(xy[1]))
 
             # replace Inf, NaN to zero, no impact on sum
             replace!(_rmseval, Inf => 0, -Inf => 0, NaN => 0)
@@ -66,7 +111,7 @@ _MAE(y::AbstractMatrix, ŷ::AbstractMatrix) = sum(abs.(y .- ŷ), dims=[1]) * 1 /
 
 Compute Mean Absolute Error
 """
-function MAE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
+function MAE(dataset, model, statvals::AbstractNDSparse)
     MAE_arr = Real[]
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
@@ -75,7 +120,7 @@ function MAE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Trac
     # no allocation + mapreduce => faster!
     let cnt = 0
         _maesum = sum(dataset) do xy
-            _maeval = _MAE(xy[2], f(model(xy[1] |> gpu)))
+            _maeval = _MAE(xy[2], model(xy[1]))
 
             # replace Inf, NaN to zero, no impact on sum
             replace!(_maeval, Inf => 0, -Inf => 0, NaN => 0)
@@ -103,7 +148,7 @@ computed average of squared version of percentage errors
 by which forecasts of a model differ from actual values of the quantity being forecast.
 https://en.wikipedia.org/wiki/Mean_percentage_error
 """
-function MSPE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
+function MSPE(dataset, model, statvals::AbstractNDSparse)
     MSPE_arr = Real[]
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
@@ -112,7 +157,7 @@ function MSPE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tra
     # no allocation + mapreduce => faster!
     let cnt = 0
         _mspesum = sum(dataset) do xy
-            _mspeval = _MSPE(xy[2], f(model(xy[1] |> gpu)))
+            _mspeval = _MSPE(xy[2], model(xy[1]))
 
             # replace Inf, NaN to zero, no impact on sum
             replace!(_mspeval, Inf => 0, -Inf => 0, NaN => 0)
@@ -140,7 +185,7 @@ computed average of absolute version of percentage errors
 by which forecasts of a model differ from actual values of the quantity being forecast.
 https://en.wikipedia.org/wiki/Mean_percentage_error
 """
-function MAPE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
+function MAPE(dataset, model, statvals::AbstractNDSparse)
     MAPE_arr = Real[]
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
@@ -149,7 +194,7 @@ function MAPE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tra
     # no allocation + mapreduce => faster!
     let cnt = 0
         _mapesum = sum(dataset) do xy
-            _mapeval = _MAPE(xy[2], f(model(xy[1] |> gpu)))
+            _mapeval = _MAPE(xy[2], model(xy[1]))
 
             # replace Inf, NaN to zero, no impact on sum
             replace!(_mapeval, Inf => 0, -Inf => 0, NaN => 0)
@@ -164,6 +209,8 @@ function MAPE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tra
     end
 end
 
+_RSR(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2, (y .- ŷ))) / sqrt(sum(abs2, (y .- μ)))
+
 """
     RSR(dataset, model, statvals)
 
@@ -174,28 +221,30 @@ RMSE-observations standard deviation ratio
 
 0 is best
 """
-function RSR(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
-    RSR_arr = Real[]
+function RSR(dataset, model, statvals::AbstractNDSparse)
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
 
-    i = 0
-    for (x, y) in dataset
-        i += 1
-        ŷ = f(model(x |> gpu))
-        @assert size(ŷ) == size(y)
+    # sum(f, itr) + do block
+    # no allocation + mapreduce => faster!
+    let cnt = 0
+        _rsrsum = sum(dataset) do xy
+            _rsrval = _RSR(xy[2], model(xy[1]), _μ)
 
-        _RSR = RSR(y, ŷ, mean(y))
+            # replace Inf, NaN to zero, no impact on sum
+            replace!(_rsrval, Inf => 0, -Inf => 0, NaN => 0)
+            # number of columns which is not Inf and not NaN
+            cnt += count(x -> !(isnan(x) || isinf(x)), _rsrval)
 
-        if abs(_RSR) != Inf
-            push!(RSR_arr, _RSR)
+            _rsrval
         end
-    end
 
-    mean(RSR_arr)
+        # RSR mean
+        _rsrsum / cnt
+    end
 end
 
-RSR(y, ŷ, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2, (y .- ŷ))) / sqrt(sum(abs2, (y .- μ)))
+_NSE(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::Real=zero(AbstractFloat)) = 1.0 - sqrt(sum(abs2.(y .- ŷ))) / sqrt(sum(abs2.(y .- μ))) 
 
 """
     NSE(dataset, model, statvals)
@@ -207,26 +256,30 @@ relative magnitude of the residual variance (“noise”)
 compared to the measured data variance (“information”.
 1 is best, -∞ is worst
 """
-function NSE(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
-    NSE_arr = Real[]
+function NSE(dataset, model, statvals::AbstractNDSparse)
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
 
-    for (x, y) in dataset
-        ŷ = f(model(x |> gpu))
-        @assert size(ŷ) == size(y)
+    # sum(f, itr) + do block
+    # no allocation + mapreduce => faster!
+    let cnt = 0
+        _nsesum = sum(dataset) do xy
+            _nseval = _NSE(xy[2], model(xy[1]), _μ)
 
-        _NSE = NSE(y, ŷ, mean(y))
+            # replace Inf, NaN to zero, no impact on sum
+            replace!(_nseval, Inf => 0, -Inf => 0, NaN => 0)
+            # number of columns which is not Inf and not NaN
+            cnt += count(x -> !(isnan(x) || isinf(x)), _nseval)
 
-        if abs(_NSE) != Inf
-            push!(NSE_arr, _NSE)
+            _nseval
         end
-    end
 
-    mean(NSE_arr)
+        # NSE mean
+        _nsesum / cnt
+    end
 end
 
-NSE(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sqrt(sum(abs2.(y .- ŷ))) / sqrt(sum(abs2.(y .- μ))) 
+_PBIAS(y::AbstractVecOrMat, ŷ::AbstractVecOrMat) = sum(y .- ŷ) / (sum(y) + eps()) * 100.0
 
 """
     PBIAS(dataset, model, statvals)
@@ -235,22 +288,31 @@ indicate model overestimation bias (Gupta et al., 1999)
 + : underfitting
 - : overfitting
 """
-function PBIAS(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
-    PBIAS_arr = Real[]
+function PBIAS(dataset, model, statvals::AbstractNDSparse)
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
 
-    for (x, y) in dataset
-        ŷ = f(model(x |> gpu))
-        @assert size(ŷ) == size(y)
+    # sum(f, itr) + do block
+    # no allocation + mapreduce => faster!
+    let cnt = 0
+        _pbiassum = sum(dataset) do xy
+            _pbiasval = _PBIAS(xy[2], model(xy[1]))
 
-        push!(PBIAS_arr, PBIAS(y, ŷ))
+            # replace Inf, NaN to zero, no impact on sum
+            replace!(_pbiasval, Inf => 0, -Inf => 0, NaN => 0)
+            # number of columns which is not Inf and not NaN
+            cnt += count(x -> !(isnan(x) || isinf(x)), _pbiasval)
+
+            _pbiasval
+        end
+
+        # PBIAS mean
+        _pbiassum / cnt
     end
-
-    mean(PBIAS_arr)
 end
 
-PBIAS(y, ŷ, μ::Real=zero(AbstractFloat)) = sum(y .- ŷ) / (sum(y) + eps()) * 100.0
+_IOA(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- ŷ)) /
+        sum(abs2.(abs.(ŷ .- μ) .+ abs.(y .- μ)))
 
 """
     IOA(dataset, model, statvals)
@@ -265,32 +327,42 @@ however, it is overly sensitive to extreme values due to the squared differences
 
 1 is best, 0 is worst
 """
-function IOA(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
-    IOA_arr = Real[]
+function IOA(dataset, model, statvals::AbstractNDSparse)
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
 
-    for (x, y) in dataset
-        ŷ = f(model(x |> gpu))
-        @assert size(ŷ) == size(y)
+    # sum(f, itr) + do block
+    # no allocation + mapreduce => faster!
+    let cnt = 0
+        _ioasum = sum(dataset) do xy
+            _ioaval = _IOA(xy[2], model(xy[1]), _μ)
 
-        _IOA = IOA(y, ŷ, mean(y))
+            # replace Inf, NaN to zero, no impact on sum
+            replace!(_ioaval, Inf => 0, -Inf => 0, NaN => 0)
+            # number of columns which is not Inf and not NaN
+            cnt += count(x -> !(isnan(x) || isinf(x)), _ioaval)
 
-        if abs(_IOA) != Inf
-            if _IOA < 0 || _IOA > 1.0
-                @show "Assertion Error: IOA, ", _IOA
-            end
-            @assert 0.0 <= _IOA <= 1.0
-
-            push!(IOA_arr, _IOA)
+            _ioaval
         end
+        # @assert 0.0 <= _IOA <= 1.0
+        # IOA mean
+        _ioasum / cnt
     end
-
-    mean(IOA_arr)
 end
 
-IOA(y, ŷ, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- ŷ)) /
-        sum(abs2.(abs.(ŷ .- μ) .+ abs.(y .- μ)))
+function _RIOA(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::Real=zero(AbstractFloat))
+    c = 2
+    m1 = sum(abs.(y .- ŷ))
+    m2 = sum(abs.(y .- μ))
+
+    if m1 <= c * m2
+        d = 1.0 - m1 / (c * m2)
+    else
+        d = c * m2 / m1 - 1.0
+    end
+
+    d
+end
 
 """
     RefinedIOA(dataset, model, statvals)
@@ -302,39 +374,30 @@ Willmott,C. J., Robeson, S. M. and Matsuura, K. (2011).
 A refined index of model performance. Int. J. Climatol. DOI: 10.1002/joc.2419
 1 is best, 0 is worst
 """
-function RefinedIOA(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
-    RefinedIOA_arr = Real[]
+function RIOA(dataset, model, statvals::AbstractNDSparse, f::Function)    
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
 
-    for (x, y) in dataset
-        ŷ = f(model(x |> gpu))
-        @assert size(ŷ) == size(y)
+    # sum(f, itr) + do block
+    # no allocation + mapreduce => faster!
+    let cnt = 0
+        _rioasum = sum(dataset) do xy
+            _rioaval = _RIOA(xy[2], model(xy[1]), _μ)
 
-        _RefinedIOA = RefinedIOA(y, ŷ, mean(y))
+            # replace Inf, NaN to zero, no impact on sum
+            replace!(_rioaval, Inf => 0, -Inf => 0, NaN => 0)
+            # number of columns which is not Inf and not NaN
+            cnt += count(x -> !(isnan(x) || isinf(x)), _rioaval)
 
-        if abs(_RefinedIOA) != Inf
-            @assert -1.0 <= _RefinedIOA <= 1.0
-            push!(RefinedIOA_arr, _RefinedIOA)
+            _rioaval
         end
+        # @assert 0.0 <= _IOA <= 1.0
+        # mean
+        _rioasum / cnt
     end
-
-    mean(RefinedIOA_arr)
 end
 
-function RefinedIOA(y, ŷ, μ::Real=zero(AbstractFloat))
-    c = 2
-    m1 = sum(abs.(y .- ŷ))
-    m2 = sum(abs.(y .- mean(y)))
-
-    if m1 <= c * m2
-        d = 1.0 - m1 / (c * m2)
-    else
-        d = c * m2 / m1 - 1.0
-    end
-
-    d
-end
+_R2(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::AbstractFloat) = 1.0 - sum(abs2.(y .- ŷ)) / sum(abs2.(y .- μ))
 
 """
     R2(dataset, model, statvals)
@@ -359,56 +422,26 @@ Problems with R² that are corrected with an adjusted R²
     When you over-fit data, a misleadingly high R² value can lead to misleading projections.
 """
 function R2(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
-    R2_arr = Real[]
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
 
-    for (x, y) in dataset
-        ŷ = f(model(x |> gpu))
-        @assert size(ŷ) == size(y)
+    # sum(f, itr) + do block
+    # no allocation + mapreduce => faster!
+    let cnt = 0
+        _r2sum = sum(dataset) do xy
+            _r2val = _R2(xy[2], model(xy[1]), _μ)
 
-        _R2 = R2(y, ŷ, mean(y))
+            # replace Inf, NaN to zero, no impact on sum
+            replace!(_r2val, Inf => 0, -Inf => 0, NaN => 0)
+            # number of columns which is not Inf and not NaN
+            cnt += count(x -> !(isnan(x) || isinf(x)), _r2val)
 
-        if abs(_R2) != Inf
-            @assert _R2 <= 1.0
-            push!(R2_arr, _R2)
+            _r2val
         end
+
+        # R2 mean
+        _r2sum / cnt
     end
-
-    mean(R2_arr)
-end
-
-R2(y, ŷ, μ::AbstractFloat) = 1.0 - sum(abs2.(y .- ŷ)) / sum(abs2.(y .- μ))
-
-"""
-    AdjR2(dataset, model, statvals::AbstractNDSparse)
-
-the percentage of variation explained by only the independent variables that actually affect the dependent variable.
-https://medium.com/usf-msds/choosing-the-right-metric-for-machine-learning-models-part-1-a99d7d7414e4
-"""
-function AdjR2(dataset, model, statvals::AbstractNDSparse, k::Int=13, f::Function = Flux.Tracker.data)
-    AdjR2_arr = Real[]
-    _μ = statvals["total", "μ"][:value]
-    _σ = statvals["total", "σ"][:value]
-
-    for (x, y) in dataset
-        ŷ = f(model(x |> gpu))
-        @assert size(ŷ) == size(y)
-
-        _AdjR2 = AdjR2(y, ŷ, mean(y), k)
-
-        if abs(_AdjR2) != Inf
-            push!(AdjR2_arr, _AdjR2)
-        end
-    end
-
-    mean(AdjR2_arr)
-end
-
-function AdjR2(y, ŷ, μ::AbstractFloat, k::Int=13)
-    _R2 = R2(y, ŷ, μ)
-
-    1.0 - (1.0 - _R2^2) * (length(y) - 1.0) / (length(y) - k - 1.0)
 end
 
 function classification(dataset::Array{T1, 1}, model, ycol::Symbol, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data) where {T1<:Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}} where F<:AbstractFloat}
