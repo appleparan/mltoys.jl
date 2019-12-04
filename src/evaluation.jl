@@ -444,7 +444,7 @@ function R2(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Track
     end
 end
 
-function classification(dataset::Array{T1, 1}, model, ycol::Symbol, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data) where {T1<:Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}} where F<:AbstractFloat}
+function classification(dataset::Array{T1, 1}, model, ycol::Symbol, statvals::AbstractNDSparse) where {T1<:Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}} where F<:AbstractFloat}
     class_all_arr = []
     class_high_arr = []
     _μ = statvals["total", "μ"][:value]
