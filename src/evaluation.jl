@@ -23,9 +23,11 @@ function evaluation(dataset, model, statvals::AbstractNDSparse, metric::Symbol)
         let _cnt = 0
             # column sum for batches
             _sum = sum($(dataset)) do xy
+                # Float or (1 x batch) Array
                 _val = $(Symbol("_", metric))(xy[2], $(model)(xy[1]))
 
                 # number of columns which is not Inf and not NaN
+                # if _val is Float, cnt must be 1
                 _cnt += count(x -> !(isnan(x) || isinf(x)), _val)
 
                 # If _val is Array -> use `replace!` to replace Inf, NaN to zero
@@ -35,8 +37,10 @@ function evaluation(dataset, model, statvals::AbstractNDSparse, metric::Symbol)
                 _val
             end # do - end
 
+            _cnt = _cnt == 0 && isapprox(_sum, 0.0) ? 1 : _cnt
+
             # mean
-            _sum * 1 // _cnt
+            _sum / _cnt
         end # let - end
     end) # quote - end
 end
@@ -51,27 +55,31 @@ function evaluation(dataset, model, statvals::AbstractNDSparse, metric)
         let _cnt = 0
             # column sum for batches
             _sum = sum($(dataset)) do xy
+                # Float or (1 x batch) Array
                 _val = $(metric)(xy[2], $(model)(xy[1]))
 
                 # number of columns which is not Inf and not NaN
+                # if _val is Float, cnt must be 1
                 _cnt += count(x -> !(isnan(x) || isinf(x)), _val)
 
                 # If _val is Array -> use `replace!` to replace Inf, NaN to zero
                 # If _val is Number -> just assign zero
                 typeof(_val) <: AbstractArray ? replace!(_val, Inf => 0, -Inf => 0, NaN => 0) : ((isnan(_val) || isinf(_val)) && (_val = zero(_val)))
 
-                _val
+                sum(_val)
             end # do - end
-            @show _sum
+
+            _cnt = _cnt == 0 && isapprox(_sum, 0.0) ? 1 : _cnt
+
             # mean
-            _sum * 1 // _cnt
+            _sum / _cnt
         end # let - end
     end) # quote - end
 end
 
 # column sum
-_RMSE(y::AbstractVector, ŷ::AbstractVector) = sqrt.(sum((y .- ŷ).^2, dims=[1]) * 1 // length(y))
-_RMSE(y::AbstractMatrix, ŷ::AbstractMatrix) = sqrt.(sum((y .- ŷ).^2, dims=[1]) * 1 // size(y, 1))
+_RMSE(y::AbstractVector, ŷ::AbstractVector) = sqrt.(sum((y .- ŷ).^2, dims=[1]) / length(y))
+_RMSE(y::AbstractMatrix, ŷ::AbstractMatrix) = sqrt.(sum((y .- ŷ).^2, dims=[1]) / size(y, 1))
 
 """
     RMSE(dataset, model, statvals, f = Flux.Tracker.data)
@@ -103,8 +111,8 @@ function RMSE(dataset, model, statvals::AbstractNDSparse)
 end
 
 # column sum
-_MAE(y::AbstractVector, ŷ::AbstractVector) = sum(abs.(y .- ŷ), dims=[1]) * 1 // length(y)
-_MAE(y::AbstractMatrix, ŷ::AbstractMatrix) = sum(abs.(y .- ŷ), dims=[1]) * 1 // size(y, 1)
+_MAE(y::AbstractVector, ŷ::AbstractVector) = sum(abs.(y .- ŷ), dims=[1]) / length(y)
+_MAE(y::AbstractMatrix, ŷ::AbstractMatrix) = sum(abs.(y .- ŷ), dims=[1]) / size(y, 1)
 
 """
     MAE(dataset, model, statvals)
@@ -209,7 +217,7 @@ function MAPE(dataset, model, statvals::AbstractNDSparse)
     end
 end
 
-_RSR(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::Real=zero(AbstractFloat)) = sqrt(sum(abs2, (y .- ŷ))) / sqrt(sum(abs2, (y .- μ)))
+_RSR(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::AbstractFloat=mean(y)) = sqrt(sum(abs2, (y .- ŷ))) / sqrt(sum(abs2, (y .- μ)))
 
 """
     RSR(dataset, model, statvals)
@@ -244,7 +252,7 @@ function RSR(dataset, model, statvals::AbstractNDSparse)
     end
 end
 
-_NSE(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::Real=zero(AbstractFloat)) = 1.0 - sqrt(sum(abs2.(y .- ŷ))) / sqrt(sum(abs2.(y .- μ))) 
+_NSE(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::AbstractFloat=mean(y)) = 1.0 - sqrt(sum(abs2.(y .- ŷ))) / sqrt(sum(abs2.(y .- μ))) 
 
 """
     NSE(dataset, model, statvals)
@@ -311,7 +319,7 @@ function PBIAS(dataset, model, statvals::AbstractNDSparse)
     end
 end
 
-_IOA(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::Real=zero(AbstractFloat)) = 1.0 - sum(abs2.(y .- ŷ)) /
+_IOA(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::AbstractFloat=mean(y)) = 1.0 - sum(abs2.(y .- ŷ)) /
         sum(abs2.(abs.(ŷ .- μ) .+ abs.(y .- μ)))
 
 """
@@ -350,7 +358,7 @@ function IOA(dataset, model, statvals::AbstractNDSparse)
     end
 end
 
-function _RIOA(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::Real=zero(AbstractFloat))
+function _RIOA(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::AbstractFloat=mean(y))
     c = 2
     m1 = sum(abs.(y .- ŷ))
     m2 = sum(abs.(y .- μ))
@@ -374,7 +382,7 @@ Willmott,C. J., Robeson, S. M. and Matsuura, K. (2011).
 A refined index of model performance. Int. J. Climatol. DOI: 10.1002/joc.2419
 1 is best, 0 is worst
 """
-function RIOA(dataset, model, statvals::AbstractNDSparse, f::Function)    
+function RIOA(dataset, model, statvals::AbstractNDSparse)
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
 
@@ -397,7 +405,7 @@ function RIOA(dataset, model, statvals::AbstractNDSparse, f::Function)
     end
 end
 
-_R2(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::AbstractFloat) = 1.0 - sum(abs2.(y .- ŷ)) / sum(abs2.(y .- μ))
+_R2(y::AbstractVecOrMat, ŷ::AbstractVecOrMat, μ::AbstractFloat=mean(y)) = 1.0 - sum(abs2.(y .- ŷ)) / sum(abs2.(y .- μ))
 
 """
     R2(dataset, model, statvals)
@@ -421,7 +429,7 @@ Problems with R² that are corrected with an adjusted R²
     you can run into the problem of over-fitting the data.
     When you over-fit data, a misleadingly high R² value can lead to misleading projections.
 """
-function R2(dataset, model, statvals::AbstractNDSparse, f::Function = Flux.Tracker.data)
+function R2(dataset, model, statvals::AbstractNDSparse)
     _μ = statvals["total", "μ"][:value]
     _σ = statvals["total", "σ"][:value]
 
