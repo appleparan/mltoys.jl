@@ -472,16 +472,16 @@ end
     @testset "Unpack Sequence 3" begin
         x = reshape(vec(1:24), (2, 3, 4))
 
-        @test unpack_seq(x) == [
+        @test unpack_seq(x) == reshape([
             [1 7 13 19; 3 9 15 21; 5 11 17 23],
-            [2 8 14 20; 4 10 16 22; 6 12 18 24]]
+            [2 8 14 20; 4 10 16 22; 6 12 18 24]], 1, 1, 2)
     end
 
     @testset "Unpack Sequence 4" begin
         x = reshape(vec(1:24), (2, 1, 3, 4))
 
-        @test unpack_seq(x) == [
+        @test unpack_seq(x) == reshape([
             [1 7 13 19; 3 9 15 21; 5 11 17 23],
-            [2 8 14 20; 4 10 16 22; 6 12 18 24]]
+            [2 8 14 20; 4 10 16 22; 6 12 18 24]], 1, 1, 2, 1)
     end
 end

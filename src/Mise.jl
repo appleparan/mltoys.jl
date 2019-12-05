@@ -17,6 +17,9 @@ import StatsBase: zscore!
 using Flux
 using Zygote
 
+# GPU
+using CuArrays
+
 # MCMC
 #using Mamba
 

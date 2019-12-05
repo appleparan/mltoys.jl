@@ -540,12 +540,14 @@ function unpack_seq(x::AbstractArray{N, 4}) where {N<:Number}
     @assert size(x, 2) == 1
 
     # (sample_size, 1, hidCNN, batch_size) ->
-    # [(hidCNN, batch_size), ...] (length: sample_size)
+    # [(1, 1, (hidCNN, batch_size), 1), ...] (length: sample_size)
 
-    x = permutedims(x, [3, 4, 1, 2]) |> gpu
-    unpacked = [x[:, :, seq, 1] |> gpu for seq in axes(x, 3)]
+    x = permutedims(x, [3, 4, 1, 2])
+    # TODO : disable scalar indexing on gpu
+    #unpacked = [x[:, :, seq, 1] |> gpu for seq in axes(x, 3)]
+    #unpacked
 
-    unpacked
+    mapslices(_x -> [_x], x, dims=[1, 2])
 end
 
 """
@@ -557,10 +559,12 @@ end
 function unpack_seq(x::AbstractArray{N, 3}) where {N<:Number}
     # (sample_size, hidCNN, batch_size)
     # -> (hidCNN, batch_size, sample_size)
-    x = permutedims(x, [2, 3, 1]) |> gpu
-    unpacked = [x[:, :, seq] |> gpu for seq in axes(x, 3)]
+    x = permutedims(x, [2, 3, 1])
+    # TODO : disable scalar indexing on gpu
+    #unpacked = [x[:, :, seq] |> gpu for seq in axes(x, 3)]
+    #unpacked
 
-    unpacked
+    mapslices(_x -> [_x], x, dims=[1, 2])
 end
 
 """
