@@ -146,8 +146,8 @@ function train_DNN!(model::C,
         push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape])
 
         # Calculate accuracy:
-        _acc = cpu.(accuracy(valid_set))
-        _loss = cpu.(loss(train_set[1][1], train_set[1][2]))
+        _acc = accuracy(valid_set) |> cpu
+        _loss = loss(train_set[1][1], train_set[1][2]) |> cpu
         @info(@sprintf("epoch [%d]: loss[1]: %.8E Valid accuracy: %.8f Time: %s", epoch_idx, _loss, _acc, now()))
         flush(stdout); flush(stderr)
 
@@ -164,12 +164,13 @@ function train_DNN!(model::C,
 
             cpu_model = model |> cpu
             weights = Flux.params(cpu_model)
-            # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
             μ, σ = statval["total", "μ"].value, statval["total", "σ"].value
             total_max, total_min =
                 float(statval["total", "maximum"].value), float(statval["total", "minimum"].value)
-            BSON.@save filepath cpu_model weights epoch_idx _acc μ σ total_max total_min
+            # BSON can't save weights now (2019/12), disable temporarily
+            BSON.@save filepath cpu_model epoch_idx _acc μ σ total_max total_min
+
             best_acc = _acc
             last_improvement = epoch_idx
         end
@@ -201,7 +202,6 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     unit_size = 16
 
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
-
     # not sigmoid, elu used to reduce vanishing gradient problem
     # predict low concentration is not important than high concentration
     model = Chain(
@@ -211,6 +211,8 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
 
         Dense(unit_size, output_size)
     ) |> gpu
+
+    GC.@preserve model
 
     @info "Unit size in PM10: ", unit_size
     @info "Model     in PM10: ", model
@@ -239,6 +241,8 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     unit_size = 32
 
     # https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
+    # not sigmoid, elu used to reduce vanishing gradient problem
+    # predict low concentration is not important than high concentration
     model = Chain(
         Dense(input_size, unit_size, leakyrelu),
 
@@ -246,6 +250,8 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
 
         Dense(unit_size, output_size)
     ) |> gpu
+
+    GC.@preserve model
 
     @info "Unit size in PM25: ", unit_size
     @info "Model     in PM25: ", model
