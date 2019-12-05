@@ -34,7 +34,7 @@ function evaluation(dataset, model, statvals::AbstractNDSparse, metric::Symbol)
                 # If _val is Number -> just assign zero
                 typeof(_val) <: AbstractArray ? replace!(_val, Inf => 0, -Inf => 0, NaN => 0) : ((isnan(_val) || isinf(_val)) && (_val = zero(_val)))
 
-                _val
+                sum(_val)
             end # do - end
 
             _cnt = _cnt == 0 && isapprox(_sum, 0.0) ? 1 : _cnt
