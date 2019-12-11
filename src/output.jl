@@ -1,5 +1,5 @@
 function predict_DNN_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
-    μ::AbstractFloat, σ::AbstractFloat,output_size::Integer, output_dir::String) where T <: Tuple
+    μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String) where T <: Tuple
 
     dnn_table = Array{IndexedTable}(undef, output_size)
     table_path = Array{String}(undef, output_size)
@@ -16,9 +16,9 @@ function predict_DNN_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Sym
         cpu_ŷ = ŷ |> cpu
 
         # 24 hour data
-        org_y = unzscore(cpu_y, σ, μ)
+        org_y = unzscore(cpu_y, μ, σ)
         # 24 hour prediction
-        org_ŷ = unzscore(cpu_ŷ, σ, μ)
+        org_ŷ = unzscore(cpu_ŷ, μ, σ)
 
         for i = 1:output_size
             # 1 hour 
@@ -83,9 +83,9 @@ function predict_RNN_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Sym
         cpu_ŷ = ŷ[:, 1] |> cpu
 
         # 24 hour data
-        org_y = unzscore(cpu_y, σ, μ)
+        org_y = unzscore(cpu_y, μ, σ)
         # 24 hour prediction
-        org_ŷ = unzscore(cpu_ŷ, σ, μ)
+        org_ŷ = unzscore(cpu_ŷ, μ, σ)
 
         for i = 1:output_size
             # 1 hour
