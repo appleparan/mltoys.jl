@@ -75,7 +75,7 @@ function run_model()
 
     # For GPU, change precision of Floating numbers
     eltype::DataType = Float32
-    scaling_method = :logzscore
+    scaling_method = :invzscore
 
     sample_size = 24
     output_size = 24
@@ -85,6 +85,7 @@ function run_model()
     #===== end of parameter zone =====#
 
     log_prefix = "log_"
+    inv_prefix = "inv_"
     scaled_prefix = "scaled_"
     scaled_features = [Symbol(scaled_prefix, f) for f in features]
     scaled_train_features = [Symbol(scaled_prefix, f) for f in train_features]
@@ -116,6 +117,23 @@ function run_model()
         zscore!(df, log_target_features, scaled_target_features)
 
         statvals = extract_col_statvals(df, vcat(train_features, log_target_features))
+    elseif scaling_method == :invzscore
+        # zscore except targets
+        _train_features = setdiff(train_features, target_features)
+        _scaled_train_features = setdiff(scaled_train_features, scaled_target_features)
+        zscore!(df, _train_features, _scaled_train_features)
+
+        # Inverse transform :PM10, :PM25
+        # add 10.0 not to divide zero value
+        # Y = zscore(1.0 / (X + 10))
+        inv_target_features = [Symbol(inv_prefix, f) for f in target_features]
+        for (target, inv_target) in zip(target_features, inv_target_features)
+            df[!, inv_target] = 1.0 ./ (df[!, target] .+ 10.0)
+        end
+
+        zscore!(df, inv_target_features, scaled_target_features)
+
+        statvals = extract_col_statvals(df, vcat(train_features, inv_target_features))
     elseif scaling_method == :logminmax
         # minmax except targets
         _train_features = setdiff(train_features, target_features)
@@ -136,23 +154,26 @@ function run_model()
     end
 
     # convert Float types
-    for fea in features
-        df[!, fea] = eltype.(df[!, fea])
+    for feature in features
+        df[!, feature] = eltype.(df[!, feature])
     end
 
-    for nfea in scaled_features
-        df[!, nfea] = eltype.(df[!, nfea])
+    for scaled_feature in scaled_features
+        df[!, scaled_feature] = eltype.(df[!, scaled_feature])
     end
 
     # plot histogram regardless to station
-    plot_histogram(df, :PM25, "/mnt/")
-    plot_histogram(df, :PM10, "/mnt/")
-    plot_histogram(df, :scaled_PM25, "/mnt/")
-    plot_histogram(df, :scaled_PM10, "/mnt/")
+    for target in target_features
+        plot_histogram(df, target, "/mnt/")
+        plot_histogram(df, Symbol(:scaled_, target), "/mnt/")
 
-    if scaling_method == :logzscore || scaling_method == :logminmax
-        plot_histogram(df, :log_PM25, "/mnt/")
-        plot_histogram(df, :log_PM10, "/mnt/")
+        if scaling_method == :logzscore || scaling_method == :logminmax
+            plot_histogram(df, Symbol(:log_, target), "/mnt/")
+        end
+
+        if scaling_method == :invzscore
+            plot_histogram(df, Symbol(:inv_, target), "/mnt/")
+        end
     end
 
     # line plot of first train station

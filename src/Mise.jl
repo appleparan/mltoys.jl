@@ -106,6 +106,7 @@ export join_data, filter_raw_data, filter_station, filter_jongro, read_jongro,
 # output
     predict_DNN_model_zscore, predict_DNN_model_minmax,
     predict_DNN_model_logzscore, predict_DNN_model_logminmax,
+    predict_DNN_model_invzscore,
     predict_RNN_model_zscore, predict_RNN_model_minmax,
     export_CSV,
 # plot

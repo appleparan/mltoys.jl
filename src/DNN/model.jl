@@ -97,6 +97,11 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
         log_σ = statvals[string(:log_, ycol), "σ"].value
         dnn_table = predict_DNN_model_logzscore(test_set, model, ycol,
             log_μ, log_σ, output_size, "/mnt/")
+    elseif scaling_method == :invzscore
+        inv_μ = statvals[string(:inv_, ycol), "μ"].value
+        inv_σ = statvals[string(:inv_, ycol), "σ"].value
+        dnn_table = predict_DNN_model_invzscore(test_set, model, ycol,
+            inv_μ, inv_σ, output_size, "/mnt/")
     elseif scaling_method == :logminmax
         log_max = statvals[string(:log_, ycol), "maximum"].value
         log_min = statvals[string(:log_, ycol), "minimum"].value

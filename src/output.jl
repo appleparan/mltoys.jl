@@ -97,6 +97,38 @@ function predict_DNN_model_logzscore(dataset::AbstractArray{T, 1}, model, ycol::
     dnn_table
 end
 
+function predict_DNN_model_invzscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
+    μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String) where T <: Tuple
+
+    dnn_table = Array{IndexedTable}(undef, output_size)
+    table_path = Array{String}(undef, output_size)
+
+    for i = 1:output_size
+        table_path[i] = output_dir * "$(String(ycol))_$(lpad(i,2,'0'))_table.csv"
+        dnn_table[i] = table((y = [], ŷ = [],))
+    end
+
+    for (x, y) in dataset
+        ŷ = model(x |> gpu)
+
+        cpu_y = y |> cpu
+        cpu_ŷ = ŷ |> cpu
+
+        # 24 hour data
+        org_y = 1.0 ./ (unzscore(cpu_y, μ, σ)) .- 10.0
+        # 24 hour prediction
+        org_ŷ = 1.0 ./ (unzscore(cpu_ŷ, μ, σ)) .- 10.0
+
+        for i = 1:output_size
+            # 1 hour
+            tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
+            dnn_table[i] = merge(dnn_table[i], tmp_table)
+        end
+    end
+
+    dnn_table
+end
+
 function predict_DNN_model_logminmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     _min::AbstractFloat, _max::AbstractFloat, a::AbstractFloat, b::AbstractFloat,
     output_size::Integer, output_dir::String) where T <: Tuple
