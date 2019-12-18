@@ -118,9 +118,9 @@ function predict_DNN_model_logminmax(dataset::AbstractArray{T, 1}, model, ycol::
         cpu_ŷ = ŷ |> cpu
 
         # 24 hour data
-        org_y = exp.(unminmax_scaling(cpu_y, _min, _max, a, b)) - 10.0
+        org_y = exp.(unminmax_scaling(cpu_y, _min, _max, a, b)) .- 10.0
         # 24 hour prediction
-        org_ŷ = exp.(unminmax_scaling(cpu_ŷ, _min, _max, a, b)) - 10.0
+        org_ŷ = exp.(unminmax_scaling(cpu_ŷ, _min, _max, a, b)) .- 10.0
 
         for i = 1:output_size
             # 1 hour
