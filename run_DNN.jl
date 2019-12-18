@@ -107,12 +107,12 @@ function run_model()
 
         # Log transform :PM10, :PM25
         # add 10.0 not to log zero values
+        # Y = zscore(log(X + 10))
         log_target_features = [Symbol(log_prefix, f) for f in target_features]
         for (target, log_target) in zip(target_features, log_target_features)
             df[!, log_target] = log.(df[!, target] .+ 10.0)
         end
 
-        # then zscore targets
         zscore!(df, log_target_features, scaled_target_features)
 
         statvals = extract_col_statvals(df, vcat(train_features, log_target_features))
@@ -129,7 +129,7 @@ function run_model()
             df[!, log_target] = log.(df[!, target] .+ 10.0)
         end
 
-        ## then zscore
+        # then minmax
         minmax_scaling!(df, log_target_features, scaled_target_features, 0.0, 10.0)
 
         statvals = extract_col_statvals(df, vcat(train_features, log_target_features))
@@ -158,7 +158,7 @@ function run_model()
     # line plot of first train station
     plot_lineplot_total(filter_station(df, seoul_stations[train_stn_names[1]]), :PM10, "/mnt/")
     plot_lineplot_total(filter_station(df, seoul_stations[train_stn_names[1]]), :PM25, "/mnt/")
-    #plot_pcorr(df, scaled_features, features, "/mnt/")
+    plot_pcorr(df, scaled_features, features, "/mnt/")
 
     # windowed dataframe for train/valid (input + output)
     train_valid_wd = []
