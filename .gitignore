@@ -21,3 +21,7 @@ chrome*
 
 # remove generated data files
 *.png
+
+# exclude job files
+*.sh
+out.*
