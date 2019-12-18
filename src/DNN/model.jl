@@ -1,5 +1,5 @@
 """
-    train(df, ycol, norm_prefix, norm_features,
+    train(df, ycol, scaled_prefix, scaled_features,
         sample_size, input_size, batch_size, output_size, epoch_size,
         total_wd_idxs, test_wd_idxs,
         train_chnk, valid_idxs, test_idxs,
@@ -7,16 +7,13 @@
 
 """
 function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1}, test_wd::Array{DataFrame, 1}, 
-    ycol::Symbol, norm_prefix::String, features::Array{Symbol},
+    ycol::Symbol, scaled_ycol::Symbol, scaled_features::Array{Symbol}, scaling_method::Symbol,
     train_size::Integer, valid_size::Integer, test_size::Integer,
     sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer,
     epoch_size::Integer, eltype::DataType,
     statvals::AbstractNDSparse, filename::String, test_dates::Array{ZonedDateTime,1}) where I <: Integer
 
     @info "DNN training starts.."
-
-    norm_ycol = Symbol(norm_prefix, ycol)
-    norm_features = [Symbol(eval(norm_prefix * String(f))) for f in features]
 
     # extract from ndsparse
     total_μ = statvals[String(ycol), "μ"].value
@@ -41,7 +38,7 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     p = Progress(div(length(train_wd), batch_size) + 1, dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
 
     train_set = [(ProgressMeter.next!(p);
-        make_batch_DNN(collect(dfs), norm_ycol, norm_features,
+        make_batch_DNN(collect(dfs), scaled_ycol, scaled_features,
             sample_size, output_size, batch_size, 0.5, eltype))
         for dfs in Base.Iterators.partition(train_wd, batch_size)]
 
@@ -49,12 +46,12 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     @info "    Construct Valid Set..."
     p = Progress(length(valid_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     valid_set = [(ProgressMeter.next!(p);
-        make_pair_DNN(df, norm_ycol, norm_features, sample_size, output_size, eltype)) for df in valid_wd]
+        make_pair_DNN(df, scaled_ycol, scaled_features, sample_size, output_size, eltype)) for df in valid_wd]
 
     @info "    Construct Test Set..."
     p = Progress(length(test_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     test_set = [(ProgressMeter.next!(p);
-        make_pair_DNN(df, norm_ycol, norm_features, sample_size, output_size, eltype)) for df in test_wd]
+        make_pair_DNN(df, scaled_ycol, scaled_features, sample_size, output_size, eltype)) for df in test_wd]
 
     train_set = gpu.(train_set)
     valid_set = gpu.(valid_set)
@@ -62,7 +59,7 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
 
     # *_set : normalized values
     df_evals = train_DNN!(model, train_set, valid_set,
-        loss, accuracy, opt, epoch_size, statval, norm_features, filename)
+        loss, accuracy, opt, epoch_size, statval, scaled_features, filename)
     
     # TODO : (current) validation with zscore, (future) validation with original value?
     @info "    Test ACC  : ", accuracy(test_set)
@@ -89,12 +86,24 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     end
 
     # back to unnormalized for comparison
-    dnn_table = predict_DNN_model_zscore(test_set, model, ycol,
-        total_μ, total_σ, output_size, "/mnt/")
-    #=
-    dnn_table = predict_DNN_model_minmax(test_set, model, ycol,
-        total_min, total_max, 0.0, 10.0, output_size, "/mnt/")
-    =#
+    if scaling_method == :zscore
+        dnn_table = predict_DNN_model_zscore(test_set, model, ycol,
+            total_μ, total_σ, output_size, "/mnt/")
+    elseif scaling_method == :minmax
+        dnn_table = predict_DNN_model_minmax(test_set, model, ycol,
+            total_min, total_max, 0.0, 10.0, output_size, "/mnt/")
+    elseif scaling_method == :logzscore
+        log_μ = statvals[string(:log_, ycol), "μ"].value
+        log_σ = statvals[string(:log_, ycol), "σ"].value
+        dnn_table = predict_DNN_model_logzscore(test_set, model, ycol,
+            log_μ, log_σ, output_size, "/mnt/")
+    elseif scaling_method == :logminmax
+        log_max = statvals[string(:log_, ycol), "maximum"].value
+        log_min = statvals[string(:log_, ycol), "minimum"].value
+        dnn_table = predict_DNN_model_logminmax(test_set, model, ycol,
+            log_min, log_max, 0.0, 10.0, output_size, "/mnt/")
+    end
+
     dfs_out = export_CSV(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", String(ycol))
     df_corr = compute_corr(dnn_table, output_size, "/mnt/", String(ycol))
 
@@ -119,7 +128,7 @@ end
 function train_DNN!(model::C,
     train_set::Array{T2, 1}, valid_set::Array{T1, 1},
     loss, accuracy, opt,
-    epoch_size::Integer, statval::AbstractNDSparse, norm_features::Array{Symbol},
+    epoch_size::Integer, statval::AbstractNDSparse, scaled_features::Array{Symbol},
     filename::String) where {C <: Flux.Chain, F <: AbstractFloat, T2 <: Tuple{AbstractArray{F, 2}, AbstractArray{F, 2}},
     T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}}}
 
@@ -217,17 +226,22 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     @info "Unit size in PM10: ", unit_size
     @info "Model     in PM10: ", model
 
+    # no regularization
+    loss(x, y) = Flux.mse(model(x), y)
+
     # L1
     #loss(x, y) = Flux.mse(model(x), y) +
     #    lambda(x, y) *
     #    sum(x1 -> LinearAlgebra.norm(x1, 1), Flux.params(model))
+
     # L2 
     # disable due to Flux#930 issue
     #lambda(x, y) = 10^(log10(Flux.mse(model(x), y)) - 1)
     #loss(x, y) = Flux.mse(model(x), y) + lambda(x, y) * sum(LinearAlgebra.norm, Flux.params(model))
-    loss(x, y) = Flux.mse(model(x), y)
-    # no regularization
-    #loss(x, y) = Flux.mse(model(x), y)
+
+    # Changhoon lee's method to capture outliers
+    #loss(x, y) = sum(exp.(y .* 0.000001)) * Flux.mse(model(x), y)
+    #loss(x, y) = maximum(10.0.^(y .* 0.0001)) * Flux.mse(model(x), y)
 
     accuracy(data) = evaluation(data, model, statval, :RMSE)
     opt = Flux.ADAM()
@@ -256,17 +270,22 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     @info "Unit size in PM25: ", unit_size
     @info "Model     in PM25: ", model
 
-    # L1
+    # no regularization
+    loss(x, y) = Flux.mse(model(x), y)
+
+    # L1 regularization
     #loss(x, y) = Flux.mse(model(x), y) +
     #    lambda(x, y) *
     #    sum(x1 -> LinearAlgebra.norm(x1, 1), Flux.params(model))
-    # L2
+
+    # L2 regularization
     # disable regularization due to Flux#930 issue
     #lambda(x, y) = 10^(log10(Flux.mse(model(x), y)) - 1)
     #loss(x, y) = Flux.mse(model(x), y) + lambda(x, y) * sum(LinearAlgebra.norm, Flux.params(model))
-    loss(x, y) = Flux.mse(model(x), y)
-    # no regularization
-    #loss(x, y) = Flux.mse(model(x), y)
+
+    # Changhoon lee's method to capture outliers
+    #loss(x, y) = sum(exp.(y .* 0.000001)) * Flux.mse(model(x), y)
+    #loss(x, y) = maximum(10.0.^(y .* 0.0001)) * Flux.mse(model(x), y)
 
     accuracy(data) = evaluation(data, model, statval, :RMSE)
     opt = Flux.ADAM()

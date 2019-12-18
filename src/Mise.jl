@@ -72,7 +72,7 @@ include("LSTNet/model.jl")
 include("postprocess/post_DNN.jl")
 
 # input
-export join_data, filter_raw_data, filter_jongro, read_jongro,
+export join_data, filter_raw_data, filter_station, filter_jongro, read_jongro,
 # utils
     extract_col_statvals, zscore!, unzscore, unzscore!,
     minmax_scaling, minmax_scaling!,
@@ -105,11 +105,13 @@ export join_data, filter_raw_data, filter_jongro, read_jongro,
     compute_corr, test_features, test_station, test_classification,
 # output
     predict_DNN_model_zscore, predict_DNN_model_minmax,
+    predict_DNN_model_logzscore, predict_DNN_model_logminmax,
     predict_RNN_model_zscore, predict_RNN_model_minmax,
     export_CSV,
 # plot
+    plot_histogram,
+    plot_lineplot_total,
     plot_corr_input,
-    plot_totaldata,
     plot_pcorr,
     plot_corr,
     plot_DNN_scatter,

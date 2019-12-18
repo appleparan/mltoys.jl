@@ -32,6 +32,16 @@ function filter_raw_data(df::DataFrame,
     df
 end
 
+function filter_station(df, stn_code)
+    stn_df = @from i in df begin
+        @where i.stationCode == stn_code
+        @select i
+        @collect DataFrame
+    end
+
+    stn_df
+end
+
 """
     validate_dates(_from_date, _to_date, window_size, df)
 

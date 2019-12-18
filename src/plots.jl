@@ -9,10 +9,9 @@ const LN02_COLOR = RGB(5/255,113/255,176/255)
 const FL01_COLOR = RGB(239/255, 138/255, 98/255)
 const FL02_COLOR = RGB(103/255, 169/255, 207/255)
 
-function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
+function plot_histogram(df::DataFrame, ycol::Symbol, output_dir::String)
     ENV["GKSwstype"] = "100"
     hist_path = output_dir * String(ycol) * "_total_hist.png"
-    plot_path = output_dir * String(ycol) * "_total_plot.png"
 
     # plot histogram
     ht = Plots.histogram(float.(df[!, ycol]), title="Histogram of " * String(ycol),
@@ -20,9 +19,14 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
         xlabel=String(ycol), ylabel="#", bins=200, legend=false,
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR, fillcolor = FL01_COLOR, fillalpha=0.2)
+        background_color = BG_COLOR, fillcolor = LN_COLOR, fillalpha=0.2)
     png(ht, hist_path)
 
+end
+
+function plot_lineplot_total(df::DataFrame, ycol::Symbol, output_dir::String)
+    ENV["GKSwstype"] = "100"
+    line_path = output_dir * String(ycol) * "_total_line.png"
     # plot in dates
     dates = DateTime.(df[!, :date])
     pl = Plots.plot(dates, float.(df[!, ycol]),
@@ -31,7 +35,7 @@ function plot_totaldata(df::DataFrame, ycol::Symbol, output_dir::String)
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, linecolor = LN01_COLOR, legend=false)
-    png(pl, plot_path)
+    png(pl, line_path)
 end
 
 function plot_pcorr(_df::DataFrame, feas::AbstractArray, label_feas::AbstractArray, output_dir::String)

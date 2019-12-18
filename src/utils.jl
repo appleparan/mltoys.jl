@@ -2,6 +2,7 @@
     extract_col_feats(df, cols)
 
 find mean, std, minimum, maximum in df[!, col]
+default value of columns are all numeric columns except date
 """
 function extract_col_statvals(df::DataFrame, cols::Array{Symbol, 1})
     syms = []
