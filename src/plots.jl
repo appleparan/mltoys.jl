@@ -19,7 +19,7 @@ function plot_histogram(df::DataFrame, ycol::Symbol, output_dir::String)
         xlabel=String(ycol), ylabel="#", bins=200, legend=false,
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR, fillcolor = LN_COLOR, fillalpha=0.2)
+        background_color = BG_COLOR, fillalpha=0.5)
     png(ht, hist_path)
 
 end
@@ -67,7 +67,7 @@ function plot_pcorr(_df::DataFrame, feas::AbstractArray, label_feas::AbstractArr
     Plots.svg(crpl, crpl_path * ".svg")
 
     df_cor = DataFrame(dfm_cor)
-    names!(df_cor, Symbol.(label_feas))
+    rename!(df_cor, Symbol.(label_feas))
     CSV.write(crcsv_path, df_cor, writeheader = true)
 end
 
