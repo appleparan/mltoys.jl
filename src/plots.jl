@@ -293,7 +293,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
             line=:solid, linewidth=5, color=LN02_COLOR, label="DNN")
         Plots.png(pl, line_path)
 
-        line_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
+        line_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.csv"
         df = DataFrame(dates = dates,
             obs = float.(JuliaDB.select(dnn_table[i], :y)),
             model = float.(JuliaDB.select(dnn_table[i], :ŷ)))
