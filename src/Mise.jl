@@ -8,10 +8,19 @@ using Printf
 using Random
 using Statistics
 
+# Integration
+using NumericalIntegration
+
 # Statistics
 #using Distributions
 using StatsBase: mean, std, mean_and_std, zscore, crosscor
 import StatsBase: zscore!
+using StatsBase
+using KernelDensity
+
+# Statistical Models
+using TimeSeries
+using HypothesisTests
 
 # ML
 using Flux
@@ -45,7 +54,7 @@ using ProgressMeter
 using Plots
 using Plots.PlotMeasures
 using ColorTypes
-using StatsPlots
+using StatsPlots: @df, StatsPlots
 
 if isa(Sys.which("python3"), String)
     using ExcelReaders
@@ -66,13 +75,16 @@ include("plots.jl")
 
 include("DNN/preprocess.jl")
 include("DNN/model.jl")
-include("OU/model.jl")
 include("LSTNet/model.jl")
+include("OU/model.jl")
+include("analysis/analysis.jl")
+include("analysis/plot_analysis.jl")
 
 include("postprocess/post_DNN.jl")
 
 # input
 export join_data, filter_raw_data, filter_station, filter_jongro, read_jongro,
+     parse_aerosols,
 # utils
     extract_col_statvals, zscore!, unzscore, unzscore!,
     minmax_scaling, minmax_scaling!,
@@ -93,6 +105,12 @@ export join_data, filter_raw_data, filter_station, filter_jongro, read_jongro,
     RSR, NSE, PBIAS, IOA, RefinedIOA, R2, AdjR2, classification,
 # loss
     huber_loss, huber_loss_mean, mse_rnn,
+# analysis & plot
+    compute_inttscale, mean_aucotor, time_mean, pdf,
+    plot_anal_lineplot, 
+    plot_anal_pdf, plot_anal_autocor,
+    plot_anal_correlogram, plot_anal_violin,
+    plot_anal_time_mean, plot_anal_time_fluc,
 # DNN
     train_DNN, corr_input,
 # preprocess
