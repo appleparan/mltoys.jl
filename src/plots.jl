@@ -19,7 +19,7 @@ function plot_histogram(df::DataFrame, ycol::Symbol, output_dir::String)
         xlabel=String(ycol), ylabel="#", bins=200, legend=false,
         guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
-        background_color = BG_COLOR, fillalpha=0.5)
+        background_color = BG_COLOR, fillcolor = FL02_COLOR)
     png(ht, hist_path)
 
 end
@@ -206,7 +206,7 @@ function plot_DNN_histogram(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
             guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
             guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
             title="Histogram of OBS ($(i_pad)h)", ylabel="#",
-            background_color = BG_COLOR, fillalpha=0.5)
+            background_color = BG_COLOR, fillcolor = FL02_COLOR)
         Plots.png(ht, hs_OBS_path)
 
         ht = Plots.histogram(float.(JuliaDB.select(dnn_table[i], :ŷ)), label="DNN",
@@ -214,7 +214,7 @@ function plot_DNN_histogram(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
             guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
             guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
             title="Histogram of DNN ($(i_pad)h)", ylabel="#",
-            background_color = BG_COLOR, fillalpha=0.5)
+            background_color = BG_COLOR, fillcolor = FL02_COLOR)
         Plots.png(ht, hs_DNN_path)
     end
 
@@ -233,8 +233,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
 
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
-        line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
-        line_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.csv"
+        line_plotpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
         dates_h = dates .+ Dates.Hour(i)
 
         pl = Plots.plot(dates_h, float.(JuliaDB.select(dnn_table[i], :y)),
@@ -250,7 +249,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
 
         pl = Plots.plot!(dates_h, float.(JuliaDB.select(dnn_table[i], :ŷ)),
             line=:solid, linewidth=5, color=LN02_COLOR, label="DNN")
-        Plots.png(pl, line_path)
+        Plots.png(pl, line_plotpath)
 
         line_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.csv"
         df = DataFrame(dates = dates,
@@ -275,7 +274,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
 
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
-        line_path = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
+        line_plotpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
         dates_h = dates .+ Dates.Hour(i)
 
         pl = Plots.plot(dates_h, float.(JuliaDB.select(dnn_table[i], :y)),
@@ -291,7 +290,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
 
         pl = Plots.plot!(dates_h, float.(JuliaDB.select(dnn_table[i], :ŷ)),
             line=:solid, linewidth=5, color=LN02_COLOR, label="DNN")
-        Plots.png(pl, line_path)
+        Plots.png(pl, line_plotpath)
 
         line_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.csv"
         df = DataFrame(dates = dates,
