@@ -32,6 +32,28 @@ function filter_raw_data(df::DataFrame,
     df
 end
 
+"""
+    filter_raw_data(df, stn_cdoe, fdate, tdate)
+
+Used in analysis
+"""
+
+function filter_raw_data(df::DataFrame,
+    stn_code::Integer,
+    fdate::D, tdate::D) where D<:Union{DateTime, ZonedDateTime}
+
+    # filter dataframe by total date range and station Code
+    # @where fdate <= i.date <= tdate && i.stationCode == stn_code
+    df = @from i in df begin
+        @where i.stationCode == stn_code && fdate <= i.date <= tdate
+        @orderby i.date
+        @select i
+        @collect DataFrame
+    end
+
+    df
+end
+
 function filter_station(df, stn_code)
     stn_df = @from i in df begin
         @where i.stationCode == stn_code

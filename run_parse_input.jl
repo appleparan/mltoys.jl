@@ -1,5 +1,4 @@
-using TimeZones
-
+using TimeZones, CSV
 using Mise
 
 function read_data()
@@ -13,4 +12,22 @@ function read_data()
     join_data(input_dir, obs_path, aes_dir, wea_dir, start_date, end_date)
 end
 
+function read_raw_PM1025() 
+    input_dir = "/input"
+    aes_dir = "aerosol"
+    start_date = ZonedDateTime(2008, 1, 1, 1, 0, tz"Asia/Seoul")
+    end_date = ZonedDateTime(2018, 12, 31, 24, 0, tz"Asia/Seoul")
+
+    stn_code = 111123
+    df_aes = parse_aerosols(aes_dir, input_dir)
+    df_aes_jongro = filter_station(df_aes, stn_code)
+
+    # check path
+    mkpath(input_dir)
+    filename = joinpath(input_dir, "input_raw_PM1025.csv")
+    CSV.write(filename, df_aes_jongro)
+end
+
 read_data()
+#read_raw_PM1025()
+

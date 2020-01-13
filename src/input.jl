@@ -1,4 +1,3 @@
-using DataFramesMeta, TimeZones, Dates
 # https://github.com/vtjnash/Glob.jl/issues/11
 rglob(pat, topdir) = Base.Iterators.flatten(map(d -> glob(pat, d[1]), walkdir(topdir)))
 
@@ -177,7 +176,7 @@ function parse_aerosols(aes_dir::String, input_dir::String)
         =#
         df_raw = CSV.read(_aes, copycols=true)
 
-        rename!(df_raw, [:지역 => :region, :측정소코드 => :stationCode, :측정소명 => :stationName, :측정일시 => :date,
+        DataFrames.rename!(df_raw, [:지역 => :region, :측정소코드 => :stationCode, :측정소명 => :stationName, :측정일시 => :date,
                    :주소 => :addr])
         dropmissing!(df_raw, :date)
 
