@@ -627,3 +627,132 @@ function is_sparse_Y(Y, missing_ratio=0.5)
     
     false
 end
+
+zero2Missing!(df::DataFrame, ycol::Symbol) = replace!(df[!, ycol], 0 => missing, 0.0 => missing, NaN => missing)
+
+"""
+    impute!(df, ycol, method; total_mean)
+
+# References
+## BCPA
+    * Shigeyuki Oba, et al. A BPCA Based Missing Value Imputing Method for Traffic Flow Volume Data
+    * Li Qu, et. al. A Bayesian missing value estimation method for gene expression profile data
+"""
+function impute!(df::DataFrame, ycol::Symbol, method::Symbol; total_mean::AbstractFloat = 0.0, ycols::Array{Symbol, 1} = [ycol], leafsize::Integer = 10)
+    # filter missing value
+    nomissings = filter(x -> x !== missing, df[!, ycol])
+
+    if method == :mean
+        replace!(df[!, ycol], missing => Int(round(total_mean)))
+    elseif method == :sample
+        _weeks = 53
+        arr = collect(skipmissing(float.(df[!, ycol])))
+        dfs = []
+
+        for _week in 1:_weeks
+            push!(dfs,
+                DataFrames.filter(row -> week(row[:date]) == _week && row[ycol] !== missing && row[ycol] !== NaN, df))
+        end
+
+        weeks = week.(df[!, :date])
+        for (i, _val) in enumerate(df[!, ycol])
+            if _val === missing
+                _df = dfs[weeks[i]]
+                df[i, ycol] = sample(_df[!, ycol])
+            end
+        end
+    elseif method == :knn
+        # TODO: KNN imputation is for multivarate.
+        arr = collect(skipmissing(float.(df[!, ycol])))
+        mat = collect(transpose(reshape(arr, size(arr, 1), 1)))
+        kdtree = KDTree(mat)
+
+        idxs, dists = knn(kdtree, mat, leafsize, true)
+        w = ones(leafsize)
+        for (i, _val) in enumerate(df[!, ycol])
+            if _val === missing
+                _idxs = idxs[i]
+                _dists = dists[i]
+                _w = w
+                _imputed = sum(df[vcat(_idxs...), ycol] .* _w .* (1.0 .- _dists ./ sum(_dists))) / (sum(w) - 1)
+                if isnan(_imputed) 
+                    @show i, df[vcat(_idxs...), ycol]
+                    @show sum(_dists), _dists
+                end
+                df[i, ycol] = Int(round())
+            end
+        end
+    elseif method == :bpca
+        # TODO: variational Bayes (VB) algorithm
+        # bpca_init!(df, ycol, total_mean)
+    end
+end
+
+#=
+function bpca_fill(df::DataFrame, ycol_t::Symbol, ycols::Array{Symbol, 1})
+    # init values
+    # size of given array (N x D)
+    N = size(df[!, ycol], 2)
+    D = size(ycols, 1)
+    # default number of PCA axis
+    Q = D - 1 > 0 ? D - 1 : D
+
+    y_est_mean = df[!, ycol_t]
+    y_est_zero = df[!, ycol_t]
+
+    # for SVD, 
+    replace!(y_est_zero, missing => 0)
+    # fill by mean values
+    replace!(y_est_mean, missing => Int(round(total_mean)))
+
+    mean_arr = map(ycols) do ycol
+        mean(skipmissing(float.(df[!, ycol])))
+    end
+
+    # covariance
+    covy = Statistics.cov(y_est_zero)
+    # SVD
+    F = LinearAlgebra.cov(cov)
+
+    # PCA
+    W = F.U * sqrt.(S)
+
+    # variance
+    tau = 1.0 ./( sum(Diagonal(covy)) - sum(Diagonal(F.S)) )
+
+    taumax = 1e10;
+    taumin = 1e-10;
+    tau = max( min( tau, taumax), taumin );
+
+    galpha0 = 1e-10;
+    balpha0 = 1;
+    alpha = ( 2 * galpha0 + d) ./ (tau * Diagonal(transpose(W)*W) + 2 * galpha0 / balpha0);
+
+    gmu0  = 0.001;
+
+    btau0 = 1;
+    gtau0 = 1e-10;
+    SigW = Matrix{Float64}(I, Q, Q);
+
+    epochs = 200
+
+    for i = 1:epochs
+
+        trS = _bpca_no_miss()
+    end
+end
+
+function _bpca_no_miss(Q::I), tau, W) where I<:Integer
+    Iq = Matrix{Float64}(I, Q, Q)
+    # no miss data
+    Rx = Iq .+ tau * transpose(W) * W + SigW;
+    Rxinv = inv( Rx );
+    dy = df[!, ycol] .- size(df[!, ycol], 2);
+    x = tau * Rxinv * transpose(W) * transpose(dy);
+
+    T = transpose(dy) * transpose(x);
+
+    # trS
+    sum( sum( dy .* dy )); 
+end
+=#

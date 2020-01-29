@@ -3,7 +3,7 @@ using Random
 using Dates, TimeZones
 using MicroLogging
 using NumericalIntegration
-using DataFrames, DataFramesMeta
+using DataFrames, DataFramesMeta, CSV
 
 using StatsBase
 using TimeSeries
@@ -98,41 +98,67 @@ function run_analysis()
         for name in train_stn_names
             code = seoul_stations[name]
             stn_df = filter_raw_data(df, code, train_fdate, train_tdate)
+            # for imputatation
+            CSV.write("/mnt/analysis/raw_data_analysis_$(string(ycol))_$((name)).csv", stn_df)
             dates = stn_df[!, :date]
 
+            # Imputation
+            # allow missing again
+            DataFrames.allowmissing!(stn_df)
+
+            zero2Missing!(stn_df, ycol)
+
+            # Analysis : pdf
+            @info "Estimate probability density function without imputation..."
+            ycol_arr = collect(skipmissing(stn_df[!, ycol]))
+            @show ycol_arr[1:100]
+            if ycol == :PM10
+                npts = 64
+            elseif ycol == :PM25
+                npts = 16
+            end
+            ycol_pdf = pdf(ycol_arr, npts)
+            plot_anal_pdf(ycol_pdf, ycol,
+                "PDF for $(ycol)", "/mnt/analysis/", "$(string(ycol))_$(string(name))_pdf_noimpute")
+            ycol_logpdf = pdf(log10.(ycol_arr), npts)
+            plot_anal_pdf(ycol_logpdf, ycol,
+                "Log PDF for $(ycol)", "/mnt/analysis/", "$(string(ycol))_$(string(name))_logpdf_noimpute")
+
+            # mean imputation
+            #impute!(df, ycol, :mean; total_mean = total_mean)
+            # simple sampling
+            impute!(stn_df, ycol, :sample)
+            # knn imputation
+            #nK = 10
+            #ycols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
+            #impute!(stn_df, ycol, :knn; ycols = ycols, leafsize = nK)
+
+            # disallow missing again
+            DataFrames.disallowmissing!(stn_df)
+
             ta = TimeArray(dates, stn_df[!, ycol])
+
+            @info "Estimate probability density function without imputation..."
+            ycol_arr = stn_df[!, ycol]
 
             total_mean, total_std = StatsBase.mean_and_std(values(ta))
 
             @info "Total mean of $(string(ycol)) : ", total_mean
             @info "Total std  of $(string(ycol)) : ", total_std
-            
-            # Analysis : pdf
-            @info "Estimate probability density function..."
-            ycol_arr = stn_df[!, ycol] .+ 10
-            ycol_pdf = pdf(ycol_arr)
+
+            if ycol == :PM10
+                npts = 64
+            elseif ycol == :PM25
+                npts = 16
+            end
+            ycol_pdf = pdf(ycol_arr, npts)
             plot_anal_pdf(ycol_pdf, ycol,
-                "PDF for $(ycol)", "/mnt/analysis/", "$(string(ycol))_$(string(name))_pdf_zeromissing")
-
-            # disabled due to nonpositive bandwidth of pdf estimation
-            ycol_logpdf = pdf(log10.(ycol_arr))
+                "PDF for $(ycol)", "/mnt/analysis/", "$(string(ycol))_$(string(name))_pdf_impute")
+            ycol_logpdf = pdf(log10.(ycol_arr), npts)
             plot_anal_pdf(ycol_logpdf, ycol,
-                "Log PDF for $(ycol)", "/mnt/analysis/", "$(string(ycol))_$(string(name))_logpdf_zeromissing")
-            DataFrames.insertcols!(stn_df, 3, Symbol(ycol, "_zeromissing") => ycol_arr)
-            DataFrames.insertcols!(stn_df, 3, Symbol(ycol, "_log_zeromissing") => log10.(ycol_arr))
-
-            # missing value to total_mean 
-            ycol_arr = stn_df[!, ycol]
-            replace!(ycol_arr, 0.0 => Int(round(total_mean)))
-
-            ycol_pdf = pdf(ycol_arr)
-            plot_anal_pdf(ycol_pdf, ycol,
-                "PDF for $(ycol)", "/mnt/analysis/", "$(string(ycol))_$(string(name))_pdf_meanmissing")
-            ycol_logpdf = pdf(log10.(ycol_arr))
-            plot_anal_pdf(ycol_logpdf, ycol,
-                "Log PDF for $(ycol)", "/mnt/analysis/", "$(string(ycol))_$(string(name))_logpdf_meanmissing")
-            DataFrames.insertcols!(stn_df, 3, Symbol(ycol, "_meanmissing") => ycol_arr)
-            DataFrames.insertcols!(stn_df, 3, Symbol(ycol, "_log_meanmissing") => log10.(ycol_arr))
+                "Log PDF for $(ycol)", "/mnt/analysis/", "$(string(ycol))_$(string(name))_logpdf_impute")
+            DataFrames.insertcols!(stn_df, 3, Symbol(ycol, "_impute") => ycol_arr)
+            DataFrames.insertcols!(stn_df, 3, Symbol(ycol, "_logimpute") => log10.(ycol_arr))
 
             # Analysis : ADFTest (Check Stationary)
             max_lag = 30 * 24
@@ -141,29 +167,32 @@ function run_analysis()
             @show HypothesisTests.ADFTest(values(ta), :trend, max_lag)
             @show HypothesisTests.ADFTest(values(ta), :squared_trend, max_lag)
 
-            # Analysis : Autocorrelation Functions
-            max_time = Int(ceil(min(size(stn_df[!, ycol],1)-1, 10*log10(size(stn_df[!, ycol],1)))))
-            @info "Autocorrelation..."
-            lags = 0:max_time
-            acf = StatsBase.autocor(values(ta), lags)
-            plot_anal_correlogram(acf, ycol, 
-                "Autocorrelation",
-                "/mnt/analysis/", "$(string(ycol))_$(string(name))_mt$(max_time)_acf")
+            # Analysis : Autocorrelation Functions]
+            for _ycol in [ycol, Symbol(ycol, :_impute), Symbol(ycol, :_logimpute)]
+                Base.Filesystem.mkpath("/mnt/analysis/$(string(_ycol))/")
+                max_time = Int(ceil(min(size(stn_df[!, ycol],1)-1, 10*log10(size(stn_df[!, ycol],1)))))
+                @info "Autocorrelation..."
+                lags = 0:max_time
+                acf = StatsBase.autocor(stn_df[!, _ycol], lags)
+                plot_anal_correlogram(acf, _ycol, 
+                    "Autocorrelation",
+                    "/mnt/analysis/$(string(_ycol))/", "$(string(ycol))_$(string(name))_mt$(max_time)_acf")
 
-            pacf = StatsBase.pacf(values(ta), lags)
-            plot_anal_correlogram(pacf, ycol,
-                "Partial Autocorrelation",
-                "/mnt/analysis/", "$(string(ycol))_$(string(name))_mt$(max_time)_pacf")
+                pacf = StatsBase.pacf(stn_df[!, _ycol], lags)
+                plot_anal_correlogram(pacf, _ycol,
+                    "Partial Autocorrelation",
+                    "/mnt/analysis/$(string(_ycol))/", "$(string(ycol))_$(string(name))_mt$(max_time)_pacf")
+
+                # Analysis : Autocorrelation Functions
+                # No need to compute pacf
+                max_time = 400 * 24
+                lags = 0:max_time
+                acf = StatsBase.autocor(stn_df[!, _ycol], lags)
+                plot_anal_correlogram(acf, ycol, 
+                    "Autocorrelation",
+                    "/mnt/analysis/$(string(_ycol))/", "$(string(ycol))_$(string(name))_mt$(max_time)_acf")
+            end
             #=
-            # Analysis : Autocorrelation Functions
-            # No need to compute pacf
-            max_time = 400 * 24
-            lags = 0:max_time
-            acf = StatsBase.autocor(values(ta), lags)
-            plot_anal_correlogram(acf, ycol, 
-                "Autocorrelation",
-                "/mnt/analysis/", "$(string(ycol))_$(string(name))_mt$(max_time)_acf")
-
             # Analysis : Integral Length Scale (Total)
             int_scale = integrate(1:length(acf), acf, SimpsonEven())
             @info "Integral Time Scale of $(ycol) at $(name) (total): ", int_scale
@@ -173,6 +202,7 @@ function run_analysis()
                 "/mnt/analysis/", "$(string(ycol))_$(string(name))_total")
             =#
             # Analysis : Time difference
+            #=
             @info "Time difference..."
             order = 1
             lag = 1
@@ -203,113 +233,79 @@ function run_analysis()
             @info "std  of time $(order)th difference of $(ycol) at $(name): ", StatsBase.std(val_diffed)
             plot_anal_lineplot(DateTime.(timestamp(diffed)), val_diffed, ycol,
                 order, lag, "/mnt/analysis/", "$(string(ycol))_$(string(name))")
-
+            =#
             # Analysis : Grouping by time
             @info "Groupby time..."
 
-            for _ycol in [ycol, Symbol(ycol, "_zeromissing"), Symbol(ycol, "_log_zeromissing"), Symbol(ycol, "_meanmissing"), Symbol(ycol, "_log_meanmissing")]
+            for _ycol in [ycol, Symbol(ycol, :_impute), Symbol(ycol, :_logimpute)]
                 time_grp_df = copy(stn_df)
-                # hourly
-                hourlycol = hour.(time_grp_df[!, :date])
-                DataFrames.insertcols!(time_grp_df, 3, :hour => hourlycol)
-                hourly_grp_means = time_mean(time_grp_df, _ycol, :hour)
+                Base.Filesystem.mkpath("/mnt/analysis/$(string(_ycol))/")
+                # find periodicty
+                tfuncs = (
+                    hour = :hour,
+                    week = :week,
+                    month = :month,
+                    quarter = :quarterofyear)
 
-                # put mean values to dataframe, adjust index only for hour (0-23)
-                hourly_grp_means_repeated = hourly_grp_means[time_grp_df[!, :hour] .+ 1]
-                DataFrames.insertcols!(time_grp_df, 3, :hour_mean => hourly_grp_means_repeated)
-                
-                plot_anal_violin(time_grp_df, _ycol, :hour, hourly_grp_means,
-                    "Violin plot for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))")
-                plot_anal_time_mean(time_grp_df, _ycol, :hour, hourly_grp_means,
-                    "Hourly mean for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))_time_mean")
+                # Analysis : mean analysis, hourly, weekly, monthly, quarterly
+                for time_dir in [:hour, :week, :month, :quarter] 
+                    @info "Time mean of $(string(_ycol)) $(string(time_dir))ly... "
+                    tfunc = tfuncs[time_dir]
+                    timely_col = eval(tfunc).(time_grp_df[!, :date])
+                    DataFrames.insertcols!(time_grp_df, 3, time_dir => timely_col)
+                    timely_grp_means = time_mean(time_grp_df, _ycol, time_dir)
 
-                # daily
-                dailycol = dayofyear.(time_grp_df[!, :date])
-                DataFrames.insertcols!(time_grp_df, 3, :day => dailycol)
-                daily_grp_means = time_mean(time_grp_df, _ycol, :day)
+                    # put mean values to dataframe, adjust index only for hour (0-23)
+                    if time_dir == :hour
+                        timely_grp_means_repeated = timely_grp_means[time_grp_df[!, time_dir] .+ 1]
+                    else 
+                        timely_grp_means_repeated = timely_grp_means[time_grp_df[!, time_dir]]
+                    end
+                    DataFrames.insertcols!(time_grp_df, 3, Symbol(time_dir, "_mean") => timely_grp_means_repeated)
+                    # fluctuations
+                    DataFrames.insertcols!(time_grp_df, 3, Symbol(time_dir, "_fluc") => time_grp_df[!, ycol] .- time_grp_df[!, Symbol(time_dir, "_mean") ])
+                    
+                    plot_anal_violin(time_grp_df, _ycol, time_dir, timely_grp_means,
+                        "Violin plot for $(ycol)", "/mnt/analysis/$(string(_ycol))/", "$(string(ycol))_$(string(name))")
+                    plot_anal_time_mean(time_grp_df, _ycol, time_dir, timely_grp_means,
+                        "$(string(time_dir))ly mean for $(ycol)", "/mnt/analysis/$(string(_ycol))/", "$(string(ycol))_$(string(name))_time_mean")
+                end
 
-                # put mean values to dataframe
-                daily_grp_means_repeated = daily_grp_means[time_grp_df[!, :day]]
-                DataFrames.insertcols!(time_grp_df, 3, :day_mean => daily_grp_means_repeated)
-
-                plot_anal_violin(time_grp_df, _ycol, :day, daily_grp_means,
-                    "Violin plot for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))")
-                plot_anal_time_mean(time_grp_df, _ycol, :day, daily_grp_means,
-                    "Daily mean for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))_time_mean")
-            
-                # monthly
-                monthlycol = month.(time_grp_df[!, :date])
-                DataFrames.insertcols!(time_grp_df, 3, :month => monthlycol)
-                monthly_grp_means = time_mean(time_grp_df, _ycol, :month)
-
-                # put mean values to dataframe
-                monthly_grp_means_repeated = monthly_grp_means[time_grp_df[!, :month]]
-                DataFrames.insertcols!(time_grp_df, 3, :month_mean => monthly_grp_means_repeated)
-
-                plot_anal_violin(time_grp_df, _ycol, :month, monthly_grp_means,
-                    "Violin plot for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))")
-                plot_anal_time_mean(time_grp_df, _ycol, :month, monthly_grp_means,
-                    "Monthly mean for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))_time_mean")
-
-                # quarterly
-                quarterlycol = quarterofyear.(time_grp_df[!, :date])
-                DataFrames.insertcols!(time_grp_df, 3, :quarter => quarterlycol)
-                quarterly_grp_means = time_mean(time_grp_df, _ycol, :quarter)
-                quarterly_grp_means_repeated = quarterly_grp_means[time_grp_df[!, :quarter]]
-                DataFrames.insertcols!(time_grp_df, 3, :quarter_mean => quarterly_grp_means_repeated)
-
-                plot_anal_violin(time_grp_df, _ycol, :quarter, quarterly_grp_means,
-                    "Violin plot for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))")
-                plot_anal_time_mean(time_grp_df, _ycol, :quarter, quarterly_grp_means,
-                    "Quarterly mean for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))_time_mean")
-
-                # Analysis : fluctuation analysis, hourly, monthly, quarterly
-                # We don't need daily 
+                # Analysis : fluctuation analysis, hourly, weekly, monthly, quarterly
                 # Use Split-Apply-Combine Strategy
-                @info "Time fluctuations..."
-                hourlyfluc_df = DataFrames.by(time_grp_df, _ycol) do _df
-                    (hour = _df.hour,
-                    date = _df.date,
-                    fluc = getproperty(_df, _ycol) .- getproperty(_df, Symbol(:hour, "_mean")) )
-                end
-                hourlyfluc_grp_means = time_mean(hourlyfluc_df, _ycol, :hour)
-                #plot_anal_time_fluc(hourlyfluc_df, :hour, _ycol,
-                #    "Hourly fluctuation for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))_time_fluc")
-                plot_anal_time_flucmean(hourlyfluc_df, _ycol, :hour, hourlyfluc_grp_means, 
-                    "Daily fluctuation mean for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))_time_flucmean")
                 
-                dailyfluc_df = DataFrames.by(time_grp_df, _ycol) do _df
-                    (day = _df.day,
-                    date = _df.date,
-                    fluc = getproperty(_df, _ycol) .- getproperty(_df, Symbol(:day, "_mean")) )
-                end
-                dailyfluc_grp_means = time_mean(dailyfluc_df, _ycol, :day)
-                #plot_anal_time_fluc(dailyfluc_df, :day, _ycol,
-                #    "Daily fluctuation for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))_time_fluc")
-                plot_anal_time_flucmean(dailyfluc_df, _ycol, :day, dailyfluc_grp_means, 
-                    "Daily fluctuation mean for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))_time_flucmean")
+                for time_dir in [:hour, :week, :month, :quarter] 
+                    @info "Time fluctuations of $(string(_ycol)) $(string(time_dir))ly..."
 
-                monthlyfluc_df = DataFrames.by(time_grp_df, _ycol) do _df
-                    (month = _df.month,
-                    date = _df.date,
-                    fluc = getproperty(_df, _ycol) .- getproperty(_df, Symbol(:month, "_mean")) )
-                end
-                monthlyfluc_grp_means = time_mean(monthlyfluc_df, _ycol, :month)
-                #plot_anal_time_fluc(monthlyfluc_df, :month, _ycol,
-                #    "Monthly fluctuation for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))_time_fluc")
-                plot_anal_time_flucmean(monthlyfluc_df, _ycol, :month, monthlyfluc_grp_means, 
-                    "Monthly fluctuation mean for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))_time_flucmean")
+                    timelyfluc_df = DataFrames.by(time_grp_df, _ycol) do _df
+                        (; time_dir => getproperty(_df, time_dir),
+                        :date => _df.date,
+                        :mean => getproperty(_df, Symbol(time_dir, "_mean")),
+                        :fluc => getproperty(_df, _ycol) - getproperty(_df, Symbol(time_dir, "_mean")))
+                    end
 
-                quarterlyfluc_df = DataFrames.by(time_grp_df, _ycol) do _df
-                    (quarter = _df.quarter,
-                    date = _df.date,
-                    fluc = getproperty(_df, _ycol) .- getproperty(_df, Symbol(:quarter, "_mean")) )
+                    timelyfluc_grp_means = time_mean(timelyfluc_df, _ycol, time_dir)
+                    plot_anal_time_mean(timelyfluc_df, _ycol, time_dir, timelyfluc_grp_means, 
+                        "$(uppercasefirst(string(time_dir)))ly fluctuation mean for $(ycol)", "/mnt/analysis/$(string(_ycol))/",
+                        "$(string(ycol))_$(string(name))_$(string(_ycol))_time_flucmean")
+
+                    max_time = Int(ceil(min(size(timelyfluc_df[!, _ycol],1)-1, 10*log10(size(timelyfluc_df[!, _ycol],1)))))
+                    lags = 0:max_time
+                    @info "$(string(time_dir))ly Fluctuation Autocorrelation..."
+                    acf = StatsBase.autocor(timelyfluc_df[!, :fluc], lags)
+                    plot_anal_correlogram(acf, _ycol, 
+                        "$(uppercasefirst(string(time_dir)))ly Fluctuation Autocorrelation",
+                        "/mnt/analysis/$(string(_ycol))/",
+                        "$(string(ycol))_$(string(name))_mt$(max_time)_fluc_$(string(time_dir))ly_acf")
+
+                    max_time = 400 * 24
+                    lags = 0:max_time
+                    acf = StatsBase.autocor(timelyfluc_df[!, :fluc], lags)
+                    plot_anal_correlogram(acf, _ycol, 
+                        "$(uppercasefirst(string(time_dir)))ly Fluctuation Autocorrelation",
+                        "/mnt/analysis/$(string(_ycol))/",
+                        "$(string(ycol))_$(string(name))_mt$(max_time)_fluc_$(string(time_dir))ly_acf")
                 end
-                quarterlyfluc_grp_means = time_mean(quarterlyfluc_df, _ycol, :quarter)
-                #plot_anal_time_fluc(quarterlyfluc_df, :quarter, _ycol,
-                #    "Quarterly fluctuation for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))_time_fluc")
-                plot_anal_time_flucmean(quarterlyfluc_df, _ycol, :quarter, quarterlyfluc_grp_means, 
-                    "Quarterly fluctuation mean for $(ycol)", "/mnt/analysis/", "$(string(_ycol))_$(string(name))_time_flucmean")
             end
         end
     end

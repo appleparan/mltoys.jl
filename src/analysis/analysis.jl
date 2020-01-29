@@ -68,8 +68,8 @@ time directive must be in :hour (24 hour), :day (365 day), :quarter (4 quarter)
 function time_mean(df::DataFrame, target::Symbol, tdir::Symbol)
     if tdir == :hour
         time_len = 24
-    elseif tdir == :day
-        time_len = 366
+    elseif tdir == :week
+        time_len = 53
     elseif tdir == :month
         time_len = 12
     elseif tdir == :quarter
@@ -83,14 +83,14 @@ function time_mean(df::DataFrame, target::Symbol, tdir::Symbol)
     for time=1:time_len
         if tdir == :hour
             _df = @from i in df begin
-                @where hour(i.date) == time
+                @where hour(i.date) == time - 1
                 @orderby i.date
                 @select i
                 @collect DataFrame
             end
-        elseif tdir == :day
+        elseif tdir == :week
             _df = @from i in df begin
-                @where dayofyear(i.date) == time
+                @where week(i.date) == time
                 @orderby i.date
                 @select i
                 @collect DataFrame
@@ -123,6 +123,6 @@ end
 estimate probability density function 
     by kernel density estimation
 """
-function pdf(data::AbstractArray)
-    KernelDensity.kde(data)
+function pdf(data::AbstractArray, npts::Integer)
+    KernelDensity.kde_lscv(data, npoints = npts)
 end

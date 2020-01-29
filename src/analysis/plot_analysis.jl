@@ -139,14 +139,14 @@ function plot_anal_violin(df::DataFrame, ycol::Symbol, tdir::Symbol, means::Abst
         marker=(0.2, :blue, stroke(0)), legend=false)
     if tdir == :hour
         x_means = 0:23
-    elseif tdir == :day
-        x_means = 1:366
+    elseif tdir == :week
+        x_means = 1:53
     elseif tdir == :month
         x_means = 1:12
     elseif tdir == :quarter
         x_means = 1:4
     else
-        error("Time directive must be between :hour, :day, :month, :quarter")
+        error("Time directive must be between :hour, :week, :month, :quarter")
     end
     Plots.plot!(x_means, means, color=:red, marker=(2.0, :red, stroke(1)), legend=:false)
     Plots.png(pl, violin_path)
@@ -171,7 +171,7 @@ function plot_anal_pdf(k::UnivariateKDE, ycol::Symbol,
         guidefontsize = 32, titlefontsize = 48, tickfontsize = 24, legendfontsize = 24, margin=36PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, color=:black,
-        xlabel="hour", ylabel=String(ycol), 
+        ylabel=String(ycol), 
         marker=(1, :blue, stroke(0)), legend=false)
     Plots.png(pl, pdf_path)
 
@@ -191,14 +191,14 @@ function plot_anal_time_mean(df::DataFrame, ycol::Symbol, tdir::Symbol, means::A
 
     if tdir == :hour
         x_means = 0:23
-    elseif tdir == :day
-        x_means = 1:366
+    elseif tdir == :week
+        x_means = 1:53
     elseif tdir == :month
         x_means = 1:12
     elseif tdir == :quarter
         x_means = 1:4
     else
-        error("Time directive must be between :hour, :day, :month, :quarter")
+        error("Time directive must be between :hour, :week, :month, :quarter")
     end
 
     pl = Plots.plot(x_means, means,
@@ -224,19 +224,18 @@ function plot_anal_time_fluc(df::DataFrame, tdir::Symbol, ycol::Symbol,
     ENV["GKSwstype"] = "100"
 
     time_fluc_path = output_dir * "$(output_prefix)_time_fluc_$(string(tdir))ly.png"
-
-    pl = Plots.plot(df[!, tdir], df[!, :fluc],
+    pl = StatsPlots.@df df violin(df[!, tdir], df[!, Symbol(tdir, "_fluc")],
         size = (1920, 1080),
         title = title_string,
         guidefontsize = 32, titlefontsize = 48, tickfontsize = 24, legendfontsize = 24, margin=36PlotMeasures.px,
         guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, color=:black,
         xlabel=String(tdir), ylabel=String(ycol),
-        marker=(1.0, :blue, stroke(0)), legend=false)
+        marker=(0.2, :blue, stroke(0)), legend=false)
     Plots.png(pl, time_fluc_path)
 
     time_fluc_csvpath = output_dir * "$(output_prefix)_time_fluc_$(string(tdir))ly.csv"
-    df = DataFrame(tdir => df[!, tdir], :fluc => df[!, :fluc])
+    df = DataFrame(tdir => df[!, tdir], :fluc => df[!, Symbol(tdir, "_", :fluc)])
     CSV.write(time_fluc_csvpath, df, writeheader = true)
 
     nothing
