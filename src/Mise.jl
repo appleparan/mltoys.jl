@@ -17,6 +17,7 @@ using StatsBase: mean, std, mean_and_std, zscore, crosscor
 import StatsBase: zscore!
 using StatsBase
 using KernelDensity
+using NearestNeighbors
 
 # Statistical Models
 using TimeSeries
@@ -98,6 +99,7 @@ export join_data, filter_raw_data, filter_station, filter_jongro, read_jongro,
     getX, getY, make_pair_DNN, make_batch_DNN, 
     serializeBatch, unpack_seq, matrix2arrays,
     make_pair_LSTNet, make_batch_LSTNet,
+    zero2Missing!, impute!,
 # activation
 # evaluation
     evaluations, evaluation,
