@@ -111,17 +111,16 @@ function run_analysis()
             # Analysis : pdf
             @info "Estimate probability density function without imputation..."
             ycol_arr = collect(skipmissing(stn_df[!, ycol]))
-            @show ycol_arr[1:100]
             if ycol == :PM10
-                npts = 64
+                npts = 256
             elseif ycol == :PM25
-                npts = 16
+                npts = 256
             end
-            ycol_pdf = pdf(ycol_arr, npts)
-            plot_anal_pdf(ycol_pdf, ycol,
+            ycol_pdfx, ycol_pdfy = pdf(ycol_arr, npts, method=:kernel)
+            plot_anal_pdf(ycol_pdfx, ycol_pdfy, ycol,
                 "PDF for $(ycol)", "/mnt/analysis/", "$(string(ycol))_$(string(name))_pdf_noimpute")
-            ycol_logpdf = pdf(log10.(ycol_arr), npts)
-            plot_anal_pdf(ycol_logpdf, ycol,
+            ycol_logpdfx, ycol_logpdfy, = pdf(log10.(ycol_arr), npts, method=:kernel)
+            plot_anal_pdf(ycol_logpdfx, ycol_logpdfy, ycol,
                 "Log PDF for $(ycol)", "/mnt/analysis/", "$(string(ycol))_$(string(name))_logpdf_noimpute")
 
             # mean imputation
@@ -140,6 +139,8 @@ function run_analysis()
 
             @info "Estimate probability density function without imputation..."
             ycol_arr = stn_df[!, ycol]
+            ycols = stn_df[!, ycol]
+            logycols = log10.(stn_df[!, ycol])
 
             total_mean, total_std = StatsBase.mean_and_std(values(ta))
 
@@ -147,25 +148,27 @@ function run_analysis()
             @info "Total std  of $(string(ycol)) : ", total_std
 
             if ycol == :PM10
-                npts = 64
+                npts = 200
             elseif ycol == :PM25
-                npts = 16
+                npts = 200
             end
-            ycol_pdf = pdf(ycol_arr, npts)
-            plot_anal_pdf(ycol_pdf, ycol,
+            ycol_pdfx, ycol_pdfy = pdf(ycol_arr, npts, method=:kernel)
+            plot_anal_pdf(ycol_pdfx, ycol_pdfy, ycol,
                 "PDF for $(ycol)", "/mnt/analysis/", "$(string(ycol))_$(string(name))_pdf_impute")
-            ycol_logpdf = pdf(log10.(ycol_arr), npts)
-            plot_anal_pdf(ycol_logpdf, ycol,
+            ycol_logpdfx, ycol_logpdfy, = pdf(log10.(ycol_arr), npts, method=:kernel)
+            plot_anal_pdf(ycol_logpdfx, ycol_logpdfy, ycol,
                 "Log PDF for $(ycol)", "/mnt/analysis/", "$(string(ycol))_$(string(name))_logpdf_impute")
             DataFrames.insertcols!(stn_df, 3, Symbol(ycol, "_impute") => ycol_arr)
             DataFrames.insertcols!(stn_df, 3, Symbol(ycol, "_logimpute") => log10.(ycol_arr))
 
-            # Analysis : ADFTest (Check Stationary)
+            # Analysis : HypothesisTests
+            @info "Hypothesis Tests"
             max_lag = 30 * 24
-            @show HypothesisTests.ADFTest(values(ta), :none, max_lag)
-            @show HypothesisTests.ADFTest(values(ta), :constant, max_lag)
-            @show HypothesisTests.ADFTest(values(ta), :trend, max_lag)
-            @show HypothesisTests.ADFTest(values(ta), :squared_trend, max_lag)
+            #@show HypothesisTests.ADFTest(values(ta), :none, max_lag)
+            #@show HypothesisTests.ADFTest(values(ta), :constant, max_lag)
+            #@show HypothesisTests.ADFTest(values(ta), :trend, max_lag)
+            #@show HypothesisTests.ADFTest(values(ta), :squared_trend, max_lag)
+            #@show HypothesisTests.LjungBoxTest(df[!, ycol], 365*24)
 
             # Analysis : Autocorrelation Functions]
             for _ycol in [ycol, Symbol(ycol, :_impute), Symbol(ycol, :_logimpute)]
@@ -238,75 +241,135 @@ function run_analysis()
             @info "Groupby time..."
 
             for _ycol in [ycol, Symbol(ycol, :_impute), Symbol(ycol, :_logimpute)]
-                time_grp_df = copy(stn_df)
                 Base.Filesystem.mkpath("/mnt/analysis/$(string(_ycol))/")
+                period_df = copy(stn_df)
+
                 # find periodicty
-                tfuncs = (
+                pfuncs = (
                     hour = :hour,
                     week = :week,
-                    month = :month,
-                    quarter = :quarterofyear)
+                    month = :month)
 
-                # Analysis : mean analysis, hourly, weekly, monthly, quarterly
-                for time_dir in [:hour, :week, :month, :quarter] 
-                    @info "Time mean of $(string(_ycol)) $(string(time_dir))ly... "
-                    tfunc = tfuncs[time_dir]
-                    timely_col = eval(tfunc).(time_grp_df[!, :date])
-                    DataFrames.insertcols!(time_grp_df, 3, time_dir => timely_col)
-                    timely_grp_means = time_mean(time_grp_df, _ycol, time_dir)
+                # Analysis : seasonality analysis, hourly, weekly, monthly
+                for period_dir in [:hour, :week, :month]
+                    @info "Periodic mean of $(string(_ycol)) ($(string(period_dir))ly...) "
+                    pfunc = pfuncs[period_dir]
+                    periodic_col = eval(pfunc).(period_df[!, :date])
+                    DataFrames.insertcols!(period_df, 3, period_dir => periodic_col)
 
-                    # put mean values to dataframe, adjust index only for hour (0-23)
-                    if time_dir == :hour
-                        timely_grp_means_repeated = timely_grp_means[time_grp_df[!, time_dir] .+ 1]
-                    else 
-                        timely_grp_means_repeated = timely_grp_means[time_grp_df[!, time_dir]]
-                    end
-                    DataFrames.insertcols!(time_grp_df, 3, Symbol(time_dir, "_mean") => timely_grp_means_repeated)
-                    # fluctuations
-                    DataFrames.insertcols!(time_grp_df, 3, Symbol(time_dir, "_fluc") => time_grp_df[!, ycol] .- time_grp_df[!, Symbol(time_dir, "_mean") ])
+                    periodic_means, periodic_means_repeated = populate_periodic_mean(period_df, _ycol, period_dir)
+                    # insert mean and fluctuation to DataFrame
+                    DataFrames.insertcols!(period_df, 3, Symbol(period_dir, "_mean") => periodic_means_repeated)
+                    DataFrames.insertcols!(period_df, 3, Symbol(period_dir, "_fluc") => period_df[!, ycol] .- periodic_means_repeated)
                     
-                    plot_anal_violin(time_grp_df, _ycol, time_dir, timely_grp_means,
+                    # violin plot mean
+                    plot_anal_violin(period_df, _ycol, period_dir, periodic_means,
                         "Violin plot for $(ycol)", "/mnt/analysis/$(string(_ycol))/", "$(string(ycol))_$(string(name))")
-                    plot_anal_time_mean(time_grp_df, _ycol, time_dir, timely_grp_means,
-                        "$(string(time_dir))ly mean for $(ycol)", "/mnt/analysis/$(string(_ycol))/", "$(string(ycol))_$(string(name))_time_mean")
+                    # plot mean only
+                    plot_anal_periodic_mean(period_df, _ycol, period_dir, periodic_means,
+                        "$(uppercasefirst(string(period_dir)))ly mean for $(ycol)", "/mnt/analysis/$(string(_ycol))/", "$(string(ycol))_$(string(name))_time_mean")
                 end
 
-                # Analysis : fluctuation analysis, hourly, weekly, monthly, quarterly
+                # Analysis : fluctuation analysis, hourly, weekly, monthly
                 # Use Split-Apply-Combine Strategy
-                
-                for time_dir in [:hour, :week, :month, :quarter] 
-                    @info "Time fluctuations of $(string(_ycol)) $(string(time_dir))ly..."
+                for period_dir in [:hour, :week, :month] 
+                    @info "Autocorrelation of periodic fluctuations of $(string(_ycol)) $(string(period_dir))ly..."
 
-                    timelyfluc_df = DataFrames.by(time_grp_df, _ycol) do _df
-                        (; time_dir => getproperty(_df, time_dir),
+                    period_fluc_df = DataFrames.by(period_df, _ycol) do _df
+                        (; period_dir => getproperty(_df, period_dir),
                         :date => _df.date,
-                        :mean => getproperty(_df, Symbol(time_dir, "_mean")),
-                        :fluc => getproperty(_df, _ycol) - getproperty(_df, Symbol(time_dir, "_mean")))
+                        :mean => getproperty(_df, Symbol(period_dir, "_mean")),
+                        :fluc => getproperty(_df, _ycol) - getproperty(_df, Symbol(period_dir, "_mean")))
                     end
 
-                    timelyfluc_grp_means = time_mean(timelyfluc_df, _ycol, time_dir)
-                    plot_anal_time_mean(timelyfluc_df, _ycol, time_dir, timelyfluc_grp_means, 
-                        "$(uppercasefirst(string(time_dir)))ly fluctuation mean for $(ycol)", "/mnt/analysis/$(string(_ycol))/",
-                        "$(string(ycol))_$(string(name))_$(string(_ycol))_time_flucmean")
+                    period_fluc_means = periodic_mean(period_fluc_df, _ycol, period_dir)
+                    plot_anal_periodic_mean(period_fluc_df, _ycol, period_dir, period_fluc_means, 
+                        "$(uppercasefirst(string(period_dir)))ly fluctuation mean for $(ycol)", "/mnt/analysis/$(string(_ycol))/",
+                        "$(string(ycol))_$(string(name))_$(string(_ycol))_period_flucmean")
 
-                    max_time = Int(ceil(min(size(timelyfluc_df[!, _ycol],1)-1, 10*log10(size(timelyfluc_df[!, _ycol],1)))))
+                    max_time = Int(ceil(min(size(period_fluc_df[!, _ycol],1)-1, 10*log10(size(period_fluc_df[!, _ycol],1)))))
                     lags = 0:max_time
-                    @info "$(string(time_dir))ly Fluctuation Autocorrelation..."
-                    acf = StatsBase.autocor(timelyfluc_df[!, :fluc], lags)
+                    @info "$(string(period_dir))ly Fluctuation Autocorrelation..."
+                    acf = StatsBase.autocor(period_fluc_df[!, :fluc], lags)
                     plot_anal_correlogram(acf, _ycol, 
-                        "$(uppercasefirst(string(time_dir)))ly Fluctuation Autocorrelation",
+                        "$(uppercasefirst(string(period_dir)))ly Fluctuation Autocorrelation",
                         "/mnt/analysis/$(string(_ycol))/",
-                        "$(string(ycol))_$(string(name))_mt$(max_time)_fluc_$(string(time_dir))ly_acf")
+                        "$(string(ycol))_$(string(name))_mt$(max_time)_fluc_$(string(period_dir))ly_acf")
 
                     max_time = 400 * 24
                     lags = 0:max_time
-                    acf = StatsBase.autocor(timelyfluc_df[!, :fluc], lags)
+                    acf = StatsBase.autocor(period_fluc_df[!, :fluc], lags)
                     plot_anal_correlogram(acf, _ycol, 
-                        "$(uppercasefirst(string(time_dir)))ly Fluctuation Autocorrelation",
+                        "$(uppercasefirst(string(period_dir)))ly Fluctuation Autocorrelation",
                         "/mnt/analysis/$(string(_ycol))/",
-                        "$(string(ycol))_$(string(name))_mt$(max_time)_fluc_$(string(time_dir))ly_acf")
+                        "$(string(ycol))_$(string(name))_mt$(max_time)_fluc_$(string(period_dir))ly_acf")
                 end
             end
+
+            # decompose seasonal components
+            Base.Filesystem.mkpath("/mnt/analysis/decomposition/$(string(ycol))/")
+            lee_year_sea1, lee_year_sea2, lee_year_res2, lee_day_sea1, lee_day_res1 =
+                season_adj_lee(stn_df, Symbol(ycol, "_impute"))
+
+            plot_year = 2013
+            plot_seasonality(ycols, lee_year_sea1, lee_year_sea2, lee_day_sea1, lee_day_res1, ycol, plot_year,
+                DateTime(stn_df[1, :date], Local),
+                ["Original data", "Annual seasonality", "Daily seasonality", "Residual"],
+                "Seasonal Decomposition in $(plot_year)",
+                "/mnt/analysis/decomposition/$(string(ycol))/", "$(string(ycol))_$(string(name))_seasonality")
+            plot_seasonality(ycols, lee_year_sea1, lee_year_sea2, lee_day_sea1, lee_day_res1, ycol, 2015, 2017,
+                DateTime(stn_df[1, :date], Local),
+                ["Original data", "Annual seasonality", "Daily seasonality", "Residual"],
+                "Seasonal Decomposition from 2015 to 2017",
+                "/mnt/analysis/decomposition/$(string(ycol))/", "$(string(ycol))_$(string(name))_seasonality_3year")
+
+            # Autocorrelation
+            acf_yres2 = StatsBase.autocor(lee_year_res2, 0:15*24)
+            acf_dres1 = StatsBase.autocor(lee_day_res1, 0:15*24)
+            #acf_dres1_log = StatsBase.autocor(log.(lee_day_res1), 0:15*24)
+
+            plot_anal_correlogram(acf_yres2, ycol,
+                "Annual Residual Autocorrelation",
+                "/mnt/analysis/decomposition/$(string(ycol))/",
+                "$(string(ycol))_$(string(name))_year_res2_acf")
+            plot_anal_correlogram(acf_dres1, ycol, 
+                "Daily Residual Autocorrelation",
+                "/mnt/analysis/decomposition/$(string(ycol))/",
+                "$(string(ycol))_$(string(name))_day_res1_acf")
+            #plot_anal_correlogram(acf_dres1_log, ycol, 
+            #    "Daily Log Residual Autocorrelation",
+            #    "/mnt/ARIMA/$(string(ycol))/",
+            #    "$(string(ycol))_$(string(name))_day_res1_log_acf")
+
+            # decompose seasonal components
+            lee_year_sea1_log, lee_year_sea2_log, lee_year_res2_log, lee_day_sea1_log, lee_day_res1_log =
+                season_adj_lee(stn_df, Symbol(ycol, "_logimpute"))
+
+            plot_year = 2016
+            plot_seasonality(logycols, lee_year_sea1_log, lee_year_sea2_log, lee_day_sea1_log, lee_day_res1_log, ycol, plot_year,
+                DateTime(stn_df[1, :date], Local),
+                ["Original data", "Annual seasonality", "Daily seasonality", "Residual"],
+                "Seasonal Decomposition in $(plot_year)",
+                "/mnt/analysis/decomposition/$(string(ycol))/", "$(string(ycol))_log_$(string(name))_seasonality")
+            plot_seasonality(logycols, lee_year_sea1_log, lee_year_sea2_log, lee_day_sea1_log, lee_day_res1_log, ycol, 2015, 2017,
+                DateTime(stn_df[1, :date], Local),
+                ["Original data", "Annual seasonality", "Daily seasonality", "Residual"],
+                "Seasonal Decomposition from 2015 to 2017",
+                "/mnt/analysis/decomposition/$(string(ycol))/", "$(string(ycol))_log_$(string(name))_seasonality_3year")
+
+            # Autocorrelation
+            acf_yres2_log = StatsBase.autocor(lee_year_res2_log, 0:15*24)
+            acf_dres1_log = StatsBase.autocor(lee_day_res1_log, 0:15*24)
+            acf_dres1_log = StatsBase.autocor(log.(lee_day_res1), 0:15*24)
+
+            plot_anal_correlogram(acf_yres2_log, Symbol(ycol, "_log"),
+                "Annual Residual Autocorrelation (LOG)",
+                "/mnt/analysis/decomposition/$(string(ycol))/",
+                "$(string(ycol))_log_$(string(name))_year_res2_acf")
+            plot_anal_correlogram(acf_dres1_log, Symbol(ycol, "_log"), 
+                "Daily Residual Autocorrelation (LOG)",
+                "/mnt/analysis/decomposition/$(string(ycol))/",
+                "$(string(ycol))_log_$(string(name))_day_res1_acf")
         end
     end
 

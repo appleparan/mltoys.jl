@@ -8,8 +8,9 @@ using Printf
 using Random
 using Statistics
 
-# Integration
+# Math
 using NumericalIntegration
+using Dierckx
 
 # Statistics
 #using Distributions
@@ -22,6 +23,8 @@ using NearestNeighbors
 # Statistical Models
 using TimeSeries
 using HypothesisTests
+using Loess
+using StateSpaceModels
 
 # ML
 using Flux
@@ -54,7 +57,7 @@ using ProgressMeter
 # Plots
 using Plots
 using Plots.PlotMeasures
-using ColorTypes
+using Colors, ColorTypes
 using StatsPlots: @df, StatsPlots
 
 if isa(Sys.which("python3"), String)
@@ -74,12 +77,18 @@ include("activation.jl")
 include("evaluation.jl")
 include("plots.jl")
 
+# Statistical Methods
+include("analysis/analysis.jl")
+include("analysis/smoothing.jl")
+include("analysis/plot_analysis.jl")
+include("ARIMA/ARIMA.jl")
+include("ARIMA/plot_ARIMA.jl")
+include("OU/model.jl")
+
+# Machine Learning
 include("DNN/preprocess.jl")
 include("DNN/model.jl")
 include("LSTNet/model.jl")
-include("OU/model.jl")
-include("analysis/analysis.jl")
-include("analysis/plot_analysis.jl")
 
 include("postprocess/post_DNN.jl")
 
@@ -107,12 +116,19 @@ export join_data, filter_raw_data, filter_station, filter_jongro, read_jongro,
     RSR, NSE, PBIAS, IOA, RefinedIOA, R2, AdjR2, classification,
 # loss
     huber_loss, huber_loss_mean, mse_rnn,
+# smoothing
+    periodic_mean, populate_periodic_mean,
+    season_adj_lee, compute_annual_mean,
 # analysis & plot
-    compute_inttscale, mean_aucotor, time_mean, pdf,
+    compute_inttscale, mean_aucotor, pdf,
     plot_anal_lineplot, 
     plot_anal_pdf, plot_anal_autocor,
     plot_anal_correlogram, plot_anal_violin,
-    plot_anal_time_mean, plot_anal_time_fluc,
+    plot_anal_periodic_mean, plot_anal_periodic_fluc,
+# ARIMA
+    smoothing_mean,
+    plot_seasonality,
+    plot_ARIMA_fluc, plot_ARIMA1_mean, plot_ARIMA_mean_smoothing, 
 # DNN
     train_DNN, corr_input,
 # preprocess

@@ -9,9 +9,9 @@ function extract_col_statvals(df::DataFrame, cols::Array{Symbol, 1})
     types = []
     vals = []
     for col in cols
-        μ, σ = mean_and_std(df[!, col])
-        minval = minimum(df[!, col])
-        maxval = maximum(df[!, col])
+        μ, σ = mean_and_std(skipmissing(df[!, col]))
+        minval = minimum(skipmissing(df[!, col]))
+        maxval = maximum(skipmissing(df[!, col]))
 
         push!(syms, String(col))
         push!(types, "μ")

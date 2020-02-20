@@ -28,7 +28,7 @@ function plot_lineplot_total(df::DataFrame, ycol::Symbol, output_dir::String)
     ENV["GKSwstype"] = "100"
     line_path = output_dir * String(ycol) * "_total_line.png"
     # plot in dates
-    dates = DateTime.(df[!, :date])
+    dates = DateTime.(df[!, :date], Local)
     pl = Plots.plot(dates, float.(df[!, ycol]),
         size = (2560, 1080),
         title=String(ycol) * " in dates", xlabel="date", ylabel=String(ycol),

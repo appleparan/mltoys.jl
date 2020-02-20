@@ -59,70 +59,43 @@ function mean_aucotor(ta::TimeArray, window::Integer; padding::Bool = false)
 end
 
 """
-    mean_by_time(df, target)
-
-Filter DataFrame df by time directive and get averages
-
-time directive must be in :hour (24 hour), :day (365 day), :quarter (4 quarter)
-"""
-function time_mean(df::DataFrame, target::Symbol, tdir::Symbol)
-    if tdir == :hour
-        time_len = 24
-    elseif tdir == :week
-        time_len = 53
-    elseif tdir == :month
-        time_len = 12
-    elseif tdir == :quarter
-        time_len = 4
-    else
-        error("Time directive must be between :hour, :day, :month, :quarter")
-    end
-
-    avgs = zeros(time_len)
-
-    for time=1:time_len
-        if tdir == :hour
-            _df = @from i in df begin
-                @where hour(i.date) == time - 1
-                @orderby i.date
-                @select i
-                @collect DataFrame
-            end
-        elseif tdir == :week
-            _df = @from i in df begin
-                @where week(i.date) == time
-                @orderby i.date
-                @select i
-                @collect DataFrame
-            end
-        elseif tdir == :month
-            _df = @from i in df begin
-                @where month(i.date) == time
-                @orderby i.date
-                @select i
-                @collect DataFrame
-            end
-        elseif tdir == :quarter
-            _df = @from i in df begin
-                @where quarterofyear(i.date) == time
-                @orderby i.date
-                @select i
-                @collect DataFrame
-            end
-        end
-
-        avgs[time] = mean(_df[!, target])
-    end
-
-    avgs
-end
-
-"""
     pdf(data)
 
 estimate probability density function 
     by kernel density estimation
 """
-function pdf(data::AbstractArray, npts::Integer)
-    KernelDensity.kde_lscv(data, npoints = npts)
+function pdf(data::AbstractVector, npts::Integer; method::Symbol=:kernel)
+    if method == :kernel
+        _pdfKDE = KernelDensity.kde(data, npoints = npts)
+        x = _pdfKDE.x
+        y = _pdfKDE.density
+    elseif method == :linear
+        _pdfKDE = KernelDensity.kde_lscv(data, npoints = npts)
+        x = _pdfKDE.x
+        y = _pdfKDE.density
+    elseif method == :gibbs
+        #bd = kde!(float.(data))
+        #bmin, bmax = getKDERange(bd) 
+        #x = range(bmin, stop=bmax, length=npts)
+        #y = evaluateDualTree(bd, x)
+    elseif method == :manual
+        # Freedman-Diaconis’s Rule
+        binsize = 2.0 * iqr(data) * length(data)^(-1//3) * 3
+        # Scott’s Rule
+        # binsize = 3.49 * std(data) * length(data)^(-1//3) * 3
+        # Rice's Rule
+        # binsize = length(data)^(-1//3) * 2
+        @show binsize
+        minx = float.(minimum(data))
+        maxx = float.(maximum(data))
+        nbins = Int(round((maxx - minx) / float(binsize)))
+
+        _x = minx:binsize:maxx
+        x = minx:binsize:(maxx - binsize)
+        y = map(1:length(x)) do i
+            count(_i -> (_x[i] <= _i < _x[i + 1]), data) / float(length(data))
+        end
+    end
+
+    x, y
 end

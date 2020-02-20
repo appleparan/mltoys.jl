@@ -5,6 +5,22 @@ const LN01_COLOR = RGB(202/255,0/255,32/255)
 const LN02_COLOR = RGB(5/255,113/255,176/255)
 const FL01_COLOR = RGB(239/255, 138/255, 98/255)
 const FL02_COLOR = RGB(103/255, 169/255, 207/255)
+# Opencolor : https://yeun.github.io/open-color/
+const GRAY4 = colorant"#CED4dA"
+const GRAY7 = colorant"#495057"
+const RED4 = colorant"#FF8787"
+const RED7 = colorant"#F03E3E"
+const PINK4 = colorant"#F783AC"
+const GRAPE4 = colorant"#DA77F2"
+const VIOLET4 = colorant"#9775FA"
+const INDIGO4 = colorant"#748FFC"
+const BLUE4 = colorant"#4DABF7"
+const CYAN4 = colorant"#3BC9DB"
+const TEAL4 = colorant"#38D9A9"
+const GREEN4 = colorant"#69DB7C"
+const LIME4 = colorant"#A9E34b"
+const YELLOW4 = colorant"#FFD43B"
+const ORANGE4 = colorant"#FFA94D"
 
 function plot_anal_lineplot(dates::Array{DateTime, 1}, arr::AbstractArray, ycol::Symbol,
     order::Integer, lag::Integer,
@@ -157,7 +173,7 @@ function plot_anal_violin(df::DataFrame, ycol::Symbol, tdir::Symbol, means::Abst
 
     nothing
 end
-
+#=
 function plot_anal_pdf(k::UnivariateKDE, ycol::Symbol, 
     title_string::String, output_dir::String, output_prefix::String)
 
@@ -181,8 +197,33 @@ function plot_anal_pdf(k::UnivariateKDE, ycol::Symbol,
 
     nothing
 end
+=#
+function plot_anal_pdf(x::AbstractVector, y::AbstractVector, ycol::Symbol, 
+    title_string::String, output_dir::String, output_prefix::String)
 
-function plot_anal_time_mean(df::DataFrame, ycol::Symbol, tdir::Symbol, means::AbstractArray,
+    ENV["GKSwstype"] = "100"
+
+    pdf_path = output_dir * "$(output_prefix).png"
+
+    pl = Plots.plot(x, y,
+        size = (1920, 1080),
+        title = title_string,
+        guidefontsize = 32, titlefontsize = 48, tickfontsize = 24, legendfontsize = 24, margin=36PlotMeasures.px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color=:black,
+        ylabel=String(ycol), 
+        marker=(1, :blue, stroke(0)), legend=false)
+    Plots.png(pl, pdf_path)
+
+    pdf_df = DataFrame(x = x, density = y)
+    pdf_csvpath = output_dir * "$(output_prefix).csv"    
+    CSV.write(pdf_csvpath, pdf_df, writeheader = true)
+
+    nothing
+end
+
+
+function plot_anal_periodic_mean(df::DataFrame, ycol::Symbol, tdir::Symbol, means::AbstractArray,
     title_string::String, output_dir::String, output_prefix::String)
 
     ENV["GKSwstype"] = "100"
@@ -218,7 +259,7 @@ function plot_anal_time_mean(df::DataFrame, ycol::Symbol, tdir::Symbol, means::A
     nothing
 end
 
-function plot_anal_time_fluc(df::DataFrame, tdir::Symbol, ycol::Symbol,
+function plot_anal_periodic_fluc(df::DataFrame, tdir::Symbol, ycol::Symbol,
     title_string::String, output_dir::String, output_prefix::String)
 
     ENV["GKSwstype"] = "100"
@@ -237,6 +278,116 @@ function plot_anal_time_fluc(df::DataFrame, tdir::Symbol, ycol::Symbol,
     time_fluc_csvpath = output_dir * "$(output_prefix)_time_fluc_$(string(tdir))ly.csv"
     df = DataFrame(tdir => df[!, tdir], :fluc => df[!, Symbol(tdir, "_", :fluc)])
     CSV.write(time_fluc_csvpath, df, writeheader = true)
+
+    nothing
+end
+
+function plot_seasonality(raw_data, year_sea1, year_sea2, day_sea1, day_res2, ycol::Symbol, _year::Integer, b_date::DateTime,
+    _ylabels::Array{String, 1},
+    title_string::String, output_dir::String, output_prefix::String)
+
+    ENV["GKSwstype"] = "100"
+
+    season_path = output_dir * "$(output_prefix).png"
+    #748ffc
+
+    year_dr = DateTime(_year, 1, 1, 0):Dates.Hour(1):DateTime(_year, 12, 31, 23)
+    day_dr = DateTime(_year, 1, 1, 0):Dates.Hour(1):DateTime(_year, 1, 1, 23)
+    l = @layout [a ; b ; c ; d]
+    b_offset = Hour(DateTime(_year, 1, 1, 0) - b_date).value
+    p1 = Plots.plot(year_dr, raw_data[(b_offset+1):(b_offset+length(year_dr))],
+        title = "Raw Data", titlefontsize = 54, titlefontcolor = LN_COLOR, 
+        guidefontsize = 32, tickfontsize = 32,
+        guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color=GRAY7,
+        ylabel=_ylabels[1], legend=false)
+    # Annual Seasonality
+    p2 = Plots.plot(year_dr, year_sea1[(b_offset+1):(b_offset+length(year_dr))],
+        title = "Annual Seasonality", titlefontsize = 54, titlefontcolor = LN_COLOR, 
+        guidefontsize = 32, tickfontsize = 32,
+        guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color=GRAY4, 
+        ylabel=_ylabels[2], legend=false)
+    # smoothed
+    Plots.plot!(year_dr, year_sea2[(b_offset+1):(b_offset+length(year_dr))],
+        color=RED7, linewidth=3, legend=false)
+    # Daily Seasonality
+    p3 = Plots.plot(day_dr, day_sea1[(b_offset+1):(b_offset+length(day_dr))],
+        title = "Daily Seasonality", titlefontsize = 54, titlefontcolor = LN_COLOR, 
+        guidefontsize = 32, tickfontsize = 32,
+        guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color=GRAY7,
+        ylabel=_ylabels[3], legend=false)
+    # Annual Residual
+    p4 = Plots.plot(year_dr, day_res2[(b_offset+1):(b_offset+length(year_dr))],
+        title = "Daily Residual", titlefontsize = 54, titlefontcolor = LN_COLOR, 
+        guidefontsize = 32, tickfontsize = 32,
+        guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color=GRAY7,
+        ylabel=_ylabels[4], legend=false)
+
+    pl = plot(p1, p2, p3, p4,
+        size = (1920, 4320),
+        margin=36PlotMeasures.px,
+        layout = l)
+    Plots.png(pl, season_path)
+
+    season_csvpath = output_dir * "$(output_prefix).csv"
+
+    nothing
+end
+
+function plot_seasonality(raw_data, year_sea1, year_sea2, day_sea1, day_res2, ycol::Symbol, b_year::Integer, e_year::Integer, b_date::DateTime,
+    _ylabels::Array{String, 1}, title_string::String, output_dir::String, output_prefix::String)
+
+    ENV["GKSwstype"] = "100"
+
+    season_path = output_dir * "$(output_prefix).png"
+    #748ffc
+
+    year_dr = DateTime(b_year, 1, 1, 0):Dates.Hour(1):DateTime(e_year, 12, 31, 23)
+    day_dr = DateTime(b_year, 1, 1, 0):Dates.Hour(1):DateTime(b_year, 1, 1, 23)
+    l = @layout [a ; b ; c ; d]
+    b_offset = Hour(DateTime(b_year, 1, 1, 0) - b_date).value
+    #Raw 
+    p1 = Plots.plot(year_dr, raw_data[(b_offset+1):(b_offset+length(year_dr))],
+        title = "Raw Data", titlefontsize = 54, titlefontcolor = LN_COLOR, 
+        guidefontsize = 32, tickfontsize = 32,
+        guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color=GRAY7, 
+        ylabel=_ylabels[1], legend=false)
+    # Annual Seasonality
+    p2 = Plots.plot(year_dr, year_sea1[(b_offset+1):(b_offset+length(year_dr))],
+        title = "Annual Seasonality", titlefontsize = 54, titlefontcolor = LN_COLOR, 
+        guidefontsize = 32, tickfontsize = 32,
+        guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color=GRAY4, 
+        ylabel=_ylabels[2], legend=false)
+    # smoothed
+    Plots.plot!(year_dr, year_sea2[(b_offset+1):(b_offset+length(year_dr))],
+        color=RED7, linewidth=3, legend=false)
+    # Daily Seasonality
+    p3 = Plots.plot(hour.(day_dr), day_sea1[(b_offset+1):(b_offset+length(day_dr))],
+        title = "Daily Seasonality", titlefontsize = 54, titlefontcolor = LN_COLOR, 
+        guidefontsize = 32, tickfontsize = 32,
+        guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color=GRAY7,
+        ylabel=_ylabels[3], legend=false)
+    # Annual Residual
+    p4 = Plots.plot(year_dr, day_res2[(b_offset+1):(b_offset+length(year_dr))],
+        title = "Annual Residual", titlefontsize = 54, titlefontcolor = LN_COLOR, 
+        guidefontsize = 32, tickfontsize = 32,
+        guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color=GRAY7,
+        ylabel=_ylabels[4], legend=false)
+
+    pl = plot(p1, p2, p3, p4,
+        size = (1920, 4320),
+        margin=36PlotMeasures.px,
+        layout = l)
+    Plots.png(pl, season_path)
+
+    season_csvpath = output_dir * "$(output_prefix).csv"
 
     nothing
 end
