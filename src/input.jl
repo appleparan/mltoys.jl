@@ -287,12 +287,17 @@ function join_data(input_dir::String, obs_path::String, aes_dir::String, wea_dir
     df1 = join(df_obs, df_aes, on = :stationCode)
     df2 = join(df1, df_wea, on = :date, kind = :inner)
 
+    # sort by stationCode and date
+    sort!(df2, (:stationCode, :date))
+
+    # scaling except :PM10, :PM25
+    features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25,
+        :temp, :u, :v, :pres, :humid, :prep, :snow]
+    scaled_features = [Symbol("zscore_", f) for f in features]
+
     df = df2[!, [:stationCode, :date, :lat, :lon,
                    :SO2, :CO, :O3, :NO2, :PM10, :PM25,
                    :temp, :u, :v, :pres, :humid, :prep, :snow]]
-
-    # sort by stationCode and date
-    sort!(df, (:stationCode, :date))
 
     # check path
     mkpath(input_dir)

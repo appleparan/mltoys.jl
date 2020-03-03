@@ -360,7 +360,6 @@ function run_analysis()
             # Autocorrelation
             acf_yres2_log = StatsBase.autocor(lee_year_res2_log, 0:15*24)
             acf_dres1_log = StatsBase.autocor(lee_day_res1_log, 0:15*24)
-            acf_dres1_log = StatsBase.autocor(log.(lee_day_res1), 0:15*24)
 
             plot_anal_correlogram(acf_yres2_log, Symbol(ycol, "_log"),
                 "Annual Residual Autocorrelation (LOG)",
