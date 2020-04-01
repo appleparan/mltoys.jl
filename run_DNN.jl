@@ -84,7 +84,7 @@ function run_model()
     target_features = [:PM10, :PM25]
 
     # For GPU, change precision of Floating numbers
-    eltype::DataType = Float32
+    _eltype::DataType = Float32
     scaling_method = :zscore
 
     sample_size = 24
@@ -215,7 +215,7 @@ function run_model()
     @show first(df, 5)
     # convert Float types
     for feature in features
-        df[!, feature] = eltype.(df[!, feature])
+        df[!, feature] = _eltype.(df[!, feature])
     end
 
     # plot histogram regardless to station
@@ -291,7 +291,7 @@ function run_model()
         target_model, target_result, target_statval = train_DNN(train_wd, valid_wd, test_wd,
             target, Symbol(scaled_prefix, target, "_res"), scaled_train_features_res, scaling_method,
             train_size, valid_size, test_size,
-            sample_size, input_size, batch_size, output_size, epoch_size, eltype,
+            sample_size, input_size, batch_size, output_size, epoch_size, _eltype,
             test_dates, statvals, season_tables[target], "/mnt/", string(target))
 
         # add seasonality

@@ -10,7 +10,7 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     ycol::Symbol, scaled_ycol::Symbol, scaled_features::Array{Symbol}, scaling_method::Symbol,
     train_size::Integer, valid_size::Integer, test_size::Integer,
     sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer,
-    epoch_size::Integer, eltype::DataType,
+    epoch_size::Integer, _eltype::DataType,
     test_dates::Array{ZonedDateTime,1},
     statvals::AbstractNDSparse, season_table::AbstractNDSparse,
     output_prefix::String, filename::String) where I <: Integer
@@ -43,19 +43,19 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
 
     train_set = [(ProgressMeter.next!(p);
         make_batch_DNN(collect(dfs), scaled_ycol, scaled_features,
-            sample_size, output_size, batch_size, 0.5, eltype))
+            sample_size, output_size, batch_size, 0.5, _eltype))
         for dfs in Base.Iterators.partition(train_wd, batch_size)]
 
     # don't construct minibatch for valid & test sets
     @info "    Construct Valid Set..."
     p = Progress(length(valid_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     valid_set = [(ProgressMeter.next!(p);
-        make_pair_DNN(df, scaled_ycol, scaled_features, sample_size, output_size, eltype)) for df in valid_wd]
+        make_pair_DNN(df, scaled_ycol, scaled_features, sample_size, output_size, _eltype)) for df in valid_wd]
 
     @info "    Construct Test Set..."
     p = Progress(length(test_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     test_set = [(ProgressMeter.next!(p);
-        make_pair_DNN(df, scaled_ycol, scaled_features, sample_size, output_size, eltype)) for df in test_wd]
+        make_pair_DNN(df, scaled_ycol, scaled_features, sample_size, output_size, _eltype)) for df in test_wd]
 
     train_set = gpu.(train_set)
     valid_set = gpu.(valid_set)

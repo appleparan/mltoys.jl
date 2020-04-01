@@ -10,7 +10,7 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     ycol::Symbol, norm_prefix::String, features::Array{Symbol},
     train_size::Integer, valid_size::Integer, test_size::Integer,
     sample_size::Integer, batch_size::Integer, kernel_length::Integer,
-    output_size::Integer, epoch_size::Integer, eltype::DataType,
+    output_size::Integer, epoch_size::Integer, _eltype::DataType,
     statvals::AbstractNDSparse, filename::String, test_dates::Array{ZonedDateTime,1}) where I <: Integer
 
     @info "LSTNet training starts.."
@@ -43,7 +43,7 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
 
     train_set = [(ProgressMeter.next!(p);
         make_batch_LSTNet(collect(dfs), norm_ycol, norm_features,
-            sample_size, kernel_length, output_size, batch_size, eltype))
+            sample_size, kernel_length, output_size, batch_size, _eltype))
         for dfs in Base.Iterators.partition(train_wd, batch_size)]
 
     # don't construct minibatch for valid & test sets
@@ -51,7 +51,7 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     p = Progress(length(valid_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     valid_set = [(ProgressMeter.next!(p);
         make_batch_LSTNet(collect(dfs), norm_ycol, norm_features,
-            sample_size, kernel_length, output_size, batch_size, eltype))
+            sample_size, kernel_length, output_size, batch_size, _eltype))
         for dfs in Base.Iterators.partition(valid_wd, batch_size)]
 
     @info "    Construct Test Set..."
@@ -59,11 +59,11 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     # batch_size should be 1 except raining
     test_set = [(ProgressMeter.next!(p);
         make_pair_LSTNet(df, norm_ycol, norm_features,
-            sample_size, kernel_length, output_size, eltype))
+            sample_size, kernel_length, output_size, _eltype))
         for df in test_wd]
     test_batch_set = [(ProgressMeter.next!(p);
         make_batch_LSTNet(collect(dfs), norm_ycol, norm_features,
-            sample_size, kernel_length, output_size, batch_size, eltype))
+            sample_size, kernel_length, output_size, batch_size, _eltype))
         for dfs in Base.Iterators.partition(test_wd, batch_size)]
 
     # *_set : normalized

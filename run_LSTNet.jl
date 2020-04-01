@@ -42,15 +42,15 @@ function run_model()
     │ 5   │ 111123      │ 2015-01-01T05:00:00+09:00 │ 37.572   │ 127.005   │ 0.005   │ 0.2     │ 0.019   │ 0.006   │ 127.0   │ 5.0     │ -9.1    │ 5.35625 │ 1.94951 │ 1011.8  │ missing  │ missing  │
     =#
     total_fdate, total_tdate = get_date_range(df)
-    train_fdate = ZonedDateTime(2012, 1, 1, 1, tz"Asia/Seoul")
+    train_fdate = ZonedDateTime(2017, 1, 1, 1, tz"Asia/Seoul")
     train_tdate = ZonedDateTime(2017, 12, 31, 23, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 1, 1, 0, tz"Asia/Seoul")
     test_tdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
 
     # stations (LSTNet lmit 1 station)
-    train_stn_names = [:종로구, :광진구, :강서구, :강남구]
+    #train_stn_names = [:종로구, :광진구, :강서구, :강남구]
     #train_stn_names = [:종로구, :강서구]
-    #train_stn_names = [:종로구]
+    train_stn_names = [:종로구]
 
     # test set is Jongro only
     test_stn_names = [:종로구]
@@ -61,7 +61,7 @@ function run_model()
     features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
 
     # For GPU
-    eltype::DataType = Float32
+    _eltype::DataType = Float32
 
     norm_prefix = "norm_"
     norm_features = [Symbol(eval(norm_prefix * String(f))) for f in features]
@@ -76,11 +76,11 @@ function run_model()
 
     # convert Float types
     for fea in features
-        df[!, fea] = eltype.(df[!, fea])
+        df[!, fea] = _eltype.(df[!, fea])
     end
 
     for nfea in norm_features
-        df[!, nfea] = eltype.(df[!, nfea])
+        df[!, nfea] = _eltype.(df[!, nfea])
     end
 
     sample_size = 48
@@ -142,7 +142,7 @@ function run_model()
     PM10_model, PM10_statval = train_LSTNet(train_wd, valid_wd, test_wd,
     :PM10, norm_prefix, train_features,
     train_size, valid_size, test_size,
-    sample_size, batch_size, kernel_length, output_size, epoch_size, eltype,
+    sample_size, batch_size, kernel_length, output_size, epoch_size, _eltype,
     statvals, "PM10", test_dates)
 
     # kernel_length  hours for extract locality 
@@ -156,7 +156,7 @@ function run_model()
     PM25_model, PM25_statval = train_LSTNet(train_wd, valid_wd, test_wd,
     :PM25, norm_prefix, train_features,
     train_size, valid_size, test_size,
-    sample_size, batch_size, kernel_length, output_size, epoch_size, eltype,
+    sample_size, batch_size, kernel_length, output_size, epoch_size, _eltype,
     statvals, "PM25", test_dates)
 end
 

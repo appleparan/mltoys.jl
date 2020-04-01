@@ -347,12 +347,12 @@ Split single window to serialized X and Y
 """
 function make_pair_DNN(df::DataFrame,
     ycol::Symbol, features::Array{Symbol, 1},
-    sample_size::I, output_size::I, eltype::DataType=Float32) where I <: Integer
+    sample_size::I, output_size::I, _eltype::DataType=Float32) where I <: Integer
 
     # get X (2D)
-    _X = eltype.(getX(df, features, sample_size))
+    _X = _eltype.(getX(df, features, sample_size))
     # get Y (1D)
-    _Y = eltype.(getY(df, ycol, sample_size))
+    _Y = _eltype.(getY(df, ycol, sample_size))
 
     # for validation, sparse check not applied
     # GPU
@@ -408,20 +408,20 @@ https://discourse.julialang.org/t/flux-support-for-mini-batches/14718/3
 """
 function make_batch_DNN(dfs::Array{DataFrame, 1}, ycol::Symbol, features::Array{Symbol, 1},
     sample_size::I, output_size::I, batch_size::I,
-    missing_ratio::AbstractFloat=0.5, eltype::DataType=Float32) where I <: Integer
+    missing_ratio::AbstractFloat=0.5, _eltype::DataType=Float32) where I <: Integer
 
     # check Dataframe array size be `batch_size`
     @assert length(dfs) <= batch_size
 
-    X = zeros(eltype, sample_size * length(features), batch_size)
-    Y = zeros(eltype, output_size, batch_size)
+    X = zeros(_eltype, sample_size * length(features), batch_size)
+    Y = zeros(_eltype, output_size, batch_size)
 
     # input_pairs Array{Tuple{Array{Int64,1},Array{Int64,1}},1}
     for (i, df) in enumerate(dfs)
         # get X (2D)
-        _X = eltype.(vec(getX(df, features, sample_size)))
+        _X = _eltype.(vec(getX(df, features, sample_size)))
         # get Y (1D)
-        _Y = eltype.(getY(df, ycol, sample_size))
+        _Y = _eltype.(getY(df, ycol, sample_size))
 
         # fill zeros if data is too sparse (too many misisngs)
         # only in training
@@ -464,7 +464,7 @@ end
 """
     make_pair_LSTNet(df, ycol, features,
     sample_size, kernel_length, output_size,
-    eltype=Float32)
+    _eltype=Float32)
 
 Create batch CNN Input for LSTNet with batch_size == 1
 Used in valid/test set
@@ -472,21 +472,21 @@ Used in valid/test set
 function make_pair_LSTNet(df::DataFrame,
     ycol::Symbol, features::Array{Symbol, 1},
     sample_size::I, kernel_length::I, output_size::I,
-    eltype::DataType=Float32) where I <: Integer
+    _eltype::DataType=Float32) where I <: Integer
 
     # O = (W - K + 2P) / S + 1
     # W = Input size, O = Output size
     # K = Kernel size, P = Padding size, S = Stride size
     pad_sample_size = kernel_length - 1
-    X_enc = zeros(eltype, pad_sample_size + sample_size, length(features), 1, 1)
+    X_enc = zeros(_eltype, pad_sample_size + sample_size, length(features), 1, 1)
     # decode array (Array of Array, batch sequences)
-    X_dec = [zeros(eltype, output_size, 1)]
-    Y = zeros(eltype, output_size, 1)
+    X_dec = [zeros(_eltype, output_size, 1)]
+    Y = zeros(_eltype, output_size, 1)
 
     # get X (2D)
-    _X = eltype.(getX(df, 1:sample_size, features))
+    _X = _eltype.(getX(df, 1:sample_size, features))
     # get Y (1D)
-    _Y = eltype.(getY(df, (sample_size + 1):(sample_size + output_size),
+    _Y = _eltype.(getY(df, (sample_size + 1):(sample_size + output_size),
         ycol))
 
     # WHCN order, Channel is 1 because this is not an image
@@ -504,7 +504,7 @@ end
 """
     make_batch_LSTNet(dfs, ycol, features,
     sample_size, kernel_length, output_size, batch_size,
-    eltype=Float32)
+    _eltype=Float32)
 
 Create batch CNN Input for LSTNet
 Used in train set
@@ -512,30 +512,30 @@ Used in train set
 function make_batch_LSTNet(dfs::Array{DataFrame, 1},
     ycol::Symbol, features::Array{Symbol, 1},
     sample_size::I, kernel_length::I, output_size::I, batch_size::I,
-    eltype::DataType=Float32) where I <: Integer
+    _eltype::DataType=Float32) where I <: Integer
 
     # O = (W - K + 2P) / S + 1
     # W = Input size, O = Output size
     # K = Kernel size, P = Padding size, S = Stride size
     pad_sample_size = kernel_length - 1
-    X_enc = zeros(eltype, pad_sample_size + sample_size, length(features), 1, batch_size)
+    X_enc = zeros(_eltype, pad_sample_size + sample_size, length(features), 1, batch_size)
     # decode array (Array of Array, batch sequences)
-    _x = zeros(eltype, output_size, batch_size)
+    _x = zeros(_eltype, output_size, batch_size)
     X_dec = similar([_x], output_size)
-    Y = zeros(eltype, output_size, batch_size)
+    Y = zeros(_eltype, output_size, batch_size)
 
     # zero padding on input matrix
     for (i, df) in enumerate(dfs)
         # get X (2D)
-        _X = eltype.(getX(df, 1:sample_size, features))
+        _X = _eltype.(getX(df, 1:sample_size, features))
         # get Y (1D)
-        _Y = eltype.(getY(df, (sample_size + 1):(sample_size + output_size),
+        _Y = _eltype.(getY(df, (sample_size + 1):(sample_size + output_size),
             ycol))
 
         # WHCN order, Channel is 1 because this is not an image
         # left zero padding
         X_enc[(pad_sample_size + 1):end, :, 1, i] = _X
-        X_dec[:, i] = zeros(eltype, output_size, batch_size)
+        X_dec[:, i] = zeros(_eltype, output_size, batch_size)
         Y[:, i] = _Y
     end
 
