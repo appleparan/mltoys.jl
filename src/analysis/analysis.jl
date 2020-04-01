@@ -1,24 +1,34 @@
-"""
-    detect_stationary(ta, μ, σ)
-`ta` is a TimeArray, `μ` and `σ` is global mean and std of time array
-"""
-function detect_stationary(ta::TimeArray, μ::AbstractFloat, σ::AbstractFloat)
-
-end
-
-function compute_inttscale(mw)
+function compute_inttscale(mw, maxtime::Integer)
     #window = length(mw)
     #_autocor = StatsBase.autocor(mw, 1:window-1)
     #_autocor = StatsBase.autocor(mw)
-    _autocor = StatsBase.autocor(mw, 0:50)
+    _autocor = StatsBase.autocor(mw, 0:maxtime)
 
     if isnan(sum(_autocor))
         return 0.0
     end
-    
+
     # summation autocor
     x = 1:length(_autocor)
-    integrate(x, _autocor, SimpsonEven())
+    NumericalIntegration.integrate(x, _autocor, SimpsonEven())
+end
+
+function compute_inttscale(x::AbstractVector, _autocor::AbstractVector)
+    maxtime = 0
+
+    function findmaxint(_autocor)
+        for i in 1:length(_autocor) - 1
+            if _autocor[i] * _autocor[i + 1] < 0
+                return i
+            end
+        end
+
+        return length(_autocor)
+    end
+
+    maxtime = findmaxint(_autocor)
+
+    NumericalIntegration.integrate(x[1:maxtime], _autocor[1:maxtime], SimpsonEven())
 end
 
 function diff_mean(mw)
@@ -30,7 +40,7 @@ function diff_mean(mw)
     if isnan(sum(_autocor))
         return 0.0
     end
-    
+
     # summation autocor
     x = 1:length(_autocor)
     integrate(x, _autocor, SimpsonEven())
@@ -39,7 +49,7 @@ end
 function mean_aucotor(ta::TimeArray, window::Integer; padding::Bool = false)
     A = values(ta)
     # moving window
-    mw = map(1:length(ta)-window+1) do i 
+    mw = map(1:length(ta)-window+1) do i
         A[i:i+(window-1)]
     end
     padding && (mw = [fill(zeros(window), window - 1); mw])
@@ -61,7 +71,7 @@ end
 """
     pdf(data)
 
-estimate probability density function 
+estimate probability density function
     by kernel density estimation
 """
 function pdf(data::AbstractVector, npts::Integer; method::Symbol=:kernel)
@@ -75,7 +85,7 @@ function pdf(data::AbstractVector, npts::Integer; method::Symbol=:kernel)
         y = _pdfKDE.density
     elseif method == :gibbs
         #bd = kde!(float.(data))
-        #bmin, bmax = getKDERange(bd) 
+        #bmin, bmax = getKDERange(bd)
         #x = range(bmin, stop=bmax, length=npts)
         #y = evaluateDualTree(bd, x)
     elseif method == :manual

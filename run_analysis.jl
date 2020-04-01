@@ -9,6 +9,7 @@ using StatsBase
 using TimeSeries
 using HypothesisTests
 using Mise
+using Impute
 using StatsPlots
 
 function run_analysis()
@@ -125,8 +126,8 @@ function run_analysis()
 
             # mean imputation
             #impute!(df, ycol, :mean; total_mean = total_mean)
-            # simple sampling
-            impute!(stn_df, ycol, :sample)
+            # simple sampling            
+            stn_df[!, ycol] = Impute.srs(stn_df[!, ycol])
             # knn imputation
             #nK = 10
             #ycols = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
@@ -173,13 +174,17 @@ function run_analysis()
             # Analysis : Autocorrelation Functions]
             for _ycol in [ycol, Symbol(ycol, :_impute), Symbol(ycol, :_logimpute)]
                 Base.Filesystem.mkpath("/mnt/analysis/$(string(_ycol))/")
-                max_time = Int(ceil(min(size(stn_df[!, ycol],1)-1, 10*log10(size(stn_df[!, ycol],1)))))
+                #max_time = Int(ceil(min(size(stn_df[!, ycol],1)-1, 10*log10(size(stn_df[!, ycol],1)))))
+                max_time = 15 * 24
                 @info "Autocorrelation..."
                 lags = 0:max_time
                 acf = StatsBase.autocor(stn_df[!, _ycol], lags)
                 plot_anal_correlogram(acf, _ycol, 
                     "Autocorrelation",
                     "/mnt/analysis/$(string(_ycol))/", "$(string(ycol))_$(string(name))_mt$(max_time)_acf")
+                acf_df = DataFrame(time = collect(0:max_time), corr = acf)
+                CSV.write("/mnt/analysis/$(string(_ycol))/$(string(ycol))_$(string(name))_mt$(max_time)_acf.csv", acf_df)
+                @info "Integral Time Scale for raw data..", compute_inttscale(0:max_time, acf)
 
                 pacf = StatsBase.pacf(stn_df[!, _ycol], lags)
                 plot_anal_correlogram(pacf, _ycol,
@@ -188,12 +193,15 @@ function run_analysis()
 
                 # Analysis : Autocorrelation Functions
                 # No need to compute pacf
-                max_time = 400 * 24
+                max_time = 365 * 24
                 lags = 0:max_time
                 acf = StatsBase.autocor(stn_df[!, _ycol], lags)
                 plot_anal_correlogram(acf, ycol, 
                     "Autocorrelation",
                     "/mnt/analysis/$(string(_ycol))/", "$(string(ycol))_$(string(name))_mt$(max_time)_acf")
+                acf_df = DataFrame(time = collect(0:max_time), corr = acf)
+                CSV.write("/mnt/analysis/$(string(_ycol))/$(string(ycol))_$(string(name))_mt$(max_time)_acf.csv", acf_df)
+                @info "Integral Time Scale for raw data..", compute_inttscale(0:max_time, acf)
             end
             #=
             # Analysis : Integral Length Scale (Total)
@@ -287,7 +295,8 @@ function run_analysis()
                         "$(uppercasefirst(string(period_dir)))ly fluctuation mean for $(ycol)", "/mnt/analysis/$(string(_ycol))/",
                         "$(string(ycol))_$(string(name))_$(string(_ycol))_period_flucmean")
 
-                    max_time = Int(ceil(min(size(period_fluc_df[!, _ycol],1)-1, 10*log10(size(period_fluc_df[!, _ycol],1)))))
+                    #max_time = Int(ceil(min(size(period_fluc_df[!, _ycol],1)-1, 10*log10(size(period_fluc_df[!, _ycol],1)))))
+                    max_time = 15 * 24
                     lags = 0:max_time
                     @info "$(string(period_dir))ly Fluctuation Autocorrelation..."
                     acf = StatsBase.autocor(period_fluc_df[!, :fluc], lags)
@@ -296,7 +305,7 @@ function run_analysis()
                         "/mnt/analysis/$(string(_ycol))/",
                         "$(string(ycol))_$(string(name))_mt$(max_time)_fluc_$(string(period_dir))ly_acf")
 
-                    max_time = 400 * 24
+                    max_time = 365 * 24
                     lags = 0:max_time
                     acf = StatsBase.autocor(period_fluc_df[!, :fluc], lags)
                     plot_anal_correlogram(acf, _ycol, 
@@ -324,22 +333,43 @@ function run_analysis()
                 "/mnt/analysis/decomposition/$(string(ycol))/", "$(string(ycol))_$(string(name))_seasonality_3year")
 
             # Autocorrelation
-            acf_yres2 = StatsBase.autocor(lee_year_res2, 0:15*24)
-            acf_dres1 = StatsBase.autocor(lee_day_res1, 0:15*24)
+            max_time = 15*24
+            acf_yres2 = StatsBase.autocor(lee_year_res2, 0:max_time)
+            acf_dres1 = StatsBase.autocor(lee_day_res1, 0:max_time)
             #acf_dres1_log = StatsBase.autocor(log.(lee_day_res1), 0:15*24)
 
             plot_anal_correlogram(acf_yres2, ycol,
                 "Annual Residual Autocorrelation",
                 "/mnt/analysis/decomposition/$(string(ycol))/",
-                "$(string(ycol))_$(string(name))_year_res2_acf")
+                "$(string(ycol))_$(string(name))_mt$(max_time)_acf_yres2")
             plot_anal_correlogram(acf_dres1, ycol, 
                 "Daily Residual Autocorrelation",
                 "/mnt/analysis/decomposition/$(string(ycol))/",
-                "$(string(ycol))_$(string(name))_day_res1_acf")
-            #plot_anal_correlogram(acf_dres1_log, ycol, 
-            #    "Daily Log Residual Autocorrelation",
-            #    "/mnt/ARIMA/$(string(ycol))/",
-            #    "$(string(ycol))_$(string(name))_day_res1_log_acf")
+                "$(string(ycol))_$(string(name))_mt$(max_time)_acf_dres1")
+            acf_df = DataFrame(time = collect(0:max_time), corr = acf_yres2)
+            CSV.write("/mnt/analysis/$(string(ycol))/$(string(ycol))_$(string(name))_mt$(max_time)_acf_yres2.csv", acf_df)
+            @info "Integral Time Scale for Annual Residual..", compute_inttscale(0:max_time, acf_yres2)
+            acf_df = DataFrame(time = collect(0:max_time), corr = acf_dres1)
+            CSV.write("/mnt/analysis/$(string(ycol))/$(string(ycol))_$(string(name))_mt$(max_time)_acf_dres1.csv", acf_df)
+            @info "Integral Time Scale for Daily Residual..", compute_inttscale(0:max_time, acf_dres1)
+
+            max_time = 365*24
+            acf_yres2_long = StatsBase.autocor(lee_year_res2, 0:max_time)
+            acf_dres1_long = StatsBase.autocor(lee_day_res1, 0:max_time)
+            plot_anal_correlogram(acf_yres2_long, ycol,
+                "Annual Residual Autocorrelation",
+                "/mnt/analysis/decomposition/$(string(ycol))/",
+                "$(string(ycol))_$(string(name))_mt$(max_time)_acf_yres2_long")
+            plot_anal_correlogram(acf_dres1_long, ycol, 
+                "Daily Residual Autocorrelation",
+                "/mnt/analysis/decomposition/$(string(ycol))/",
+                "$(string(ycol))_$(string(name))_mt$(max_time)_acf_dres1_long")
+            acf_df = DataFrame(time = collect(0:max_time), corr = acf_yres2_long)
+            CSV.write("/mnt/analysis/$(string(ycol))/$(string(ycol))_$(string(name))_mt$(max_time)_acf_yres2.csv", acf_df)
+            @info "Integral Time Scale for Annual Residual..", compute_inttscale(0:max_time, acf_yres2_long)
+            acf_df = DataFrame(time = collect(0:max_time), corr = acf_dres1_long)
+            CSV.write("/mnt/analysis/$(string(ycol))/$(string(ycol))_$(string(name))_mt$(max_time)_acf_dres1.csv", acf_df)
+            @info "Integral Time Scale for Daily Residual..", compute_inttscale(0:max_time, acf_dres1_long)
 
             # decompose seasonal components
             lee_year_sea1_log, lee_year_sea2_log, lee_year_res2_log, lee_day_sea1_log, lee_day_res1_log =
