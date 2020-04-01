@@ -50,7 +50,9 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     @info "    Construct Valid Set..."
     p = Progress(length(valid_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     valid_set = [(ProgressMeter.next!(p);
-        make_pair_DNN(df, scaled_ycol, scaled_features, sample_size, output_size, _eltype)) for df in valid_wd]
+        make_batch_DNN(collect(dfs), scaled_ycol, scaled_features,
+            sample_size, output_size, batch_size, 0.5, _eltype))
+            for dfs in Base.Iterators.partition(valid_wd, batch_size)]
 
     @info "    Construct Test Set..."
     p = Progress(length(test_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
@@ -73,13 +75,13 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     eval_metrics = [:RMSE, :MAE, :MSPE, :MAPE]
     # test set
     for metric in eval_metrics
-        _eval = evaluation(test_set, model, statval, metric)
+        _eval = evaluation1(test_set, model, statval, metric)
         @info " $(string(ycol)) $(string(metric)) for test   : ", _eval
     end
 
     # valid set
     for metric in eval_metrics
-        _eval = evaluation(valid_set, model, statval, metric)
+        _eval = evaluation1(valid_set, model, statval, metric)
         @info " $(string(ycol)) $(string(metric)) for valid  : ", _eval
     end
 
