@@ -18,7 +18,6 @@ using StatsBase: mean, std, mean_and_std, zscore, crosscor
 import StatsBase: zscore!
 using StatsBase
 using KernelDensity
-using NearestNeighbors
 
 # Statistical Models
 using TimeSeries
@@ -106,9 +105,10 @@ export join_data, filter_raw_data, filter_station, filter_jongro, read_jongro,
     split_sizes3, split_sizes2,
     remove_sparse_input!, is_sparse_Y,
     getX, getY, make_pair_DNN, make_batch_DNN, 
-    serializeBatch, unpack_seq, matrix2arrays,
+    serializeBatch, whcn2cnh, matrix2arrays,
     make_pair_LSTNet, make_batch_LSTNet,
-    zero2Missing!, impute!,
+    zero2Missing!,
+    padded_push!, construct_annual_table, compose_seasonality,
 # activation
 # evaluation
     evaluations, evaluation,
