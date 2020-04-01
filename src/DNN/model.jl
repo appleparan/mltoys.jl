@@ -11,7 +11,9 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     train_size::Integer, valid_size::Integer, test_size::Integer,
     sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer,
     epoch_size::Integer, eltype::DataType,
-    statvals::AbstractNDSparse, filename::String, test_dates::Array{ZonedDateTime,1}) where I <: Integer
+    test_dates::Array{ZonedDateTime,1},
+    statvals::AbstractNDSparse, season_table::AbstractNDSparse,
+    output_prefix::String, filename::String) where I <: Integer
 
     @info "DNN training starts.."
 
@@ -30,6 +32,8 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     # construct compile function symbol
     compile = eval(Symbol(:compile, "_", ycol, "_DNN"))
     model, loss, accuracy, opt = compile(input_size, batch_size, output_size, statval)
+
+    # modify scaled_features to train residuals
 
     # |> gpu doesn't work to *_set directly
     # construct minibatch for train_set
@@ -82,52 +86,41 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     # create directory per each time
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
-        Base.Filesystem.mkpath("/mnt/$(i_pad)/")
+        Base.Filesystem.mkpath("/$(output_prefix)/$(i_pad)/")
     end
 
     # back to unnormalized for comparison
     if scaling_method == :zscore
         dnn_table = predict_DNN_model_zscore(test_set, model, ycol,
-            total_μ, total_σ, output_size, "/mnt/")
+            total_μ, total_σ, output_size, "/$(output_prefix)/")
     elseif scaling_method == :minmax
         dnn_table = predict_DNN_model_minmax(test_set, model, ycol,
-            total_min, total_max, 0.0, 10.0, output_size, "/mnt/")
+            total_min, total_max, 0.0, 10.0, output_size, "/$(output_prefix)/")
     elseif scaling_method == :logzscore
         log_μ = statvals[string(:log_, ycol), "μ"].value
         log_σ = statvals[string(:log_, ycol), "σ"].value
         dnn_table = predict_DNN_model_logzscore(test_set, model, ycol,
-            log_μ, log_σ, output_size, "/mnt/")
+            log_μ, log_σ, output_size, "/$(output_prefix)/")
     elseif scaling_method == :invzscore
         inv_μ = statvals[string(:inv_, ycol), "μ"].value
         inv_σ = statvals[string(:inv_, ycol), "σ"].value
         dnn_table = predict_DNN_model_invzscore(test_set, model, ycol,
-            inv_μ, inv_σ, output_size, "/mnt/")
+            inv_μ, inv_σ, output_size, "/$(output_prefix)/")
     elseif scaling_method == :logminmax
         log_max = statvals[string(:log_, ycol), "maximum"].value
         log_min = statvals[string(:log_, ycol), "minimum"].value
         dnn_table = predict_DNN_model_logminmax(test_set, model, ycol,
-            log_min, log_max, 0.0, 10.0, output_size, "/mnt/")
+            log_min, log_max, 0.0, 10.0, output_size, "/$(output_prefix)/")
     end
-
-    dfs_out = export_CSV(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", String(ycol))
-    df_corr = compute_corr(dnn_table, output_size, "/mnt/", String(ycol))
-
-    plot_DNN_scatter(dnn_table, ycol, output_size, "/mnt/", String(ycol))
-    plot_DNN_histogram(dnn_table, ycol, output_size, "/mnt/", String(ycol))
-
-    plot_datefmt = @dateformat_str "yyyymmddHH"
-
-    plot_DNN_lineplot(DateTime.(test_dates), dnn_table, ycol, output_size, "/mnt/", String(ycol))
-    plot_corr(df_corr, output_size, "/mnt/", String(ycol))
 
     # 3 months plot
     # TODO : how to generalize date range? how to split based on test_dates?
     # 1/4 : because train size is 3 days, result should be start from 1/4
     # 12/29 : same reason 1/4, but this results ends with 12/31 00:00 ~ 12/31 23:00
     push!(eval_metrics, :learn_rate)
-    plot_evaluation(df_evals, ycol, eval_metrics, "/mnt/")
+    plot_evaluation(df_evals, ycol, eval_metrics, "/$(output_prefix)/")
 
-    model, statval
+    model, dnn_table, statval
 end
 
 function train_DNN!(model::C,
