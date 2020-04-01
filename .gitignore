@@ -22,6 +22,9 @@ chrome*
 # remove generated data files
 *.png
 
+# ignore Julia Manifest file
+Manifest.toml
+
 # exclude job files
 *.sh
 out.*
