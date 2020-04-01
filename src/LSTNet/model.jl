@@ -284,11 +284,11 @@ function compile_PM10_LSTNet(
     # 2. GRU
     #   * Input shape : (sample_size, 1, hidCNN, batch_size) ->
     #                   [(hidRNN, batch_size),...]
-    modelGRU = GRU(hidCNN, hidRNN) |> gpu
-    modelGRU = GRU(output_size, hidRNN) |> gpu
+    modelGRU1 = GRU(hidCNN, hidRNN) |> gpu
+    modelGRU2 = GRU(output_size, hidRNN) |> gpu
 
-    modelLSTM = LSTM(hidCNN, hidRNN) |> gpu
-    modelLSTM = LSTM(output_size, hidRNN) |> gpu
+    modelLSTM1 = LSTM(hidCNN, hidRNN) |> gpu
+    modelLSTM2 = LSTM(output_size, hidRNN) |> gpu
 
     # DNN converts GRU output to single real output value
     modelDNN = Chain(
