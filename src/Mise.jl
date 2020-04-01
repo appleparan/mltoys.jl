@@ -111,7 +111,7 @@ export join_data, filter_raw_data, filter_station, filter_jongro, read_jongro,
     padded_push!, construct_annual_table, compose_seasonality,
 # activation
 # evaluation
-    evaluations, evaluation,
+    evaluations1, evaluations2, evaluation1, evaluation2,
     RMSE, MAE, MSPE, MAPE,
     RSR, NSE, PBIAS, IOA, RefinedIOA, R2, AdjR2, classification,
 # loss

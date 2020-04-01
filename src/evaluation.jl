@@ -1,24 +1,39 @@
 """
-    evaluations(dataset, model, statvals, metrics)
+    evaluations1(dataset, model, statvals, metrics)
 """
-evaluations(dataset, model, statvals::AbstractNDSparse,
+evaluations1(dataset, model, statvals::AbstractNDSparse,
     metrics::Array{String}) =
-    evaluations(dataset, model, statvals, Symbol.(metrics))
+    evaluations1(dataset, model, statvals, Symbol.(metrics))
 
-function evaluations(dataset, model, statvals::AbstractNDSparse, metrics::Union{Array{Symbol}, Array{Function}})
+function evaluations1(dataset, model, statvals::AbstractNDSparse, metrics::Union{Array{Symbol}, Array{Function}})
     metric_vals = map(metrics) do metric
-        evaluation(dataset, model, statvals, metric)
+        evaluation1(dataset, model, statvals, metric)
     end # do - end
 
     Tuple(metric_vals)
 end
 
 """
-    evaluation(dataset, model, statvals, metric)
+    evaluations1(dataset, model, statvals, metrics)
+"""
+evaluations2(dataset, model, statvals::AbstractNDSparse,
+    metrics::Array{String}) =
+    evaluations2(dataset, model, statvals, Symbol.(metrics))
+
+function evaluations2(dataset, model, statvals::AbstractNDSparse, metrics::Union{Array{Symbol}, Array{Function}})
+    metric_vals = map(metrics) do metric
+        evaluation2(dataset, model, statvals, metric)
+    end # do - end
+
+    Tuple(metric_vals)
+end
+
+"""
+    evaluation1(dataset, model, statvals, metric)
 
 compute evaluation metric (predefined) given by dataset
 """
-function evaluation(dataset, model, statvals::AbstractNDSparse, metric::Symbol)
+function evaluation1(dataset, model, statvals::AbstractNDSparse, metric::Symbol)
     eval(
     quote
         let _cnt = 0
@@ -47,17 +62,82 @@ function evaluation(dataset, model, statvals::AbstractNDSparse, metric::Symbol)
 end
 
 """
-    evaluation(dataset, model, statvals, metric)
+    evaluation1(dataset, model, statvals, metric)
 
 compute evaluation metric (passed by Function or Anonymous Function) given by dataset
 """
-function evaluation(dataset, model, statvals::AbstractNDSparse, metric)
+function evaluation1(dataset, model, statvals::AbstractNDSparse, metric)
     eval(quote
         let _cnt = 0
             # column sum for batches
             _sum = sum($(dataset)) do xy
                 # Float or (1 x batch) Array
                 _val = $(metric)(xy[2], $(model)(xy[1]))
+
+                # number of columns which is not Inf and not NaN
+                # if _val is Float, cnt must be 1
+                _cnt += count(x -> !(isnan(x) || isinf(x)), _val)
+
+                # If _val is Array -> use `replace!` to replace Inf, NaN to zero
+                # If _val is Number -> just assign zero
+                typeof(_val) <: AbstractArray ? replace!(_val, Inf => 0, -Inf => 0, NaN => 0) : ((isnan(_val) || isinf(_val)) && (_val = zero(_val)))
+
+                sum(_val)
+            end # do - end
+
+            _cnt = _cnt == 0 && isapprox(_sum, 0.0) ? 1 : _cnt
+
+            # mean
+            _sum / _cnt
+        end # let - end
+    end) # quote - end
+end
+
+"""
+    evaluation2(dataset, model, statvals, metric)
+
+compute evaluation metric (predefined) given by dataset
+"""
+function evaluation2(dataset, model, statvals::AbstractNDSparse, metric::Symbol)
+    eval(
+    quote
+        let _cnt = 0
+            # column sum for batches
+            _sum = sum($(dataset)) do xy
+                # Float or (1 x batch) Array
+                _val = $(Symbol("_", metric))(xy[3], $(model)(xy[1], xy[2]))
+
+                # number of columns which is not Inf and not NaN
+                # if _val is Float, cnt must be 1
+                _cnt += count(x -> !(isnan(x) || isinf(x)), _val)
+
+                # If _val is Array -> use `replace!` to replace Inf, NaN to zero
+                # If _val is Number -> just assign zero
+                typeof(_val) <: AbstractArray ? replace!(_val, Inf => 0, -Inf => 0, NaN => 0) : ((isnan(_val) || isinf(_val)) && (_val = zero(_val)))
+
+                sum(_val)
+            end # do - end
+
+            _cnt = _cnt == 0 && isapprox(_sum, 0.0) ? 1 : _cnt
+
+            # mean
+            _sum / _cnt
+        end # let - end
+    end) # quote - end
+end
+
+"""
+    evaluation1(dataset, model, statvals, metric)
+
+compute evaluation metric (passed by Function or Anonymous Function) given by dataset
+"""
+function evaluation2(dataset, model, statvals::AbstractNDSparse, metric)
+    eval(quote
+        let _cnt = 0
+            # column sum for batches
+            _sum = sum($(dataset)) do xy
+                # Float or (1 x batch) Array
+                _val = $(metric)(xy[3], $(model)(xy[1], xy[2]))
 
                 # number of columns which is not Inf and not NaN
                 # if _val is Float, cnt must be 1

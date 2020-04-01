@@ -175,8 +175,8 @@ function predict_RNN_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Sym
         rnn_table[i] = table((y = [], ŷ = [],))
     end
 
-    for (x, y) in dataset
-        ŷ = model(x |> gpu)
+    for (xe, xd, y) in dataset
+        ŷ = model(xe, xd)
 
         cpu_y = y[:, 1] |> cpu
         cpu_ŷ = ŷ[:, 1] |> cpu
@@ -210,8 +210,8 @@ function predict_RNN_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Sym
 
     # https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)
     c = ((_max - _min) / (b - a))
-    for (x, y) in dataset
-        ŷ = model(x |> gpu)
+    for (xe, xd, y) in dataset
+        ŷ = model(xe, xd)
 
         cpu_y = y[:, 1] |> cpu
         cpu_ŷ = ŷ[:, 1] |> cpu

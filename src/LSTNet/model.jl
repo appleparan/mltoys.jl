@@ -33,7 +33,7 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     # construct compile function symbol
     compile = eval(Symbol(:compile, "_", ycol, "_LSTNet"))
     model, state, loss, accuracy, opt = 
-        compile((kernel_length, length(features)), batch_size, output_size, statval)
+        compile((length(features), kernel_length), batch_size, output_size, statval)
 
     # |> gpu doesn't work to *_set directly
     # construct minibatch for train_set
@@ -57,14 +57,17 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     @info "    Construct Test Set..."
     p = Progress(length(test_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     # batch_size should be 1 except raining
+    
     test_set = [(ProgressMeter.next!(p);
         make_pair_LSTNet(df, norm_ycol, norm_features,
             sample_size, kernel_length, output_size, _eltype))
         for df in test_wd]
-    test_batch_set = [(ProgressMeter.next!(p);
+    #=
+    test_set = [(ProgressMeter.next!(p);
         make_batch_LSTNet(collect(dfs), norm_ycol, norm_features,
             sample_size, kernel_length, output_size, batch_size, _eltype))
         for dfs in Base.Iterators.partition(test_wd, batch_size)]
+    =#
 
     # *_set : normalized
     df_evals = train_LSTNet!(state, model, train_set, valid_set,
@@ -81,13 +84,13 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     for metric in eval_metrics
         # pure test set is too slow on evaluation, 
         # batched test set is used only in evaluation
-        _eval = evaluation(test_set, model, statval, metric)
+        _eval = evaluation2(test_set, model, statval, metric)
         @info " $(string(ycol)) $(string(metric)) for test   : ", _eval
     end
 
     # valid set
     for metric in eval_metrics
-        _eval = evaluation(valid_set, model, statval, metric)
+        _eval = evaluation2(valid_set, model, statval, metric)
         @info " $(string(ycol)) $(string(metric)) for valid  : ", _eval
     end
 
@@ -98,9 +101,8 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     end
 
     # batched set can't be used to create table (predict_model_* )
-    rnn_table = predict_RNN_model_zscore(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/", tdata_)
-    #rnn_table = predict_RNN_model_minmax(test_set, model, ycol, total_min, total_max, 0.0, 10.0, output_size, "/mnt/", tdata_)
-    dfs_out = export_CSV(DateTime.(test_dates), rnn_table, ycol, output_size, "/mnt/", String(ycol))
+    rnn_table = predict_RNN_model_zscore(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/")
+    dfs_out = export_CSV(DateTime.(test_dates, Local), rnn_table, ycol, output_size, "/mnt/", String(ycol))
     df_corr = compute_corr(rnn_table, output_size, "/mnt/", String(ycol))
 
     plot_DNN_scatter(rnn_table, ycol, output_size, "/mnt/", String(ycol))
@@ -108,7 +110,7 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
 
     plot_datefmt = @dateformat_str "yyyymmddHH"
 
-    plot_DNN_lineplot(DateTime.(test_dates), rnn_table, ycol, output_size, "/mnt/", String(ycol))
+    plot_DNN_lineplot(DateTime.(test_dates, Local), rnn_table, ycol, output_size, "/mnt/", String(ycol))
     plot_corr(df_corr, output_size, "/mnt/", String(ycol))
 
     # 3 months plot
@@ -145,13 +147,13 @@ function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
 
         # record evaluation
         rmse, mae, mspe, mape =
-            evaluations(valid_set, model, statval,
+            evaluations2(valid_set, model, statval,
             [:RMSE, :MAE, :MSPE, :MAPE])
         push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape])
 
         # Calculate accuracy:
         _acc = cpu.(accuracy(valid_set))
-        _loss = cpu.(loss(train_set[1][1], train_set[1][2]))
+        _loss = cpu.(loss(train_set[1][1], train_set[1][2], train_set[1][3]))
         @info(@sprintf("epoch [%d]: loss[1]: %.8E Valid accuracy: %.8f Time: %s", epoch_idx, _loss, _acc, now()))
         flush(stdout); flush(stderr)
 
@@ -167,17 +169,19 @@ function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
 
             cpu_modelCNN = state[1] |> cpu
             weightsCNN = Flux.params(cpu_modelCNN)
-            cpu_modelGRU = state[2] |> cpu
-            weightsGRU = Flux.params(cpu_modelGRU)
-            cpu_modelDNN = state[3] |> cpu
+            cpu_encoder = state[2] |> cpu
+            weightsEncoder = Flux.params(cpu_encoder)
+            cpu_decoder = state[3] |> cpu
+            weightsDecoder = Flux.params(cpu_decoder)
+            cpu_modelDNN = state[4] |> cpu
             weightsDNN = Flux.params(cpu_modelDNN)
             # TrackedReal cannot be writable, convert to Real
             filepath = "/mnt/" * filename * ".bson"
-            μ, σ = statval["total", "μ"].value, feat["total", "σ"].value
+            μ, σ = statval["total", "μ"].value, statval["total", "σ"].value
             total_max, total_min =
-                float(statval["total", "maximum"].value), float(feat["total", "minimum"].value)
+                float(statval["total", "maximum"].value), float(statval["total", "minimum"].value)
             # BSON can't save weights now (2019/12), disable temporarily
-            BSON.@save filepath cpu_modelCNN cpu_modelGRU cpu_modelDNN epoch_idx _acc μ σ total_max total_min
+            BSON.@save filepath cpu_modelCNN cpu_encoder cpu_decoder cpu_modelDNN epoch_idx _acc μ σ total_max total_min
 
             best_acc = _acc
             last_improvement = epoch_idx
@@ -291,8 +295,7 @@ function compile_PM10_LSTNet(
     modelLSTM2 = LSTM(output_size, hidRNN) |> gpu
 
     # DNN converts GRU output to single real output value
-    modelDNN = Chain(
-        Dense(hidRNN, 1)) |> gpu
+    modelDNN = Dense(hidRNN, output_size) |> gpu
 
     state = (
         CNNmodel = modelCNN,
@@ -301,22 +304,20 @@ function compile_PM10_LSTNet(
         DNNmodel = modelDNN)
 
     # Define model by combining multiple models
+    # Good Tutorial : https://github.com/LukeTonin/keras-seq-2-seq-signal-prediction
     # Arguments
     #   xe : batched input for model (sample_size, (length(features), 1, batch_size))
     #   xd : batched sequence for decoder [(output_size, batch_size)...] (output_size,)
     # Returns
     #   y_hat : prediction result (output_size, batch_size)
     function model(xe, xd)
-        # to avoid segfault due to GC
-        GC.@preserve state
-
         # CNN to extract local features
         # size(x_cnn) == (1, sample_size, hidCNN, batch_size)
         x_CNN = state.CNNmodel(xe)
 
         # 4D (WHCN) (1, sample_size, hidCNN, batch_size) -> 
         # 3D Array (hidCNN, sample_size, batch_size)
-        x_batchseq = whcn2cnh(x_CNN)
+        x_chn = whcn2cnh(x_CNN)
 
         # RNN
         Flux.reset!(state.encoder)
@@ -325,7 +326,8 @@ function compile_PM10_LSTNet(
         # CNH array to batch sequences
         # 3D Array (hidCNN, sample_size, batch_size) ->
         # Array of Array [(hidCNN, batch_size)...]:  (sample_size,)
-        x_encoded = stackEncoded(x_batchseq, sample_size)
+        x_encoded = stackEncoded(x_chn, sample_size)
+
         # 2D Array to batch sequences (all zeros)
         # 2D Array (output_size, batch_size) ->
         # Array of Array [(output_size, batch_size)...]:  (output_size,)
@@ -353,8 +355,8 @@ function compile_PM10_LSTNet(
         state.DNNmodel(y_decoded)
     end
 
-    loss(x, y) = Flux.mse(model(x), y)
-    accuracy(data) = evaluation(data, model, statval, :RMSE)
+    loss(xe, xd, y) = Flux.mse(model(xe, xd), y)
+    accuracy(data) = evaluation2(data, model, statval, :RMSE)
 
     opt = Flux.ADAM()
 
@@ -398,15 +400,14 @@ function compile_PM25_LSTNet(
     # 2. GRU
     #   * Input shape : (sample_size, 1, hidCNN, batch_size) ->
     #                   [(hidRNN, batch_size),...]
-    modelGRU = GRU(hidCNN, hidRNN) |> gpu
-    modelGRU = GRU(output_size, hidRNN) |> gpu
+    modelGRU1 = GRU(hidCNN, hidRNN) |> gpu
+    modelGRU2 = GRU(output_size, hidRNN) |> gpu
 
-    modelLSTM = LSTM(hidCNN, hidRNN) |> gpu
-    modelLSTM = LSTM(output_size, hidRNN) |> gpu
+    modelLSTM1 = LSTM(hidCNN, hidRNN) |> gpu
+    modelLSTM2 = LSTM(output_size, hidRNN) |> gpu
 
     # DNN converts GRU output to single real output value
-    modelDNN = Chain(
-        Dense(hidRNN, 1)) |> gpu
+    modelDNN = Dense(hidRNN, output_size) |> gpu
 
     state = (
         CNNmodel = modelCNN,
@@ -415,22 +416,20 @@ function compile_PM25_LSTNet(
         DNNmodel = modelDNN)
 
     # Define model by combining multiple models
+    # Good Tutorial : https://github.com/LukeTonin/keras-seq-2-seq-signal-prediction
     # Arguments
     #   xe : batched input for model (sample_size, (length(features), 1, batch_size))
     #   xd : batched sequence for decoder [(output_size, batch_size)...] (output_size,)
     # Returns
     #   y_hat : prediction result (output_size, batch_size)
     function model(xe, xd)
-        # to avoid segfault due to GC
-        GC.@preserve state
-
         # CNN to extract local features
         # size(x_cnn) == (1, sample_size, hidCNN, batch_size)
         x_CNN = state.CNNmodel(xe)
 
         # 4D (WHCN) (1, sample_size, hidCNN, batch_size) -> 
         # 3D Array (hidCNN, sample_size, batch_size)
-        x_batchseq = whcn2cnh(x_CNN)
+        x_chn = whcn2cnh(x_CNN)
 
         # RNN
         Flux.reset!(state.encoder)
@@ -439,7 +438,8 @@ function compile_PM25_LSTNet(
         # CNH array to batch sequences
         # 3D Array (hidCNN, sample_size, batch_size) ->
         # Array of Array [(hidCNN, batch_size)...]:  (sample_size,)
-        x_encoded = stackEncoded(x_batchseq, sample_size)
+        x_encoded = stackEncoded(x_chn, sample_size)
+
         # 2D Array to batch sequences (all zeros)
         # 2D Array (output_size, batch_size) ->
         # Array of Array [(output_size, batch_size)...]:  (output_size,)
@@ -466,8 +466,9 @@ function compile_PM25_LSTNet(
 		# Out: num_output x batch_size
         state.DNNmodel(y_decoded)
     end
-    loss(x, y) = Flux.mse(model(x), y)
-    accuracy(data) = evaluation(data, model, statval, :RMSE)
+
+    loss(xe, xd, y) = Flux.mse(model(xe, xd), y)
+    accuracy(data) = evaluation2(data, model, statval, :RMSE)
 
     opt = Flux.ADAM()
     

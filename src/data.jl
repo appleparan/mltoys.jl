@@ -478,9 +478,10 @@ function make_pair_LSTNet(df::DataFrame,
     # W = Input size, O = Output size
     # K = Kernel size, P = Padding size, S = Stride size
     pad_sample_size = kernel_length - 1
-    X_enc = zeros(_eltype, pad_sample_size + sample_size, length(features), 1, 1)
+    X_enc = zeros(_eltype, length(features), pad_sample_size + sample_size, 1, 1)
     # decode array (Array of Array, batch sequences)
-    X_dec = [zeros(_eltype, output_size, 1)]
+    _x = zeros(_eltype, output_size, 1)
+    X_dec = similar([_x], output_size)
     Y = zeros(_eltype, output_size, 1)
 
     # get X (2D)
@@ -491,8 +492,12 @@ function make_pair_LSTNet(df::DataFrame,
 
     # WHCN order, Channel is 1 because this is not an image
     # left zero padding
-    X_enc[(pad_sample_size + 1):end, :, 1, 1] = _X
+    X_enc[:, (pad_sample_size + 1):end, 1, 1] = transpose(_X)
     Y[:, 1] = _Y
+
+    for i in 1:output_size
+        X_dec[i] = zeros(_eltype, output_size, 1)
+    end
 
     X_enc = X_enc |> gpu
     X_dec = X_dec |> gpu
@@ -518,7 +523,7 @@ function make_batch_LSTNet(dfs::Array{DataFrame, 1},
     # W = Input size, O = Output size
     # K = Kernel size, P = Padding size, S = Stride size
     pad_sample_size = kernel_length - 1
-    X_enc = zeros(_eltype, pad_sample_size + sample_size, length(features), 1, batch_size)
+    X_enc = zeros(_eltype, length(features), pad_sample_size + sample_size, 1, batch_size)
     # decode array (Array of Array, batch sequences)
     _x = zeros(_eltype, output_size, batch_size)
     X_dec = similar([_x], output_size)
@@ -534,9 +539,12 @@ function make_batch_LSTNet(dfs::Array{DataFrame, 1},
 
         # WHCN order, Channel is 1 because this is not an image
         # left zero padding
-        X_enc[(pad_sample_size + 1):end, :, 1, i] = _X
-        X_dec[:, i] = zeros(_eltype, output_size, batch_size)
+        X_enc[:, (pad_sample_size + 1):end, 1, i] = transpose(_X)
         Y[:, i] = _Y
+    end
+
+    for i in 1:output_size
+        X_dec[i] = zeros(_eltype, output_size, batch_size)
     end
 
     X_enc = X_enc |> gpu
@@ -579,7 +587,7 @@ Convert 4D WHCN array to CNH
 -> (hidCNN, batch_size, sample_size)
 """
 function whcn2cnh(x::AbstractArray{N, 4}) where {N<:Number}
-    @assert size(x, 2) == 1
+    @assert size(x, 1) == 1
 
     x = reshape(x, size(x, 2), size(x, 3), size(x, 4))
 
