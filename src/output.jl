@@ -238,11 +238,66 @@ function export_CSV(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1}
 
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
+        Base.Filesystem.mkpath(output_dir * "$(i_pad)/")
         plottable_path::String = output_dir * "$(i_pad)/" * "$(output_prefix)_plottable_$(i_pad)h.csv"
         
         dates_h = dates .+ Dates.Hour(i)
         y = JuliaDB.select(dnn_table[i], :y)
         ŷ = JuliaDB.select(dnn_table[i], :ŷ)
+
+        len_data = min(length(dates), length(y), length(ŷ))
+
+        df = DataFrame(
+            date = dates_h[1:len_data], y = y[1:len_data], yhat = ŷ[1:len_data])
+
+        dfs[i] = df
+
+        CSV.write(plottable_path, df)
+    end
+
+    dfs
+end
+
+function export_CSV(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1}, season_table::AbstractNDSparse,
+    ycol::Symbol, output_size::Integer, output_dir::String, output_prefix::String)
+
+    dfs = Array{DataFrame}(undef, output_size)
+
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        Base.Filesystem.mkpath(output_dir * "$(i_pad)/")
+        plottable_path::String = output_dir * "$(i_pad)/" * "$(output_prefix)_plottable_$(i_pad)h.csv"
+
+        dates_h = dates .+ Dates.Hour(i)
+        y = JuliaDB.select(dnn_table[i], :y)
+        ŷ = JuliaDB.select(dnn_table[i], :ŷ)
+
+        len_data = min(length(dates), length(y), length(ŷ))
+
+        df = DataFrame(
+            date = dates_h[1:len_data], y = y[1:len_data], yhat = ŷ[1:len_data])
+
+        dfs[i] = df
+
+        CSV.write(plottable_path, df)
+    end
+
+    dfs
+end
+
+function export_CSV(dates::Array{DateTime, 1}, y::Array{Float64, 1}, ŷ::Array{Float64, 1},
+    season_table::AbstractNDSparse,
+    ycol::Symbol, output_size::Integer, output_dir::String, output_prefix::String)
+
+    dfs = Array{DataFrame}(undef, output_size)
+
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        plottable_path::String = output_dir * "$(i_pad)/" * "$(output_prefix)_plottable_$(i_pad)h.csv"
+
+        dates_h = dates .+ Dates.Hour(i)
+        y = JuliaDB.select(dnn_table[i], :y)
+        ŷ = compose_seasonality(dates_h, JuliaDB.select(dnn_table[i], :ŷ), season_table)
 
         len_data = min(length(dates), length(y), length(ŷ))
 
@@ -265,6 +320,24 @@ function compute_corr(dnn_table::Array{IndexedTable, 1},
 
     for i = 1:output_size
         corr[i] = Statistics.cor(JuliaDB.select(dnn_table[i], :y), JuliaDB.select(dnn_table[i], :ŷ))
+    end
+
+    df = DataFrame(hour = collect(1:output_size), corr = corr)
+
+    CSV.write(corr_path, df)
+
+    df
+end
+
+function compute_corr(dfs::Array{DataFrame, 1},
+    output_size::Integer, output_dir::String, output_prefix::String)
+
+    corr_path = output_dir * output_prefix * "_corr.csv"
+    corr = zeros(output_size)
+
+    for i = 1:output_size
+        _df = dfs[i]
+        corr[i] = Statistics.cor(_df[!, :y], _df[!, :yhat])
     end
 
     df = DataFrame(hour = collect(1:output_size), corr = corr)
