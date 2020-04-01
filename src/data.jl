@@ -100,7 +100,7 @@ function window_df(df::DataFrame, sample_size::I, output_size::I,
     # sample_size + hours (hours for Y , < sample_size) should be avalable
     start_idxs = collect(1:(size(df, 1) - sample_size - output_size + 1))
     final_idxs = start_idxs .+ (sample_size + output_size - 1)
-    
+
     # create Dataframe array
     dfs = DataFrame[]
 
@@ -139,7 +139,7 @@ function window_df(df::DataFrame, sample_size::I, output_size::I,
             @select i
             @collect DataFrame
         end
-        
+
         push!(dfs, _df)
     end
 
@@ -179,7 +179,7 @@ function window_df(df::DataFrame, sample_size::I, output_size::I,
 
         push!(dfs, _df)
     end
-    
+
     dfs
 end
 
@@ -304,7 +304,7 @@ function remove_sparse_input!(X, Y, missing_ratio=0.5)
     invalid_idxs = UnitRange[]
     size_y = length(Y)
     size_m = length(findall(_y -> ismissing(_y) || _y == zero(_y), Y))
-    
+
     if (size_m / size_y) >= missing_ratio
         # set X and Y to zeros
         X = fill!(X, zero(X[1, 1]))
@@ -372,11 +372,11 @@ end
 Create batch consists of pairs in `df` along with `idx` (row) and `features` (columns)
 The batch is higher dimensional input consists of multiple pairs
 
-single pairs to multiple 
+single pairs to multiple
 pairs = [(X_1, Y_1), (X_2, Y_2), ...]
 
 [(input_single, output_single)...] =>
-[   
+[
     ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // minibatch
     ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // minibatch
     ((input_single, input_single, ..., input_single,),  (output_single, output_single, ...output_single,)), // minibatch
@@ -400,7 +400,7 @@ become
 ([1,  7, 13, 19, 25;
   2,  8, 14, 20, 26;
   3,  9, 15, 21, 27;
-  4, 10, 16, 22, 28], 
+  4, 10, 16, 22, 28],
  [5, 11, 17, 23, 29;
   6, 12, 18, 24, 30])
 
@@ -415,7 +415,7 @@ function make_batch_DNN(dfs::Array{DataFrame, 1}, ycol::Symbol, features::Array{
 
     X = zeros(eltype, sample_size * length(features), batch_size)
     Y = zeros(eltype, output_size, batch_size)
-    
+
     # input_pairs Array{Tuple{Array{Int64,1},Array{Int64,1}},1}
     for (i, df) in enumerate(dfs)
         # get X (2D)
@@ -478,7 +478,9 @@ function make_pair_LSTNet(df::DataFrame,
     # W = Input size, O = Output size
     # K = Kernel size, P = Padding size, S = Stride size
     pad_sample_size = kernel_length - 1
-    X = zeros(eltype, pad_sample_size + sample_size, length(features), 1, 1)
+    X_enc = zeros(eltype, pad_sample_size + sample_size, length(features), 1, 1)
+    # decode array (Array of Array, batch sequences)
+    X_dec = [zeros(eltype, output_size, 1)]
     Y = zeros(eltype, output_size, 1)
 
     # get X (2D)
@@ -489,13 +491,14 @@ function make_pair_LSTNet(df::DataFrame,
 
     # WHCN order, Channel is 1 because this is not an image
     # left zero padding
-    X[(pad_sample_size + 1):end, :, 1, 1] = _X
+    X_enc[(pad_sample_size + 1):end, :, 1, 1] = _X
     Y[:, 1] = _Y
 
-    X = X |> gpu
+    X_enc = X_enc |> gpu
+    X_dec = X_dec |> gpu
     Y = Y |> gpu
 
-    X, Y
+    X_enc, X_dec, Y
 end
 
 """
@@ -515,9 +518,12 @@ function make_batch_LSTNet(dfs::Array{DataFrame, 1},
     # W = Input size, O = Output size
     # K = Kernel size, P = Padding size, S = Stride size
     pad_sample_size = kernel_length - 1
-    X = zeros(eltype, pad_sample_size + sample_size, length(features), 1, batch_size)
+    X_enc = zeros(eltype, pad_sample_size + sample_size, length(features), 1, batch_size)
+    # decode array (Array of Array, batch sequences)
+    _x = zeros(eltype, output_size, batch_size)
+    X_dec = similar([_x], output_size)
     Y = zeros(eltype, output_size, batch_size)
-    
+
     # zero padding on input matrix
     for (i, df) in enumerate(dfs)
         # get X (2D)
@@ -528,14 +534,16 @@ function make_batch_LSTNet(dfs::Array{DataFrame, 1},
 
         # WHCN order, Channel is 1 because this is not an image
         # left zero padding
-        X[(pad_sample_size + 1):end, :, 1, i] = _X
+        X_enc[(pad_sample_size + 1):end, :, 1, i] = _X
+        X_dec[:, i] = zeros(eltype, output_size, batch_size)
         Y[:, i] = _Y
     end
 
-    X = X |> gpu
+    X_enc = X_enc |> gpu
+    X_dec = X_dec |> gpu
     Y = Y |> gpu
 
-    X, Y
+    X_enc, X_dec, Y
 end
 
 """
@@ -558,45 +566,24 @@ Convert 2D batch array to array of 1D array
 (m x n) array -> n-of m x 1 arrays
 
 i.e.
-X = (m x n) -> [(m x 1), ...]  
+X = (m x n) -> [(m x 1), ...]
 """
 serializeBatch(A; dims=2) = collect(eachslice(A, dims=dims))
 
 """
-    unpack_seq(X)
+    whcn2cnh(X)
 
-(sample_size, 1, hidCNN, batch_size)
--> [(hidCNN, batch_size),...]
+Convert 4D WHCN array to CNH
+
+(1, sample_size, hidCNN, batch_size)
+-> (hidCNN, batch_size, sample_size)
 """
-function unpack_seq(x::AbstractArray{N, 4}) where {N<:Number}
+function whcn2cnh(x::AbstractArray{N, 4}) where {N<:Number}
     @assert size(x, 2) == 1
 
-    # (sample_size, 1, hidCNN, batch_size) ->
-    # [(1, 1, (hidCNN, batch_size), 1), ...] (length: sample_size)
+    x = reshape(x, size(x, 2), size(x, 3), size(x, 4))
 
-    x = permutedims(x, [3, 4, 1, 2])
-    # TODO : disable scalar indexing on gpu
-    #unpacked = [x[:, :, seq, 1] |> gpu for seq in axes(x, 3)]
-    #unpacked
-
-    mapslices(_x -> [_x], x, dims=[1, 2])
-end
-
-"""
-    unpack_seq(X)
-
-(sample_size, hidCNN, batch_size)
--> [(hidCNN, batch_size),...]
-"""
-function unpack_seq(x::AbstractArray{N, 3}) where {N<:Number}
-    # (sample_size, hidCNN, batch_size)
-    # -> (hidCNN, batch_size, sample_size)
-    x = permutedims(x, [2, 3, 1])
-    # TODO : disable scalar indexing on gpu
-    #unpacked = [x[:, :, seq] |> gpu for seq in axes(x, 3)]
-    #unpacked
-
-    mapslices(_x -> [_x], x, dims=[1, 2])
+    permutedims(x, [2, 3, 1])
 end
 
 """
@@ -624,7 +611,7 @@ function is_sparse_Y(Y, missing_ratio=0.5)
         # if use deleteat here, it manipulates pairs while loop and return wrong results
         return true
     end
-    
+
     false
 end
 
@@ -638,6 +625,7 @@ zero2Missing!(df::DataFrame, ycol::Symbol) = replace!(df[!, ycol], 0 => missing,
     * Shigeyuki Oba, et al. A BPCA Based Missing Value Imputing Method for Traffic Flow Volume Data
     * Li Qu, et. al. A Bayesian missing value estimation method for gene expression profile data
 """
+#=
 function impute!(df::DataFrame, ycol::Symbol, method::Symbol; total_mean::AbstractFloat = 0.0, ycols::Array{Symbol, 1} = [ycol], leafsize::Integer = 10)
     # filter missing value
     nomissings = filter(x -> x !== missing, df[!, ycol])
@@ -661,46 +649,171 @@ function impute!(df::DataFrame, ycol::Symbol, method::Symbol; total_mean::Abstra
                 df[i, ycol] = sample(_df[!, ycol])
             end
         end
-    elseif method == :knn
-        # TODO: KNN imputation is for multivarate.
-        arr = collect(skipmissing(float.(df[!, ycol])))
-        mat = collect(transpose(reshape(arr, size(arr, 1), 1)))
-        kdtree = KDTree(mat)
-
-        idxs, dists = knn(kdtree, mat, leafsize, true)
-        w = ones(leafsize)
-        for (i, _val) in enumerate(df[!, ycol])
-            if _val === missing
-                _idxs = idxs[i]
-                _dists = dists[i]
-                _w = w
-                _imputed = sum(df[vcat(_idxs...), ycol] .* _w .* (1.0 .- _dists ./ sum(_dists))) / (sum(w) - 1)
-                if isnan(_imputed) 
-                    @show i, df[vcat(_idxs...), ycol]
-                    @show sum(_dists), _dists
-                end
-                df[i, ycol] = Int(round())
-            end
-        end
+    #elseif method == :knn
     elseif method == :bpca
         # TODO: variational Bayes (VB) algorithm
         # bpca_init!(df, ycol, total_mean)
     end
 end
+=#
 
+"""
+    padded_push!(df, array, name, train_fdate, train_tdate)
+
+append arrays to dataframe padded by train data
+
+This use simple loop, so it may be slow
+"""
+padded_push!(df::DataFrame, array::AbstractArray, name::Symbol, train_fdate::ZonedDateTime, train_tdate::ZonedDateTime) =
+    padded_push!(df, array, name, DateTime(train_fdate, Local), DateTime(train_tdate, Local))
+
+function padded_push!(df::DataFrame, array::AbstractArray, name::Symbol, train_fdate::DateTime, train_tdate::DateTime)
+    # get array filled with zero instead of missing
+    # If I fill with missing, zscore fails due to msising value
+    # for test_date, I don't need that.
+    padded = zeros(size(df, 1))
+
+    dates = train_fdate:Dates.Hour(1):train_tdate
+
+    # should match
+    @assert size(array) == size(dates)
+
+    # now use dates as index by key-value structure
+    train_values = Dict(dates .=> array)
+
+    # fill value from date
+    for (i, row) in enumerate(eachrow(df))
+        date = DateTime(row[:date], Local)
+
+        if haskey(train_values, date)
+            padded[i] = train_values[date]
+        end
+    end
+
+    DataFrames.insertcols!(df, 1, name => padded)
+end
+
+"""
+    construct_annual_table(sea_year, sea_day, train_fdate, train_tdate)
+
+Construct table of seasonality data within train date range
+table accepts month, day, hour as keys.
+"""
+construct_annual_table(sea_year::AbstractVector, sea_day::AbstractVector, train_fdate::ZonedDateTime, train_tdate::ZonedDateTime) =
+    construct_annual_table(sea_year, sea_day, DateTime(train_fdate, Local), DateTime(train_tdate, Local))
+
+function construct_annual_table(df::DataFrame, target::Symbol, train_fdate::DateTime, train_tdate::DateTime)
+    months = []
+    days = []
+    hours = []
+    sea_years = []
+    sea_days = []
+
+    # month, day, hour is a key
+    #=
+    for (i, date) in enumerate(train_fdate:Dates.Hour(1):train_tdate)
+        m = Dates.month(date)
+        d = Dates.day(date)
+        h = Dates.hour(date)
+
+        push!(months, m)
+        push!(days, d)
+        push!(hours, h)
+        push!(sea_years, sea_year[i])
+        push!(sea_days, sea_day[i])
+    end
+    =#
+    # ndsparse is immutable object, so make it dataframe first then group it.
+    # 1. filter dataframe by date
+    _df = DataFrames.filter(row -> train_fdate < DateTime(row[:date], Local) < train_tdate, df)
+
+    # 2. Then make month, day, hour columns
+    DataFrames.insertcols!(_df, 1, :month => Dates.month.(_df[!, :date]))
+    DataFrames.insertcols!(_df, 1, :day => Dates.day.(_df[!, :date]))
+    DataFrames.insertcols!(_df, 1, :hour => Dates.hour.(_df[!, :date]))
+
+    # 2. group df using keys (month, day, hour)
+    gd = DataFrames.groupby(_df, [:month, :day, :hour])
+
+    # unique
+    u_months = []
+    u_days = []
+    u_hours = []
+    u_sea_years = []
+    u_sea_days = []
+
+    for gdf in gd
+        ugdf = unique(gdf)
+
+        # length of ugdf is same as # of stations
+        push!(u_months, ugdf[!, :month][1])
+        push!(u_days, ugdf[!, :day][1])
+        push!(u_hours, ugdf[!, :hour][1])
+        push!(u_sea_years, ugdf[!, Symbol(target, "_year")][1])
+        push!(u_sea_days, ugdf[!, Symbol(target, "_day")][1])
+    end
+
+    ndsparse((month = u_months, day = u_days, hour = u_hours),
+    (season_year = u_sea_years, season_day = u_sea_days,))
+end
+
+"""
+    padded_push!(df, array, name, train_fdate, train_tdate)
+
+Append arrays to dataframe padded by test data
+Assume that train data have been already appended,
+so just replace missing to real value by given seaonality table
+
+This use simple loop, so it may be slow
+"""
+padded_push!(df::DataFrame, target::Symbol,
+    year_sea_col::Symbol, day_sea_col::Symbol, day_res_col::Symbol,
+    season_table::AbstractNDSparse,
+    test_fdate::ZonedDateTime, test_tdate::ZonedDateTime) =
+    padded_push!(df, target, year_sea_col, day_sea_col, day_res_col, season_table,
+    DateTime(test_fdate, Local), DateTime(test_tdate, Local))
+
+function padded_push!(df::DataFrame, target::Symbol,
+    year_sea_col::Symbol, day_sea_col::Symbol, day_res_col::Symbol,
+    season_table::AbstractNDSparse,
+    test_fdate::DateTime, test_tdate::DateTime)
+
+    # fill value from table and compute residual
+    for (i, row) in enumerate(eachrow(df))
+        # check date in range
+        if test_fdate <= DateTime(row.date, Local) <= test_tdate
+            df[i, year_sea_col] = season_table[Dates.month(row.date), Dates.day(row.date), Dates.hour(row.date)].season_year
+            df[i, day_sea_col] = season_table[Dates.month(row.date), Dates.day(row.date), Dates.hour(row.date)].season_day
+            df[i, day_res_col] = df[i, target] - df[i, year_sea_col] - df[i, day_sea_col]
+        end
+    end
+end
+
+function compose_seasonality(dates::Array{DateTime, 1}, result, season_table::AbstractNDSparse)
+    org_values = Array{Float64}(undef, size(dates, 1))
+
+    for (i, date) in enumerate(dates)
+        org_valeus[i] = result[i] +
+            season_table[Dates.month(date), Dates.day(date), Dates.hour(date)].season_year +
+            season_table[Dates.month(date), Dates.day(date), Dates.hour(date)].season_day
+    end
+
+    org_values
+end
 #=
 function bpca_fill(df::DataFrame, ycol_t::Symbol, ycols::Array{Symbol, 1})
     # init values
     # size of given array (N x D)
     N = size(df[!, ycol], 2)
-    D = size(ycols, 1)
+    # Univarate
+    D = 1
     # default number of PCA axis
     Q = D - 1 > 0 ? D - 1 : D
 
     y_est_mean = df[!, ycol_t]
     y_est_zero = df[!, ycol_t]
 
-    # for SVD, 
+    # for SVD,
     replace!(y_est_zero, missing => 0)
     # fill by mean values
     replace!(y_est_mean, missing => Int(round(total_mean)))
@@ -744,7 +857,7 @@ end
 
 function _bpca_no_miss(Q::I), tau, W) where I<:Integer
     Iq = Matrix{Float64}(I, Q, Q)
-    # no miss data
+    # E-step (Expectation)
     Rx = Iq .+ tau * transpose(W) * W + SigW;
     Rxinv = inv( Rx );
     dy = df[!, ycol] .- size(df[!, ycol], 2);
@@ -753,6 +866,8 @@ function _bpca_no_miss(Q::I), tau, W) where I<:Integer
     T = transpose(dy) * transpose(x);
 
     # trS
-    sum( sum( dy .* dy )); 
+    sum( sum( dy .* dy ));
+
+    # M-step (Maximization)
 end
 =#
