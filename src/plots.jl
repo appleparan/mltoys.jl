@@ -67,7 +67,7 @@ function plot_pcorr(_df::DataFrame, feas::AbstractArray, label_feas::AbstractArr
     Plots.svg(crpl, crpl_path * ".svg")
 
     df_cor = DataFrame(dfm_cor)
-    rename!(df_cor, Symbol.(label_feas))
+    DataFrames.rename!(df_cor, Symbol.(label_feas))
     CSV.write(crcsv_path, df_cor, writeheader = true)
 end
 
@@ -191,6 +191,39 @@ function plot_DNN_scatter(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
     nothing
 end
 
+function plot_DNN_scatter(dfs::Array{DataFrame, 1}, ycol::Symbol,
+    output_size::Integer, output_dir::String, output_prefix::String)
+
+    ENV["GKSwstype"] = "100"
+
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        sc_path = output_dir * "$(i_pad)/" * "$(output_prefix)_scatter_$(i_pad)h.png"
+        df = dfs[i]
+        lim = max(maximum(float.(df[!, :y])), maximum(float.(df[!, :yhat])))
+
+        sc = Plots.scatter(float.(df[!, :y]), float.(df[!, :yhat]),
+            size = (1080, 1080),
+            xlim = (0, lim), ylim = (0, lim), legend=false,
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
+            guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+            title="DNN/OBS ($(i_pad)h)", xlabel="OBS", ylabel="DNN",
+            background_color = BG_COLOR, markercolor = MK_COLOR)
+
+        # diagonal line (corr = 1)
+        Plots.plot!(collect(0:0.1:lim), collect(0:0.1:lim), 
+            xlim = (0, lim), ylim = (0, lim), legend=false,
+            background_color = BG_COLOR, linecolor = LN_COLOR)
+        Plots.png(sc, sc_path)
+
+        sc_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_scatter_$(i_pad)h.csv"
+        outdf = DataFrame(obs = float.(df[!, :y]), model = float.(df[!, :yhat]))
+        CSV.write(sc_csvpath, outdf, writeheader = true)
+    end
+
+    nothing
+end
+
 function plot_DNN_histogram(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
     output_size::Integer, output_dir::String, output_prefix::String)
 
@@ -210,6 +243,37 @@ function plot_DNN_histogram(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
         Plots.png(ht, hs_OBS_path)
 
         ht = Plots.histogram(float.(JuliaDB.select(dnn_table[i], :ŷ)), label="DNN",
+            size = (2560, 1080),
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
+            guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+            title="Histogram of DNN ($(i_pad)h)", ylabel="#",
+            background_color = BG_COLOR, fillcolor = FL02_COLOR)
+        Plots.png(ht, hs_DNN_path)
+    end
+
+    nothing
+end
+
+function plot_DNN_histogram(dfs::Array{DataFrame, 1}, ycol::Symbol,
+    output_size::Integer, output_dir::String, output_prefix::String)
+
+    ENV["GKSwstype"] = "100"
+
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        hs_OBS_path = output_dir * "$(i_pad)/" * "$(output_prefix)_hist(obs)_$(i_pad)h.png"
+        hs_DNN_path = output_dir * "$(i_pad)/" * "$(output_prefix)_hist(dnn)_$(i_pad)h.png"
+        df = dfs[i]
+
+        ht = Plots.histogram(float.(df[!, :y]), label="OBS",
+            size = (2560, 1080),
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
+            guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+            title="Histogram of OBS ($(i_pad)h)", ylabel="#",
+            background_color = BG_COLOR, fillcolor = FL02_COLOR)
+        Plots.png(ht, hs_OBS_path)
+
+        ht = Plots.histogram(float.(df[!, :yhat]), label="DNN",
             size = (2560, 1080),
             guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
             guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
@@ -252,7 +316,7 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
         Plots.png(pl, line_plotpath)
 
         line_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.csv"
-        df = DataFrame(dates = dates,
+        df = DataFrame(dates = dates_h,
             obs = float.(JuliaDB.select(dnn_table[i], :y)),
             model = float.(JuliaDB.select(dnn_table[i], :ŷ)))
         CSV.write(line_csvpath, df, writeheader = true)
@@ -293,12 +357,52 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
         Plots.png(pl, line_plotpath)
 
         line_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.csv"
-        df = DataFrame(dates = dates,
+        df = DataFrame(dates = dates_h,
             obs = float.(JuliaDB.select(dnn_table[i], :y)),
             model = float.(JuliaDB.select(dnn_table[i], :ŷ)))
         CSV.write(line_csvpath, df, writeheader = true)
     end
     
+    nothing
+end
+
+"""
+    plot_DNN_lineplot(dates, dnn_table, ycol, output_size, output_dir, output_prefix)
+
+Plot prediction by dates (full length). 
+"""
+function plot_DNN_lineplot(dfs::Array{DataFrame, 1}, ycol::Symbol,
+    output_size::Integer, output_dir::String, output_prefix::String)
+
+    ENV["GKSwstype"] = "100"
+
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        line_plotpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
+        df = dfs[i]
+        dates_h = df[!, :date] .+ Dates.Hour(i)
+        
+        pl = Plots.plot(dates_h, float.(df[!, :y]),
+            size = (2560, 1080),
+            ylim = (0.0,
+                max(maximum(float.(df[!, :y])), maximum(float.(df[!, :yhat])))),
+            line=:solid, linewidth=5, label="OBS",
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
+            guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+            background_color = BG_COLOR, color=LN01_COLOR,
+            title=String(ycol) * " by dates ($(i_pad)h)",
+            xlabel="date", ylabel=String(ycol), legend=:best)
+        
+        pl = Plots.plot!(dates_h, float.(df[!, :yhat]),
+            line=:solid, linewidth=5, color=LN02_COLOR, label="DNN")
+        Plots.png(pl, line_plotpath)
+        
+
+        line_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.csv"
+        outdf = DataFrame(dates = dates_h, obs = float.(df[!, :y]), model = float.(df[!, :yhat]))
+        CSV.write(line_csvpath, outdf, writeheader = true)
+    end
+
     nothing
 end
 
