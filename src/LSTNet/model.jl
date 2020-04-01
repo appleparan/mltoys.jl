@@ -1,4 +1,4 @@
-"""
+ """
     train(df, ycol, norm_prefix, norm_features,
         sample_size, input_size, batch_size, output_size, epoch_size,
         total_wd_idxs, test_wd_idxs,
@@ -176,7 +176,9 @@ function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
             μ, σ = statval["total", "μ"].value, feat["total", "σ"].value
             total_max, total_min =
                 float(statval["total", "maximum"].value), float(feat["total", "minimum"].value)
-            BSON.@save filepath cpu_modelCNN weightsCNN cpu_modelGRU weightsGRU cpu_modelDNN weightsDNN epoch_idx _acc μ σ total_max total_min
+            # BSON can't save weights now (2019/12), disable temporarily
+            BSON.@save filepath cpu_modelCNN cpu_modelGRU cpu_modelDNN epoch_idx _acc μ σ total_max total_min
+
             best_acc = _acc
             last_improvement = epoch_idx
         end
@@ -203,18 +205,63 @@ function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
 end
 
 """
+    stackEncoded(_x, _size)
+
+Convert CNH array to RNN style batch sequence
+Use Zygote.Buffer to create adjoint for mutating array
+"""
+function stackEncoded(_x::AbstractArray{R, 3}, _size::Integer) where R <: Real
+    # hidCNN x batch_size x sample_size
+    # => [hidCNN x batch_size] x sample_size
+    buf = Zygote.Buffer([_x[:, :, 1]], _size)
+    for i = 1:_size
+        buf[i] = _x[:, :, i]
+    end
+    copy(buf)
+end
+
+"""
+    stackEncoded(_x, _size)
+
+Extrapolate 2D array to RNN style batch sequence
+Use Zygote.Buffer to create adjoint for mutating array
+
+This might not needed because xd has been precomputed as batch sequences
+"""
+function stackDecoded(_x::AbstractArray{R, 2}, _size::Integer) where R <: Real
+    # decoded tokens are replace by zeros of num_output x batch_size
+    # num_output x batch_size
+    # => [[num_output x batch_size]...] length is _size
+    _x_3d = zeros(eltype(_x), size(_x, 1), size(_x)...)
+    buf = Zygote.Buffer([_x_3d[:, 1, :]], _size)
+
+    for i = 1:_size
+        buf[i] = _x_3d[:, i, :]
+    end
+    copy(buf)
+end
+
+"""
     compile_PM10_LSTNetRecurSkip(kernel_size, sample_size, output_size)
 
 kernel_size is 2D tuple for CNN kernel
 sample_size and output_size is Integer
+
+# Arguments
+* x : dim_input x window_size x 1 x batch_size
+
+# Returns
+* num_output x batch_size
 """
 function compile_PM10_LSTNet(
     kernel_size::Tuple{I, I},
     sample_size::I, output_size::I,
     statval::AbstractNDSparse) where I<:Integer
 
-    @info("    Compiling model...")
-    # hidRNN : length of context vector
+    @info("    Compiling PM10 model...")
+    # hidCNN : length of CNN latent dim, CNN channel
+    # hidRNN : length of RNN latent dim
+    hidCNN = 8
     hidRNN = 16
 
     kernel_length = kernel_size[1]
@@ -227,78 +274,83 @@ function compile_PM10_LSTNet(
     # 1. CNN
     #   extract short-term patterns in the time dimension 
     #   as well as local dependencies between variables
-    #   * Channel : 1 => hidRNN 
-    #   * Kernel Size : (kernel_length, length(features)
+    #   * Channel : 1 => hidCNN
+    #   * Kernel Size : (kernel_length, length(features))
     #   * Input Size : (sample_size + pad_sample_size, length(features), 1, batch_size)
     #   * Output Size : (sample_size, 1, hidRNN, batch_size)
     modelCNN = Chain(
-        Conv(kernel_size, 1 => hidRNN, leakyrelu),
-        Dropout(0.2)) |> gpu
+        Conv(kernel_size, 1 => hidCNN, leakyrelu)) |> gpu
     
     # 2. GRU
     #   * Input shape : (sample_size, 1, hidCNN, batch_size) ->
     #                   [(hidRNN, batch_size),...]
-    # modelGRU is a Single GRU Cell
-    # hidCNN is a embedding size in NLP
-    # sample_size is a sequnce length in NLP
-    # Output has same dimension as input
-    #
-    # Check figure in 'Build the Model' Section in 
-    # https://www.tensorflow.org/tutorials/text/text_generation
-    # SEQ_LENGTH = sample_size
-    # Char Embdding = hidRNN
-    # logits = output value itself
-    modelGRU = GRU(hidRNN, hidRNN) |> gpu
+    modelGRU = GRU(hidCNN, hidRNN) |> gpu
+    modelGRU = GRU(output_size, hidRNN) |> gpu
+
+    modelLSTM = LSTM(hidCNN, hidRNN) |> gpu
+    modelLSTM = LSTM(output_size, hidRNN) |> gpu
 
     # DNN converts GRU output to single real output value
     modelDNN = Chain(
         Dense(hidRNN, 1)) |> gpu
 
-    function predict_recur(_yhat, seq_len::Integer)
-        # _yhat : current output of RNN (length : hidRNN)
-        # size(_yhat) = (hidRNN x batch_size)
-        yhat = _yhat
-        # (seq_len x batch_size) array for output
-        buf = Zygote.Buffer(_yhat, seq_len, size(_yhat, 2))
-        for i in 1:seq_len
-            # predict next output by giving input as one by one
-            # size(yhat) == (hidRNN, batch_size)
-            yhat2 = modelGRU(yhat)
-            # size(yhat3) == (1, batch_size)
-            #yhat3 = modelDNN(modelGRU.state)
-            buf[i, :] = modelDNN(modelGRU.state)
-            yhat = yhat2
-        end
+    state = (
+        CNNmodel = modelCNN,
+        encoder = modelLSTM1,
+        decoder = modelLSTM2,
+        DNNmodel = modelDNN)
 
-        copy(buf)
-    end
-
-    state = (modelCNN, modelGRU, modelDNN)
-
-    # define model by combining multiple models
-    # x : batched input for CNN (sample_size, (length(features), 1, batch_size))
-    function model(x)
+    # Define model by combining multiple models
+    # Arguments
+    #   xe : batched input for model (sample_size, (length(features), 1, batch_size))
+    #   xd : batched sequence for decoder [(output_size, batch_size)...] (output_size,)
+    # Returns
+    #   y_hat : prediction result (output_size, batch_size)
+    function model(xe, xd)
         # to avoid segfault due to GC
-        GC.@preserve modelCNN modelGRU modelDNN
+        GC.@preserve state
 
-        # do CNN to extract local features
-        ŷ_CNN = modelCNN(x)
+        # CNN to extract local features
+        # size(x_cnn) == (1, sample_size, hidCNN, batch_size)
+        x_CNN = state.CNNmodel(xe)
 
-        # 4D -> Array of 2Ds (hidCNN, batch)
-        x_RNN = unpack_seq(ŷ_CNN)
+        # 4D (WHCN) (1, sample_size, hidCNN, batch_size) -> 
+        # 3D Array (hidCNN, sample_size, batch_size)
+        x_batchseq = whcn2cnh(x_CNN)
 
         # RNN
-        # `modelGRU.` performs GRU for input sequence
-        # `predict_GRU` performs prediction after input seqeunce
-        Flux.reset!(modelGRU)
-        # broadcast : train columns. Each column (single batch) have been trained
-        # @test trained[end] == modelGRU.state # true
-        trained = modelGRU.(x_RNN)
+        Flux.reset!(state.encoder)
+		Flux.reset!(state.decoder)
 
-        # predict
-        ŷ_RNN = predict_recur(modelGRU.state, output_size)
+        # CNH array to batch sequences
+        # 3D Array (hidCNN, sample_size, batch_size) ->
+        # Array of Array [(hidCNN, batch_size)...]:  (sample_size,)
+        x_encoded = stackEncoded(x_batchseq, sample_size)
+        # 2D Array to batch sequences (all zeros)
+        # 2D Array (output_size, batch_size) ->
+        # Array of Array [(output_size, batch_size)...]:  (output_size,)
+		# x_decoded = stackDecoded(xd, output_size)
 
-        ŷ_RNN
+        # broadcast : train columns. Each column (single batch) have been trained independently
+        # drop _encoded, only need state from encoder
+        _encoded = state.encoder.(x_encoded)
+
+        # copy state from encoder to decoder
+        state.decoder.state = state.encoder.state
+
+        #_decoded = state.decoder.(x_decoded)
+        # precomputed decoded input
+        _decoded = state.decoder.(xd)
+		y_decoded = state.decoder.state[2]
+
+        # each seq element represzents hidden state at each time stamp
+		# what I want
+		# In: hidCNN x window_size x batch_size
+		# 1: [hidCNN x batch_size_size] x window_size (stackEncoded & encoder)
+		# 2: [hidRNN x batch_size_size] x window_size (stackDecoded & decoder)
+		# 3: num_output x batch_size (Dense)
+		# Out: num_output x batch_size
+        state.DNNmodel(y_decoded)
     end
 
     loss(x, y) = Flux.mse(model(x), y)
@@ -306,10 +358,12 @@ function compile_PM10_LSTNet(
 
     opt = Flux.ADAM()
 
+    @info "hidCNN       in PM10: ", hidCNN
     @info "hidRNN       in PM10: ", hidRNN
-    @info "ModelCNN     in PM10: ", modelCNN
-    @info "ModelGRU     in PM10: ", modelGRU
-    @info "ModelDNN     in PM10: ", modelDNN
+    @info "ModelCNN     in PM10: ", state.CNNmodel
+    @info "Encoder(RNN) in PM10: ", state.encoder
+    @info "Decoder(RNN) in PM10: ", state.decoder
+    @info "ModelDNN     in PM10: ", state.DNNmodel
     model, state, loss, accuracy, opt
 end
 
@@ -318,8 +372,10 @@ function compile_PM25_LSTNet(
     sample_size::I, output_size::I,
     statval::AbstractNDSparse) where I<:Integer
 
-    @info("    Compiling model...")
-    # hidRNn : length of context vector
+    @info("    Compiling PM25 model...")
+    # hidCNN : length of CNN latent dim, CNN channel
+    # hidRNN : length of RNN latent dim
+    hidCNN = 8
     hidRNN = 16
 
     kernel_length = kernel_size[1]
@@ -332,89 +388,94 @@ function compile_PM25_LSTNet(
     # 1. CNN
     #   extract short-term patterns in the time dimension 
     #   as well as local dependencies between variables
-    #   * Channel : 1 => hidRNN 
-    #   * Kernel Size : (kernel_length, length(features)
+    #   * Channel : 1 => hidCNN
+    #   * Kernel Size : (kernel_length, length(features))
     #   * Input Size : (sample_size + pad_sample_size, length(features), 1, batch_size)
     #   * Output Size : (sample_size, 1, hidRNN, batch_size)
     modelCNN = Chain(
-        Conv(kernel_size, 1 => hidRNN, leakyrelu),
-        Dropout(0.2)) |> gpu
+        Conv(kernel_size, 1 => hidCNN, leakyrelu)) |> gpu
     
     # 2. GRU
     #   * Input shape : (sample_size, 1, hidCNN, batch_size) ->
     #                   [(hidRNN, batch_size),...]
-    # modelGRU is a Single GRU Cell
-    # hidCNN is a embedding size in NLP
-    # sample_size is a sequnce length in NLP
-    # Output has same dimension as input
-    #
-    # Check figure in 'Build the Model' Section in 
-    # https://www.tensorflow.org/tutorials/text/text_generation
-    # SEQ_LENGTH = sample_size
-    # Char Embdding = hidCNN
-    # logits = output value itself
-    modelGRU = GRU(hidRNN, hidRNN) |> gpu
+    modelGRU = GRU(hidCNN, hidRNN) |> gpu
+    modelGRU = GRU(output_size, hidRNN) |> gpu
+
+    modelLSTM = LSTM(hidCNN, hidRNN) |> gpu
+    modelLSTM = LSTM(output_size, hidRNN) |> gpu
 
     # DNN converts GRU output to single real output value
     modelDNN = Chain(
         Dense(hidRNN, 1)) |> gpu
 
-    function predict_recur(_yhat, seq_len::Integer)
-        # _yhat : current output of RNN (length : hidRNN)
-        # size(_yhat) = (hidRNN x batch_size)
-        yhat = _yhat
-        # (seq_len x batch_size) array for output
+    state = (
+        CNNmodel = modelCNN,
+        encoder = modelLSTM1,
+        decoder = modelLSTM2,
+        DNNmodel = modelDNN)
 
-        buf = Zygote.Buffer(_yhat, seq_len, size(_yhat, 2))
-        for i in 1:seq_len
-            # predict next output by giving input as one by one
-            # size(yhat) == (hidRNN, batch_size)
-            yhat2 = modelGRU(yhat)
-            # size(yhat3) == (1, batch_size)
-            #yhat3 = modelDNN(modelGRU.state)
-            buf[i, :] = modelDNN(modelGRU.state)
-            yhat = yhat2
-        end
-
-        copy(buf)
-    end
-
-    state = (modelCNN, modelGRU, modelDNN)
-
-    # define model by combining multiple models
-    # x : batched input for CNN (sample_size, (length(features), 1, batch_size))
-    function model(x)
+    # Define model by combining multiple models
+    # Arguments
+    #   xe : batched input for model (sample_size, (length(features), 1, batch_size))
+    #   xd : batched sequence for decoder [(output_size, batch_size)...] (output_size,)
+    # Returns
+    #   y_hat : prediction result (output_size, batch_size)
+    function model(xe, xd)
         # to avoid segfault due to GC
-        GC.@preserve modelCNN modelGRU modelDNN
+        GC.@preserve state
 
-        # do CNN to extract local features
-        ŷ_CNN = modelCNN(x)
+        # CNN to extract local features
+        # size(x_cnn) == (1, sample_size, hidCNN, batch_size)
+        x_CNN = state.CNNmodel(xe)
 
-        # 4D -> Array of 2Ds (hidCNN, batch)
-        x_RNN = unpack_seq(ŷ_CNN)
+        # 4D (WHCN) (1, sample_size, hidCNN, batch_size) -> 
+        # 3D Array (hidCNN, sample_size, batch_size)
+        x_batchseq = whcn2cnh(x_CNN)
 
         # RNN
-        # `modelGRU.` performs GRU for input sequence
-        # `predict_GRU` performs prediction after input seqeunce
-        Flux.reset!(modelGRU)
-        # broadcast : train columns. Each column (single batch) have been trained
-        # @test trained[end] == modelGRU.state # true
-        trained = modelGRU.(x_RNN)
+        Flux.reset!(state.encoder)
+		Flux.reset!(state.decoder)
 
-        # predict
-        ŷ_RNN = predict_recur(modelGRU.state, output_size)
+        # CNH array to batch sequences
+        # 3D Array (hidCNN, sample_size, batch_size) ->
+        # Array of Array [(hidCNN, batch_size)...]:  (sample_size,)
+        x_encoded = stackEncoded(x_batchseq, sample_size)
+        # 2D Array to batch sequences (all zeros)
+        # 2D Array (output_size, batch_size) ->
+        # Array of Array [(output_size, batch_size)...]:  (output_size,)
+		# x_decoded = stackDecoded(xd, output_size)
 
-        ŷ_RNN
+        # broadcast : train columns. Each column (single batch) have been trained independently
+        # drop _encoded, only need state from encoder
+        _encoded = state.encoder.(x_encoded)
+
+        # copy state from encoder to decoder
+        state.decoder.state = state.encoder.state
+
+        #_decoded = state.decoder.(x_decoded)
+        # precomputed decoded input
+        _decoded = state.decoder.(xd)
+		y_decoded = state.decoder.state[2]
+
+        # each seq element represzents hidden state at each time stamp
+		# what I want
+		# In: hidCNN x window_size x batch_size
+		# 1: [hidCNN x batch_size_size] x window_size (stackEncoded & encoder)
+		# 2: [hidRNN x batch_size_size] x window_size (stackDecoded & decoder)
+		# 3: num_output x batch_size (Dense)
+		# Out: num_output x batch_size
+        state.DNNmodel(y_decoded)
     end
-
     loss(x, y) = Flux.mse(model(x), y)
     accuracy(data) = evaluation(data, model, statval, :RMSE)
 
     opt = Flux.ADAM()
     
+    @info "hidCNN       in PM25: ", hidCNN
     @info "hidRNN       in PM25: ", hidRNN
-    @info "ModelCNN     in PM25: ", modelCNN
-    @info "ModelGRU     in PM25: ", modelGRU
-    @info "ModelDNN     in PM25: ", modelDNN
+    @info "ModelCNN     in PM25: ", state.CNNmodel
+    @info "Encoder(RNN) in PM25: ", state.encoder
+    @info "Decoder(RNN) in PM25: ", state.decoder
+    @info "ModelDNN     in PM25: ", state.DNNmodel
     model, state, loss, accuracy, opt
 end
