@@ -1,9 +1,10 @@
-evaluations(dataset, model, statvals::AbstractNDSparse,
-    metrics::Array{String}) =
-    evaluations(dataset, model, statvals::AbstractNDSparse, Symbol.(metrics))
 """
     evaluations(dataset, model, statvals, metrics)
 """
+evaluations(dataset, model, statvals::AbstractNDSparse,
+    metrics::Array{String}) =
+    evaluations(dataset, model, statvals, Symbol.(metrics))
+
 function evaluations(dataset, model, statvals::AbstractNDSparse, metrics::Union{Array{Symbol}, Array{Function}})
     metric_vals = map(metrics) do metric
         evaluation(dataset, model, statvals, metric)
