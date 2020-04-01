@@ -33,7 +33,7 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     # construct compile function symbol
     compile = eval(Symbol(:compile, "_", ycol, "_LSTNet"))
     model, state, loss, accuracy, opt = 
-        compile((length(features), kernel_length), batch_size, output_size, statval)
+        compile((length(features), kernel_length), sample_size, output_size, statval)
 
     # |> gpu doesn't work to *_set directly
     # construct minibatch for train_set
@@ -238,7 +238,6 @@ function stackDecoded(_x::AbstractArray{R, 2}, _size::Integer) where R <: Real
     # => [[num_output x batch_size]...] length is _size
     _x_3d = zeros(eltype(_x), size(_x, 1), size(_x)...)
     buf = Zygote.Buffer([_x_3d[:, 1, :]], _size)
-
     for i = 1:_size
         buf[i] = _x_3d[:, i, :]
     end
@@ -313,11 +312,11 @@ function compile_PM10_LSTNet(
     function model(xe, xd)
         # CNN to extract local features
         # size(x_cnn) == (1, sample_size, hidCNN, batch_size)
-        x_CNN = state.CNNmodel(xe)
+        x_whcn = state.CNNmodel(xe)
 
         # 4D (WHCN) (1, sample_size, hidCNN, batch_size) -> 
         # 3D Array (hidCNN, sample_size, batch_size)
-        x_chn = whcn2cnh(x_CNN)
+        x_cnh = whcn2cnh(x_whcn)
 
         # RNN
         Flux.reset!(state.encoder)
@@ -326,7 +325,7 @@ function compile_PM10_LSTNet(
         # CNH array to batch sequences
         # 3D Array (hidCNN, sample_size, batch_size) ->
         # Array of Array [(hidCNN, batch_size)...]:  (sample_size,)
-        x_encoded = stackEncoded(x_chn, sample_size)
+        x_encoded = stackEncoded(x_cnh, sample_size)
 
         # 2D Array to batch sequences (all zeros)
         # 2D Array (output_size, batch_size) ->
@@ -429,7 +428,7 @@ function compile_PM25_LSTNet(
 
         # 4D (WHCN) (1, sample_size, hidCNN, batch_size) -> 
         # 3D Array (hidCNN, sample_size, batch_size)
-        x_chn = whcn2cnh(x_CNN)
+        x_cnh = whcn2cnh(x_CNN)
 
         # RNN
         Flux.reset!(state.encoder)
@@ -438,7 +437,7 @@ function compile_PM25_LSTNet(
         # CNH array to batch sequences
         # 3D Array (hidCNN, sample_size, batch_size) ->
         # Array of Array [(hidCNN, batch_size)...]:  (sample_size,)
-        x_encoded = stackEncoded(x_chn, sample_size)
+        x_encoded = stackEncoded(x_cnh, sample_size)
 
         # 2D Array to batch sequences (all zeros)
         # 2D Array (output_size, batch_size) ->
