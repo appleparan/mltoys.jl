@@ -42,7 +42,7 @@ function run_model()
     │ 5   │ 111123      │ 2015-01-01T05:00:00+09:00 │ 37.572   │ 127.005   │ 0.005   │ 0.2     │ 0.019   │ 0.006   │ 127.0   │ 5.0     │ -9.1    │ 5.35625 │ 1.94951 │ 1011.8  │ missing  │ missing  │
     =#
     total_fdate, total_tdate = get_date_range(df)
-    train_fdate = ZonedDateTime(2012, 1, 1, 1, tz"Asia/Seoul")
+    train_fdate = ZonedDateTime(2015, 1, 1, 1, tz"Asia/Seoul")
     train_tdate = ZonedDateTime(2017, 12, 31, 23, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 1, 1, 0, tz"Asia/Seoul")
     test_tdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
@@ -50,7 +50,7 @@ function run_model()
     # stations (LSTNet lmit 1 station)
     train_stn_names = [:종로구, :광진구, :강서구, :강남구]
     #train_stn_names = [:종로구, :강서구]
-    #train_stn_names = [:종로구]
+    train_stn_names = [:종로구]
 
     # test set is Jongro only
     test_stn_names = [:종로구]
@@ -83,10 +83,13 @@ function run_model()
         df[!, nfea] = _eltype.(df[!, nfea])
     end
 
-    sample_size = 48
+    sample_size = 50
     output_size = 24
     epoch_size = 300
-    batch_size = 32
+    batch_size = 64
+
+    # assert this due to decoder input
+    @assert sample_size > output_size * 2
 
     # windowed dataframe for train/valid (input + output)
     train_valid_wd = []
