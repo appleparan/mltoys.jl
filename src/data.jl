@@ -495,8 +495,15 @@ function make_pair_LSTNet(df::DataFrame,
     X_enc[:, (pad_sample_size + 1):end, 1, 1] = transpose(_X)
     Y[:, 1] = _Y
 
+    # feed decoder output
+    # Ref : Yujin Tang, et. al, Sequence-to-Sequence Model with Attention for Time Series Classification
     for i in 1:output_size
-        X_dec[i] = zeros(_eltype, output_size, 1)
+        # first row is zero, but from second row, it feeds output from previous time step
+        # this makes to assert sample_size >= output_size
+        _Y = _eltype.(getY(df, (i + 1):(i + output_size - 1), ycol))
+        _X_dec = zeros(_eltype, output_size, 1)
+        _X_dec[2:output_size] = _Y
+        X_dec[i] = _X_dec
     end
 
     X_enc = X_enc |> gpu
@@ -529,6 +536,7 @@ function make_batch_LSTNet(dfs::Array{DataFrame, 1},
     X_dec = similar([_x], output_size)
     Y = zeros(_eltype, output_size, batch_size)
 
+    # feed decoder output
     # zero padding on input matrix
     for (i, df) in enumerate(dfs)
         # get X (2D)
@@ -543,8 +551,17 @@ function make_batch_LSTNet(dfs::Array{DataFrame, 1},
         Y[:, i] = _Y
     end
 
+    # Ref : Yujin Tang, et. al, Sequence-to-Sequence Model with Attention for Time Series Classification
     for i in 1:output_size
-        X_dec[i] = zeros(_eltype, output_size, batch_size)
+        _X_dec = zeros(_eltype, output_size, batch_size)
+        for (j, df) in enumerate(dfs)
+            # first row is zero, but from second row, it feeds output from previous time step
+            # this makes to assert sample_size >= output_size
+            _Y = _eltype.(getY(df, (i + 1):(i + output_size - 1), ycol))
+
+            _X_dec[2:output_size, j] = _Y
+        end
+        X_dec[i] = _X_dec
     end
 
     X_enc = X_enc |> gpu
