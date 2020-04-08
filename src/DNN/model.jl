@@ -150,7 +150,7 @@ function train_DNN!(model::C,
 
         # record evaluation
         rmse, mae, mspe, mape =
-            evaluations(valid_set, model, statval,
+            evaluations1(valid_set, model, statval,
             [:RMSE, :MAE, :MSPE, :MAPE])
         push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape])
 
@@ -243,7 +243,7 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     #loss(x, y) = sum(exp.(y .* 0.000001)) * Flux.mse(model(x), y)
     #loss(x, y) = maximum(10.0.^(y .* 0.0001)) * Flux.mse(model(x), y)
 
-    accuracy(data) = evaluation(data, model, statval, :RMSE)
+    accuracy(data) = evaluation1(data, model, statval, :RMSE)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
@@ -287,7 +287,7 @@ function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size:
     #loss(x, y) = sum(exp.(y .* 0.000001)) * Flux.mse(model(x), y)
     #loss(x, y) = maximum(10.0.^(y .* 0.0001)) * Flux.mse(model(x), y)
 
-    accuracy(data) = evaluation(data, model, statval, :RMSE)
+    accuracy(data) = evaluation1(data, model, statval, :RMSE)
     opt = Flux.ADAM()
 
     model, loss, accuracy, opt
