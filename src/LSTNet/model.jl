@@ -347,8 +347,8 @@ function compile_PM10_LSTNet(
         # each seq element represzents hidden state at each time stamp
 		# what I want
 		# In: hidCNN x window_size x batch_size
-		# 1: [hidCNN x batch_size_size] x window_size (stackEncoded & encoder)
-		# 2: [hidRNN x batch_size_size] x window_size (stackDecoded & decoder)
+		# 1: [hidCNN x batch_size] x window_size (stackEncoded & encoder)
+		# 2: [hidRNN x batch_size] x window_size (stackDecoded & decoder)
 		# 3: num_output x batch_size (Dense)
 		# Out: num_output x batch_size
         state.DNNmodel(y_decoded)
