@@ -10,6 +10,7 @@ using TimeSeries
 using HypothesisTests
 using Mise
 using Impute
+using CurveFit
 using StatsPlots
 
 function run_analysis()
@@ -348,10 +349,34 @@ function run_analysis()
                 "$(string(ycol))_$(string(name))_mt$(max_time)_acf_dres1")
             acf_df = DataFrame(time = collect(0:max_time), corr = acf_yres2)
             CSV.write("/mnt/analysis/$(string(ycol))/$(string(ycol))_$(string(name))_mt$(max_time)_acf_yres2.csv", acf_df)
-            @info "Integral Time Scale for Annual Residual..", compute_inttscale(0:max_time, acf_yres2)
+            intT = compute_inttscale(0:max_time, acf_yres2)
+            @info "Integral Time Scale for Annual Residual..", intT
+            # not to log negative value when fitting
+            positiveIntT = max(1, Int(round(intT)) - 1)
+            fit = exp_fit(acf_df[1:positiveIntT, :time], acf_df[1:positiveIntT, :corr])
+            @info "Coef a and b in a * exp(b * x) for Annual Residual.. to 0:$(positiveIntT)", fit[1], fit[2]
+
+            fit = exp_fit(acf_df[1:positiveIntT, :time], acf_df[1:positiveIntT, :corr])
+            fit_x = acf_df[1:positiveIntT, :time]
+            fit_y = fit[1] .* exp.(fit_x .* fit[2])
+            intT = compute_inttscale(fit_x, fit_y)
+            @info "Integral Time Scale for Fitted Annual Residual..", intT
+            @info "Coef a and b in a * exp(b * x / T) for Fitted Annual Residual.. to 0:$(positiveIntT)", fit[1], fit[2] / intT
+
             acf_df = DataFrame(time = collect(0:max_time), corr = acf_dres1)
             CSV.write("/mnt/analysis/$(string(ycol))/$(string(ycol))_$(string(name))_mt$(max_time)_acf_dres1.csv", acf_df)
-            @info "Integral Time Scale for Daily Residual..", compute_inttscale(0:max_time, acf_dres1)
+            intT = compute_inttscale(0:max_time, acf_dres1)
+            @info "Integral Time Scale for Daily Residual..", intT
+            positiveIntT = max(1, Int(round(intT)) - 1)
+            fit = exp_fit(acf_df[1:positiveIntT, :time], acf_df[1:positiveIntT, :corr])
+            @info "Coef a and b in a * exp(b * T) for Daily Residual.. to 0:$(positiveIntT)", fit[1], fit[2]
+
+            fit = exp_fit(acf_df[1:positiveIntT, :time], acf_df[1:positiveIntT, :corr])
+            fit_x = acf_df[1:positiveIntT, :time]
+            fit_y = fit[1] .* exp.(fit_x .* fit[2])
+            intT = compute_inttscale(fit_x, fit_y)
+            @info "Integral Time Scale for Fitted Daily Residual..", intT
+            @info "Coef a and b in a * exp(b * x / T) for Fitted Daily Residual.. to 0:$(positiveIntT)", fit[1], fit[2] / intT
 
             max_time = 365*24
             acf_yres2_long = StatsBase.autocor(lee_year_res2, 0:max_time)
@@ -366,9 +391,11 @@ function run_analysis()
                 "$(string(ycol))_$(string(name))_mt$(max_time)_acf_dres1_long")
             acf_df = DataFrame(time = collect(0:max_time), corr = acf_yres2_long)
             CSV.write("/mnt/analysis/$(string(ycol))/$(string(ycol))_$(string(name))_mt$(max_time)_acf_yres2.csv", acf_df)
-            @info "Integral Time Scale for Annual Residual..", compute_inttscale(0:max_time, acf_yres2_long)
+            intT = compute_inttscale(0:max_time, acf_yres2_long)
+            @info "Integral Time Scale for Annual Residual..", intT
             acf_df = DataFrame(time = collect(0:max_time), corr = acf_dres1_long)
             CSV.write("/mnt/analysis/$(string(ycol))/$(string(ycol))_$(string(name))_mt$(max_time)_acf_dres1.csv", acf_df)
+            intT = compute_inttscale(0:max_time, acf_dres1_long)
             @info "Integral Time Scale for Daily Residual..", compute_inttscale(0:max_time, acf_dres1_long)
 
             # decompose seasonal components
