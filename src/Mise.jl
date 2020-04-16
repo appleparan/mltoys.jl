@@ -12,18 +12,24 @@ using Statistics
 using NumericalIntegration
 using Dierckx
 
+# Statistic Tools
+
 # Statistics
-#using Distributions
 using StatsBase: mean, std, mean_and_std, zscore, crosscor
 import StatsBase: zscore!
 using StatsBase
+using Distributions
 using KernelDensity
+using CurveFit
 
 # Statistical Models
 using TimeSeries
 using HypothesisTests
 using Loess
 using StateSpaceModels
+
+# DiffEq
+using DifferentialEquations
 
 # ML
 using Flux
@@ -83,10 +89,13 @@ include("analysis/plot_analysis.jl")
 include("ARIMA/ARIMA.jl")
 include("ARIMA/plot_ARIMA.jl")
 include("OU/model.jl")
+include("OU_season/model.jl")
 
 # Machine Learning
 include("DNN/preprocess.jl")
 include("DNN/model.jl")
+#include("DNN-season/preprocess.jl")
+#include("DNN-season/model.jl")
 include("LSTNet/model.jl")
 
 include("postprocess/post_DNN.jl")
@@ -136,7 +145,7 @@ export join_data, filter_raw_data, filter_station, filter_jongro, read_jongro,
 # LSTNet
     train_LSTNet,
 # OU
-    evolve_OU,
+    evolve_OU, evolve_OU_season,
 # post processing
     compute_corr, test_features, test_station, test_classification,
 # output

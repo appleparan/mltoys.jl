@@ -231,6 +231,11 @@ function predict_RNN_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Sym
     rnn_table
 end
 
+"""
+    export_CSV
+
+Basic NDSparse
+"""
 function export_CSV(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1},
     ycol::Symbol, output_size::Integer, output_dir::String, output_prefix::String)
 
@@ -258,7 +263,12 @@ function export_CSV(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1}
     dfs
 end
 
-function export_CSV(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1}, season_table::AbstractNDSparse,
+"""
+    export_CSV
+
+with seasonality decomposition
+"""
+function export_CSV(dates::Array{DateTime, 1}, table::AbstractNDSparse, season_table::AbstractNDSparse,
     ycol::Symbol, output_size::Integer, output_dir::String, output_prefix::String)
 
     dfs = Array{DataFrame}(undef, output_size)
@@ -269,8 +279,8 @@ function export_CSV(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1}
         plottable_path::String = output_dir * "$(i_pad)/" * "$(output_prefix)_plottable_$(i_pad)h.csv"
 
         dates_h = dates .+ Dates.Hour(i)
-        y = JuliaDB.select(dnn_table[i], :y)
-        ŷ = JuliaDB.select(dnn_table[i], :ŷ)
+        y = JuliaDB.select(table[i], :y)
+        ŷ = compose_seasonality(dates_h, JuliaDB.select(table[i], :ŷ), season_table)
 
         len_data = min(length(dates), length(y), length(ŷ))
 
@@ -285,31 +295,30 @@ function export_CSV(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1}
     dfs
 end
 
-function export_CSV(dates::Array{DateTime, 1}, y::Array{Float64, 1}, ŷ::Array{Float64, 1},
-    season_table::AbstractNDSparse,
+"""
+    export_CSV
+
+new DataFrame
+"""
+function export_CSV(dates::Array{DateTime, 1}, df::DataFrame, season_table::AbstractNDSparse,
     ycol::Symbol, output_size::Integer, output_dir::String, output_prefix::String)
 
-    dfs = Array{DataFrame}(undef, output_size)
+    offset_dfs = Array{DataFrame}(undef, output_size)
 
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
+        Base.Filesystem.mkpath(output_dir * "$(i_pad)/")
         plottable_path::String = output_dir * "$(i_pad)/" * "$(output_prefix)_plottable_$(i_pad)h.csv"
 
         dates_h = dates .+ Dates.Hour(i)
-        y = JuliaDB.select(dnn_table[i], :y)
-        ŷ = compose_seasonality(dates_h, JuliaDB.select(dnn_table[i], :ŷ), season_table)
+        offset_df = filter(row -> row[:offset] == i, df)
 
-        len_data = min(length(dates), length(y), length(ŷ))
+        offset_dfs[i] = offset_df
 
-        df = DataFrame(
-            date = dates_h[1:len_data], y = y[1:len_data], yhat = ŷ[1:len_data])
-
-        dfs[i] = df
-
-        CSV.write(plottable_path, df)
+        CSV.write(plottable_path, offset_df)
     end
 
-    dfs
+    offset_dfs
 end
 
 function compute_corr(dnn_table::Array{IndexedTable, 1},
