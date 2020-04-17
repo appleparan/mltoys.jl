@@ -30,8 +30,8 @@ function evolve_OU_season(test_set, ycol::Symbol, scaled_ycol::Symbol,
     intT = compute_inttscale(fit_x, fit_y)
 
     # ycol's mean / std
-    μ_ycol = μσs[String(ycol), "μ"].value
-    σ_ycol = μσs[String(ycol), "σ"].value
+    μ_ycol = μσs[String(ycol) * "_res", "μ"].value
+    σ_ycol = μσs[String(ycol) * "_res", "σ"].value
 
     # Time scale
     # T(hour), dt = 1
