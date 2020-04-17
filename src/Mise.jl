@@ -114,7 +114,7 @@ export join_data, filter_raw_data, filter_station, filter_jongro, read_jongro,
     remove_sparse_input!, is_sparse_Y,
     getX, getY, make_pair_DNN, make_pair_date_DNN, make_batch_DNN,
     serializeBatch, whcn2cnh, matrix2arrays,
-    make_pair_LSTNet, make_batch_LSTNet,
+    make_pair_RNN, make_pair_date_RNN, make_batch_RNN, make_batch_date_RNN,
     zero2Missing!,
     padded_push!, construct_annual_table, compose_seasonality,
 # activation
@@ -141,8 +141,8 @@ export join_data, filter_raw_data, filter_station, filter_jongro, read_jongro,
     train_DNN, train_season_DNN, corr_input,
 # preprocess
     load_data_DNN, filter_station_DNN, process_raw_data_DNN!, read_station,
-# LSTNet
-    train_LSTNet,
+# RNN
+    train_RNN, train_season_RNN,
 # OU
     evolve_OU, evolve_OU_season,
 # post processing
@@ -163,5 +163,6 @@ export join_data, filter_raw_data, filter_station, filter_jongro, read_jongro,
     plot_corr,
     plot_DNN_scatter,
     plot_DNN_histogram,
-    plot_DNN_lineplot
+    plot_DNN_lineplot,
+    plot_RNN_lineplot
 end

@@ -100,16 +100,19 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     elseif scaling_method == :logzscore
         log_μ = statvals[string(:log_, ycol), "μ"].value
         log_σ = statvals[string(:log_, ycol), "σ"].value
+        # TODO: DNN prediction for batch test set
         dnn_df = predict_DNN_model_logzscore(test_set, model, ycol,
             log_μ, log_σ, _eltype, output_size, "/$(output_prefix)/")
     elseif scaling_method == :invzscore
         inv_μ = statvals[string(:inv_, ycol), "μ"].value
         inv_σ = statvals[string(:inv_, ycol), "σ"].value
+        # TODO: DNN prediction for batch test set
         dnn_df = predict_DNN_model_invzscore(test_set, model, ycol,
             inv_μ, inv_σ, _eltype, output_size, "/$(output_prefix)/")
     elseif scaling_method == :logminmax
         log_max = statvals[string(:log_, ycol), "maximum"].value
         log_min = statvals[string(:log_, ycol), "minimum"].value
+        # TODO: DNN prediction for batch test set
         dnn_df = predict_DNN_model_logminmax(test_set, model, ycol,
             log_min, log_max, 0.0, 10.0, _eltype, output_size, "/$(output_prefix)/")
     end

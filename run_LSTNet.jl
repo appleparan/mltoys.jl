@@ -29,7 +29,7 @@ function run_model()
 
     # NamedTuple (::Symbol -> ::DataFrame)
     df = load_data_DNN("/input/jongro_seoul.csv", seoul_stations)
-    
+
     #=
     first(df, 5)
     │ Row │ stationCode │ date                      │ lat      │ long      │ SO2     │ CO      │ O3      │ NO2     │ PM10    │ PM25    │ temp    │ u       │ v       │ pres    │ prep     │ snow     │
@@ -42,7 +42,7 @@ function run_model()
     │ 5   │ 111123      │ 2015-01-01T05:00:00+09:00 │ 37.572   │ 127.005   │ 0.005   │ 0.2     │ 0.019   │ 0.006   │ 127.0   │ 5.0     │ -9.1    │ 5.35625 │ 1.94951 │ 1011.8  │ missing  │ missing  │
     =#
     total_fdate, total_tdate = get_date_range(df)
-    train_fdate = ZonedDateTime(2015, 1, 1, 1, tz"Asia/Seoul")
+    train_fdate = ZonedDateTime(2016, 1, 1, 1, tz"Asia/Seoul")
     train_tdate = ZonedDateTime(2017, 12, 31, 23, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 1, 1, 0, tz"Asia/Seoul")
     test_tdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
@@ -50,47 +50,130 @@ function run_model()
     # stations (LSTNet lmit 1 station)
     train_stn_names = [:종로구, :광진구, :강서구, :강남구]
     #train_stn_names = [:종로구, :강서구]
-    train_stn_names = [:종로구]
+    #train_stn_names = [:종로구]
 
     # test set is Jongro only
     test_stn_names = [:종로구]
-    
+
     df = filter_raw_data(df, train_fdate, train_tdate, test_fdate, test_tdate)
     @show first(df, 10)
 
     features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
+    # If you want exclude some features, modify train_features
+    # exclude :PM10, :PM25 temporarily for log transform
+    train_features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
+    target_features = [:PM10, :PM25]
 
     # For GPU
     _eltype::DataType = Float32
-
-    norm_prefix = "norm_"
-    norm_features = [Symbol(eval(norm_prefix * String(f))) for f in features]
-
-    # I want exclude some features, modify train_features
-    train_features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
-    norm_train_features = [Symbol(eval(norm_prefix * String(f))) for f in train_features]
-
-    statvals = extract_col_statvals(df, train_features)
-    zscore!(df, features, norm_features)
-    #minmax_scaling!(df, train_features, norm_train_features, 0.0, 10.0)
-
-    # convert Float types
-    for fea in features
-        df[!, fea] = _eltype.(df[!, fea])
-    end
-
-    for nfea in norm_features
-        df[!, nfea] = _eltype.(df[!, nfea])
-    end
+    scaling_method = :zscore
 
     sample_size = 50
     output_size = 24
     epoch_size = 300
     batch_size = 64
+    input_size = sample_size
 
     # assert this due to decoder input
     @assert sample_size > output_size * 2
+    #===== end of parameter zone =====#
 
+    log_prefix = "log_"
+    inv_prefix = "inv_"
+    scaled_prefix = "scaled_"
+    scaled_features = [Symbol(scaled_prefix, f) for f in features]
+    scaled_train_features = [Symbol(scaled_prefix, f) for f in train_features]
+    scaled_target_features = [Symbol(scaled_prefix, f) for f in target_features]
+
+    # 2. Scaling
+    if scaling_method == :zscore
+        # scaling except :PM10, :PM25
+        zscore!(df, train_features, scaled_train_features)
+
+        statvals = extract_col_statvals(df, train_features)
+    elseif scaling_method == :minmax
+        minmax_scaling!(df, train_features, scaled_train_features, 0.0, 10.0)
+
+        statvals = extract_col_statvals(df, train_features)
+    elseif scaling_method == :logzscore
+        # zscore except targets
+        _train_features = setdiff(train_features, target_features)
+        _scaled_train_features = setdiff(scaled_train_features, scaled_target_features)
+        zscore!(df, _train_features, _scaled_train_features)
+
+        # Log transform :PM10, :PM25
+        # add 10.0 not to log zero values
+        # Y = zscore(log(X + 10))
+        log_target_features = [Symbol(log_prefix, f) for f in target_features]
+        for (target, log_target) in zip(target_features, log_target_features)
+            df[!, log_target] = log.(df[!, target] .+ 10.0)
+        end
+
+        zscore!(df, log_target_features, scaled_target_features)
+
+        statvals = extract_col_statvals(df, vcat(train_features, log_target_features))
+    elseif scaling_method == :invzscore
+        # zscore except targets
+        _train_features = setdiff(train_features, target_features)
+        _scaled_train_features = setdiff(scaled_train_features, scaled_target_features)
+        zscore!(df, _train_features, _scaled_train_features)
+
+        # Inverse transform :PM10, :PM25
+        # add 10.0 not to divide zero value
+        # Y = zscore(1.0 / (X + 10))
+        inv_target_features = [Symbol(inv_prefix, f) for f in target_features]
+        for (target, inv_target) in zip(target_features, inv_target_features)
+            df[!, inv_target] = 1.0 ./ (df[!, target] .+ 10.0)
+        end
+
+        zscore!(df, inv_target_features, scaled_target_features)
+
+        statvals = extract_col_statvals(df, vcat(train_features, inv_target_features))
+    elseif scaling_method == :logminmax
+        # minmax except targets
+        _train_features = setdiff(train_features, target_features)
+        _scaled_train_features = setdiff(scaled_train_features, scaled_target_features)
+        minmax_scaling!(df, _train_features, _scaled_train_features, 0.0, 10.0)
+
+        # Log transform :PM10, :PM25
+        # add 10.0 not to log zero values
+        log_target_features = [Symbol(log_prefix, f) for f in target_features]
+        for (target, log_target) in zip(target_features, log_target_features)
+            df[!, log_target] = log.(df[!, target] .+ 10.0)
+        end
+
+        # then minmax
+        minmax_scaling!(df, log_target_features, scaled_target_features, 0.0, 10.0)
+
+        statvals = extract_col_statvals(df, vcat(train_features, log_target_features))
+    end
+
+    @show first(df, 5)
+    # convert Float types
+    for feature in features
+        df[!, feature] = _eltype.(df[!, feature])
+    end
+
+    # plot histogram regardless to station
+    for target in target_features
+        plot_histogram(df, target, "/mnt/")
+        plot_histogram(df, Symbol(:scaled_, target), "/mnt/")
+
+        if scaling_method == :logzscore || scaling_method == :logminmax
+            plot_histogram(df, Symbol(:log_, target), "/mnt/")
+        end
+
+        if scaling_method == :invzscore
+            plot_histogram(df, Symbol(:inv_, target), "/mnt/")
+        end
+    end
+
+    # line plot of first train station
+    plot_lineplot_total(filter_station(df, seoul_stations[train_stn_names[1]]), :PM10, "/mnt/")
+    plot_lineplot_total(filter_station(df, seoul_stations[train_stn_names[1]]), :PM25, "/mnt/")
+    #plot_pcorr(df, scaled_features, features, "/mnt/")
+
+    # 3. Construct Dataset
     # windowed dataframe for train/valid (input + output)
     train_valid_wd = []
     test_wd = []
@@ -103,7 +186,7 @@ function run_model()
             window_df(stn_df, sample_size, output_size, train_fdate, train_tdate))
     end
 
-    # Flatten 
+    # Flatten
     train_valid_wd = collect(Base.Iterators.flatten(train_valid_wd))
 
     # random permutation train_valid_wd itself for splitting train/valid set
@@ -117,7 +200,7 @@ function run_model()
     train_wd = train_valid_wd[1:train_size]
     valid_wd = train_valid_wd[(train_size + 1):end]
 
-    # windows dataframe for test (only for 종로구)    
+    # windows dataframe for test (only for 종로구)
     for name in test_stn_names
         code = seoul_stations[name]
         stn_df = filter_station_DNN(df, code)
@@ -125,42 +208,54 @@ function run_model()
         push!(test_wd,
             window_df(stn_df, sample_size, output_size, test_fdate, test_tdate))
     end
-    # Flatten 
+    # Flatten
     test_wd = collect(Base.Iterators.flatten(test_wd))
+    # for batch
+    Random.shuffle!(rng, test_wd)
     test_size = length(test_wd)
 
     # simply collect dates, determine exact date for prediction (for 1h, 24h, and so on) later
     test_dates = collect(test_fdate + Hour(sample_size - 1):Hour(1):test_tdate - Hour(output_size))
 
-    # kernel_length  hours for extract locality 
-    kernel_length = 3
-    @info "PM10 Training..."
-    flush(stdout); flush(stderr)
-    
-    @info "training feature : " train_features
-    @info "sizes (sample, output, kernel, epoch, batch) : ",
-        sample_size, output_size, kernel_length, epoch_size, batch_size
+    for target in target_features
+        @info "$(string(target)) Training..."
+        flush(stdout); flush(stderr)
+        if target == :PM10
+            kernel_length = 3
+        elseif target == :PM25
+            kernel_length = 3
+        end
 
-    # free minibatch after training because of memory usage
-    PM10_model, PM10_statval = train_LSTNet(train_wd, valid_wd, test_wd,
-    :PM10, norm_prefix, train_features,
-    train_size, valid_size, test_size,
-    sample_size, batch_size, kernel_length, output_size, epoch_size, _eltype,
-    statvals, "PM10", test_dates)
+        @info "training feature : " train_features
+        @info "sizes (sample, kernel, output, epoch, batch) : ", sample_size, kernel_length, output_size, epoch_size, batch_size
 
-    # kernel_length  hours for extract locality 
-    kernel_length = 3
-    @info "PM25 Training..."
-    flush(stdout); flush(stderr)
-    
-    @info "training feature : " train_features
-    @info "sizes (sample, output, epoch, batch) : ", sample_size, output_size, epoch_size, batch_size
+        # train residuals
+        target_model, rnn_res_df, target_statval = train_RNN(train_wd, valid_wd, test_wd,
+            target, Symbol(scaled_prefix, target), scaled_train_features, scaling_method,
+            train_size, valid_size, test_size,
+            sample_size, batch_size, kernel_length, output_size, epoch_size, _eltype,
+            test_dates, statvals, "/mnt/", string(target))
 
-    PM25_model, PM25_statval = train_LSTNet(train_wd, valid_wd, test_wd,
-    :PM25, norm_prefix, train_features,
-    train_size, valid_size, test_size,
-    sample_size, batch_size, kernel_length, output_size, epoch_size, _eltype,
-    statvals, "PM25", test_dates)
+        # add seasonality
+        for name in test_stn_names
+            code = seoul_stations[name]
+            stn_df = filter_station_DNN(df, code)
+
+            Base.Filesystem.mkpath("/mnt/$(name)/")
+
+            dfs_out = export_CSV(DateTime.(test_dates, Local), rnn_res_df, target, output_size, "/mnt/$(name)/", String(target))
+            plot_DNN_scatter(dfs_out, target, output_size, "/mnt/$(name)/", String(target))
+            plot_DNN_histogram(dfs_out, target, output_size, "/mnt/$(name)/", String(target))
+
+            #plot_datefmt = @dateformat_str "yyyymmddHH"
+            plot_RNN_lineplot(dfs_out, target, output_size,
+                DateTime(test_fdate, Local), DateTime(test_tdate, Local),
+                "/mnt/",  String(target))
+            df_corr = compute_corr(dfs_out, output_size, "/mnt/$(name)/", String(target))
+
+            plot_corr(df_corr, output_size, "/mnt/$(name)/", String(target))
+        end
+    end
 end
 
 run_model()

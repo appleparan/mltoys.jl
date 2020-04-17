@@ -6,17 +6,15 @@
         statvals, filename, test_dates)
 
 """
-function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1}, test_wd::Array{DataFrame, 1}, 
-    ycol::Symbol, norm_prefix::String, features::Array{Symbol},
+function train_RNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1}, test_wd::Array{DataFrame, 1},
+    ycol::Symbol, scaled_ycol::Symbol, scaled_features::Array{Symbol}, scaling_method::Symbol,
     train_size::Integer, valid_size::Integer, test_size::Integer,
     sample_size::Integer, batch_size::Integer, kernel_length::Integer,
     output_size::Integer, epoch_size::Integer, _eltype::DataType,
-    statvals::AbstractNDSparse, filename::String, test_dates::Array{ZonedDateTime,1}) where I <: Integer
+    test_dates::Array{ZonedDateTime,1},
+    statvals::AbstractNDSparse, output_prefix::String, filename::String) where I <: Integer
 
     @info "LSTNet training starts.."
-
-    norm_ycol = Symbol(norm_prefix, ycol)
-    norm_features = [Symbol(eval(norm_prefix * String(f))) for f in features]
 
     # extract from ndsparse
     total_μ = statvals[String(ycol), "μ"].value
@@ -31,9 +29,9 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
         (value = [total_μ, total_σ, total_max, total_min],))
 
     # construct compile function symbol
-    compile = eval(Symbol(:compile, "_", ycol, "_LSTNet"))
-    model, state, loss, accuracy, opt = 
-        compile((length(features), kernel_length), sample_size, output_size, statval)
+    compile = eval(Symbol(:compile, "_", ycol, "_RNN"))
+    model, state, loss, accuracy, opt =
+        compile((length(scaled_features), kernel_length), sample_size, output_size, statval)
 
     # |> gpu doesn't work to *_set directly
     # construct minibatch for train_set
@@ -42,7 +40,7 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     p = Progress(div(length(train_wd), batch_size) + 1, dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
 
     train_set = [(ProgressMeter.next!(p);
-        make_batch_LSTNet(collect(dfs), norm_ycol, norm_features,
+        make_batch_RNN(collect(dfs), scaled_ycol, scaled_features,
             sample_size, kernel_length, output_size, batch_size, _eltype))
         for dfs in Base.Iterators.partition(train_wd, batch_size)]
 
@@ -50,29 +48,32 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
     @info "    Construct Valid Set..."
     p = Progress(length(valid_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     valid_set = [(ProgressMeter.next!(p);
-        make_batch_LSTNet(collect(dfs), norm_ycol, norm_features,
+        make_batch_RNN(collect(dfs), scaled_ycol, scaled_features,
             sample_size, kernel_length, output_size, batch_size, _eltype))
         for dfs in Base.Iterators.partition(valid_wd, batch_size)]
 
     @info "    Construct Test Set..."
     p = Progress(length(test_wd), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     # batch_size should be 1 except raining
-    
+
     test_set = [(ProgressMeter.next!(p);
-        make_pair_LSTNet(df, norm_ycol, norm_features,
-            sample_size, kernel_length, output_size, _eltype))
-        for df in test_wd]
-    #=
-    test_set = [(ProgressMeter.next!(p);
-        make_batch_LSTNet(collect(dfs), norm_ycol, norm_features,
+        make_batch_date_RNN(collect(dfs), scaled_ycol, scaled_features,
             sample_size, kernel_length, output_size, batch_size, _eltype))
         for dfs in Base.Iterators.partition(test_wd, batch_size)]
+    #=
+    test_set = [(ProgressMeter.next!(p);
+        make_pair_date_RNN(df, scaled_ycol, scaled_features,
+            sample_size, kernel_length, output_size, _eltype))
+        for df in test_wd]
     =#
+    train_set = gpu.(train_set)
+    valid_set = gpu.(valid_set)
+    test_set = gpu.(test_set)
 
     # *_set : normalized
-    df_evals = train_LSTNet!(state, model, train_set, valid_set,
-        loss, accuracy, opt, epoch_size, statval, norm_features, filename)
-    
+    df_evals = train_RNN!(state, model, train_set, valid_set,
+        loss, accuracy, opt, epoch_size, statval, scaled_features, filename)
+
     # TODO : (current) validation with zscore, (future) validation with original value?
     @info "    Test ACC  : ", accuracy(test_set)
     @info "    Valid ACC : ", accuracy(valid_set)
@@ -82,7 +83,7 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
 
     # test set
     for metric in eval_metrics
-        # pure test set is too slow on evaluation, 
+        # pure test set is too slow on evaluation,
         # batched test set is used only in evaluation
         _eval = evaluation2(test_set, model, statval, metric)
         @info " $(string(ycol)) $(string(metric)) for test   : ", _eval
@@ -100,32 +101,52 @@ function train_LSTNet(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 
         Base.Filesystem.mkpath("/mnt/$(i_pad)/")
     end
 
-    # batched set can't be used to create table (predict_model_* )
-    rnn_table = predict_RNN_model_zscore(test_set, model, ycol, total_μ, total_σ, output_size, "/mnt/")
-    dfs_out = export_CSV(DateTime.(test_dates, Local), rnn_table, ycol, output_size, "/mnt/", String(ycol))
-    df_corr = compute_corr(rnn_table, output_size, "/mnt/", String(ycol))
+    # create directory per each time
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        Base.Filesystem.mkpath("/$(output_prefix)/$(i_pad)/")
+    end
 
-    plot_DNN_scatter(rnn_table, ycol, output_size, "/mnt/", String(ycol))
-    plot_DNN_histogram(rnn_table, ycol, output_size, "/mnt/", String(ycol))
-
-    plot_datefmt = @dateformat_str "yyyymmddHH"
-
-    plot_DNN_lineplot(DateTime.(test_dates, Local), rnn_table, ycol, output_size, "/mnt/", String(ycol))
-    plot_corr(df_corr, output_size, "/mnt/", String(ycol))
+    # back to unnormalized for comparison
+    if scaling_method == :zscore
+        rnn_df = predict_RNN_model_zscore(test_set, model, ycol,
+            total_μ, total_σ, _eltype, output_size, "/$(output_prefix)/")
+    elseif scaling_method == :minmax
+        rnn_df = predict_RNN_model_minmax(test_set, model, ycol,
+            total_min, total_max, 0.0, 10.0, _eltype, output_size, "/$(output_prefix)/")
+    elseif scaling_method == :logzscore
+        log_μ = statvals[string(:log_, ycol), "μ"].value
+        log_σ = statvals[string(:log_, ycol), "σ"].value
+        # TODO: RNN prediction (pair & batch)
+        rnn_df = predict_DNN_model_logzscore(test_set, model, ycol,
+            log_μ, log_σ, _eltype, output_size, "/$(output_prefix)/")
+    elseif scaling_method == :invzscore
+        inv_μ = statvals[string(:inv_, ycol), "μ"].value
+        inv_σ = statvals[string(:inv_, ycol), "σ"].value
+        # TODO: RNN prediction (pair & batch)
+        rnn_df = predict_DNN_model_invzscore(test_set, model, ycol,
+            inv_μ, inv_σ, _eltype, output_size, "/$(output_prefix)/")
+    elseif scaling_method == :logminmax
+        log_max = statvals[string(:log_, ycol), "maximum"].value
+        log_min = statvals[string(:log_, ycol), "minimum"].value
+        # TODO: RNN prediction (pair & batch)
+        rnn_df = predict_DNN_model_logminmax(test_set, model, ycol,
+            log_min, log_max, 0.0, 10.0, _eltype, output_size, "/$(output_prefix)/")
+    end
 
     # 3 months plot
     # TODO : how to generalize date range? how to split based on test_dates?
     # 1/4 : because train size is 3 days, result should be start from 1/4
     # 12/29 : same reason 1/4, but this results ends with 12/31 00:00 ~ 12/31 23:00
-    
-    push!(eval_metrics, :learn_rate)
-    plot_evaluation(df_evals, ycol, eval_metrics, "/mnt/")
 
-    model, statval
+    push!(eval_metrics, :learn_rate)
+    plot_evaluation(df_evals, ycol, eval_metrics, "/$(output_prefix)/")
+
+    model, rnn_df, statval
 end
 
-function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
-    epoch_size::Integer, statval::AbstractNDSparse, norm_features::Array{Symbol},
+function train_RNN!(state, model, train_set, valid_set, loss, accuracy, opt,
+    epoch_size::Integer, statval::AbstractNDSparse, scaled_features::Array{Symbol},
     filename::String) where {F <: AbstractFloat, T2 <: Tuple{AbstractArray{F, 2}, AbstractArray{F, 2}},
     T1 <: Tuple{AbstractArray{F, 1}, AbstractArray{F, 1}}}
 
@@ -152,8 +173,8 @@ function train_LSTNet!(state, model, train_set, valid_set, loss, accuracy, opt,
         push!(df_eval, [epoch_idx opt.eta _acc rmse mae mspe mape])
 
         # Calculate accuracy:
-        _acc = cpu.(accuracy(valid_set))
-        _loss = cpu.(loss(train_set[1][1], train_set[1][2], train_set[1][3]))
+        _acc = (accuracy(valid_set)) |> cpu
+        _loss = (loss(train_set[1][1], train_set[1][2], train_set[1][3])) |> cpu
         @info(@sprintf("epoch [%d]: loss[1]: %.8E Valid accuracy: %.8f Time: %s", epoch_idx, _loss, _acc, now()))
         flush(stdout); flush(stderr)
 
@@ -245,7 +266,7 @@ function stackDecoded(_x::AbstractArray{R, 2}, _size::Integer) where R <: Real
 end
 
 """
-    compile_PM10_LSTNetRecurSkip(kernel_size, sample_size, output_size)
+    compile_PM10_RNN(kernel_size, sample_size, output_size)
 
 kernel_size is 2D tuple for CNN kernel
 sample_size and output_size is Integer
@@ -256,7 +277,7 @@ sample_size and output_size is Integer
 # Returns
 * num_output x batch_size
 """
-function compile_PM10_LSTNet(
+function compile_PM10_RNN(
     kernel_size::Tuple{I, I},
     sample_size::I, output_size::I,
     statval::AbstractNDSparse) where I<:Integer
@@ -275,7 +296,7 @@ function compile_PM10_LSTNet(
     # N : batches
 
     # 1. CNN
-    #   extract short-term patterns in the time dimension 
+    #   extract short-term patterns in the time dimension
     #   as well as local dependencies between variables
     #   * Channel : 1 => hidCNN
     #   * Kernel Size : (kernel_length, length(features))
@@ -283,7 +304,7 @@ function compile_PM10_LSTNet(
     #   * Output Size : (sample_size, 1, hidRNN, batch_size)
     modelCNN = Chain(
         Conv(kernel_size, 1 => hidCNN, leakyrelu)) |> gpu
-    
+
     # 2. GRU
     #   * Input shape : (sample_size, 1, hidCNN, batch_size) ->
     #                   [(hidRNN, batch_size),...]
@@ -314,7 +335,7 @@ function compile_PM10_LSTNet(
         # size(x_cnn) == (1, sample_size, hidCNN, batch_size)
         x_whcn = state.CNNmodel(xe)
 
-        # 4D (WHCN) (1, sample_size, hidCNN, batch_size) -> 
+        # 4D (WHCN) (1, sample_size, hidCNN, batch_size) ->
         # 3D Array (hidCNN, sample_size, batch_size)
         x_cnh = whcn2cnh(x_whcn)
 
@@ -368,7 +389,7 @@ function compile_PM10_LSTNet(
     model, state, loss, accuracy, opt
 end
 
-function compile_PM25_LSTNet(
+function compile_PM25_RNN(
     kernel_size::Tuple{I, I},
     sample_size::I, output_size::I,
     statval::AbstractNDSparse) where I<:Integer
@@ -387,7 +408,7 @@ function compile_PM25_LSTNet(
     # N : batches
 
     # 1. CNN
-    #   extract short-term patterns in the time dimension 
+    #   extract short-term patterns in the time dimension
     #   as well as local dependencies between variables
     #   * Channel : 1 => hidCNN
     #   * Kernel Size : (kernel_length, length(features))
@@ -395,7 +416,7 @@ function compile_PM25_LSTNet(
     #   * Output Size : (sample_size, 1, hidRNN, batch_size)
     modelCNN = Chain(
         Conv(kernel_size, 1 => hidCNN, leakyrelu)) |> gpu
-    
+
     # 2. GRU
     #   * Input shape : (sample_size, 1, hidCNN, batch_size) ->
     #                   [(hidRNN, batch_size),...]
@@ -426,7 +447,7 @@ function compile_PM25_LSTNet(
         # size(x_cnn) == (1, sample_size, hidCNN, batch_size)
         x_CNN = state.CNNmodel(xe)
 
-        # 4D (WHCN) (1, sample_size, hidCNN, batch_size) -> 
+        # 4D (WHCN) (1, sample_size, hidCNN, batch_size) ->
         # 3D Array (hidCNN, sample_size, batch_size)
         x_cnh = whcn2cnh(x_CNN)
 
@@ -470,7 +491,7 @@ function compile_PM25_LSTNet(
     accuracy(data) = evaluation2(data, model, statval, :RMSE)
 
     opt = Flux.ADAM()
-    
+
     @info "hidCNN       in PM25: ", hidCNN
     @info "hidRNN       in PM25: ", hidRNN
     @info "ModelCNN     in PM25: ", state.CNNmodel

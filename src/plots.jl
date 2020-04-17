@@ -165,7 +165,7 @@ function plot_DNN_scatter(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
     for i = 1:output_size
         i_pad = lpad(i, 2, '0')
         sc_path = output_dir * "$(i_pad)/" * "$(output_prefix)_scatter_$(i_pad)h.png"
-        lim = max(maximum(JuliaDB.select(dnn_table[i], :y)), 
+        lim = max(maximum(JuliaDB.select(dnn_table[i], :y)),
             maximum(JuliaDB.select(dnn_table[i], :ŷ)))
 
         sc = Plots.scatter(float.(JuliaDB.select(dnn_table[i], :y)), float.(JuliaDB.select(dnn_table[i], :ŷ)),
@@ -177,7 +177,7 @@ function plot_DNN_scatter(dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
             background_color = BG_COLOR, markercolor = MK_COLOR)
 
         # diagonal line (corr = 1)
-        Plots.plot!(collect(0:0.1:lim), collect(0:0.1:lim), 
+        Plots.plot!(collect(0:0.1:lim), collect(0:0.1:lim),
             xlim = (0, lim), ylim = (0, lim), legend=false,
             background_color = BG_COLOR, linecolor = LN_COLOR)
         Plots.png(sc, sc_path)
@@ -211,7 +211,7 @@ function plot_DNN_scatter(dfs::Array{DataFrame, 1}, ycol::Symbol,
             background_color = BG_COLOR, markercolor = MK_COLOR)
 
         # diagonal line (corr = 1)
-        Plots.plot!(collect(0:0.1:lim), collect(0:0.1:lim), 
+        Plots.plot!(collect(0:0.1:lim), collect(0:0.1:lim),
             xlim = (0, lim), ylim = (0, lim), legend=false,
             background_color = BG_COLOR, linecolor = LN_COLOR)
         Plots.png(sc, sc_path)
@@ -288,7 +288,7 @@ end
 """
     plot_DNN_lineplot(dates, dnn_table, ycol, output_size, output_dir, output_prefix)
 
-Plot prediction by dates (full length). 
+Plot prediction by dates (full length).
 """
 function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1}, ycol::Symbol,
     output_size::Integer, output_dir::String, output_prefix::String)
@@ -328,7 +328,7 @@ end
 """
     plot_DNN_lineplot(dates, dnn_table, s_date, f_date, ycol, output_size, output_dir, output_prefix)
 
-Plot prediction by dates (given date range). 
+Plot prediction by dates (given date range).
 """
 function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1},
     s_date::DateTime, f_date::DateTime, ycol::Symbol,
@@ -362,14 +362,14 @@ function plot_DNN_lineplot(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTa
             model = float.(JuliaDB.select(dnn_table[i], :ŷ)))
         CSV.write(line_csvpath, df, writeheader = true)
     end
-    
+
     nothing
 end
 
 """
     plot_DNN_lineplot(dates, dnn_table, ycol, output_size, output_dir, output_prefix)
 
-Plot prediction by dates (full length). 
+Plot prediction by dates (full length).
 """
 function plot_DNN_lineplot(dfs::Array{DataFrame, 1}, ycol::Symbol,
     output_size::Integer, output_dir::String, output_prefix::String)
@@ -381,7 +381,9 @@ function plot_DNN_lineplot(dfs::Array{DataFrame, 1}, ycol::Symbol,
         line_plotpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
         df = dfs[i]
         dates_h = df[!, :date] .+ Dates.Hour(i)
-        
+
+        @show first(df, 5)
+
         pl = Plots.plot(dates_h, float.(df[!, :y]),
             size = (2560, 1080),
             ylim = (0.0,
@@ -392,11 +394,52 @@ function plot_DNN_lineplot(dfs::Array{DataFrame, 1}, ycol::Symbol,
             background_color = BG_COLOR, color=LN01_COLOR,
             title=String(ycol) * " by dates ($(i_pad)h)",
             xlabel="date", ylabel=String(ycol), legend=:best)
-        
+
         pl = Plots.plot!(dates_h, float.(df[!, :yhat]),
             line=:solid, linewidth=5, color=LN02_COLOR, label="DNN")
         Plots.png(pl, line_plotpath)
-        
+
+        line_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.csv"
+        outdf = DataFrame(dates = dates_h, obs = float.(df[!, :y]), model = float.(df[!, :yhat]))
+        CSV.write(line_csvpath, outdf, writeheader = true)
+    end
+
+    nothing
+end
+
+
+"""
+    plot_RNN_lineplot(dates, dnn_table, ycol, test_fdate, test_tdate, output_size, output_dir, output_prefix)
+
+Plot prediction by dates (full length).
+"""
+function plot_RNN_lineplot(dfs::Array{DataFrame, 1}, ycol::Symbol,
+    output_size::Integer, test_fdate::DateTime, test_tdate::DateTime,
+    output_dir::String, output_prefix::String)
+
+    ENV["GKSwstype"] = "100"
+
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        line_plotpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.png"
+        # filter by date because batched input makes `undef` DateTime values and throw Overflow
+        df = filter(row -> test_fdate <= row[:date] <= test_tdate, dfs[i])
+        dates_h = df[!, :date] .+ Dates.Hour(i)
+
+        pl = Plots.plot(dates_h, float.(df[!, :y]),
+            size = (2560, 1080),
+            ylim = (0.0,
+                max(maximum(float.(df[!, :y])), maximum(float.(df[!, :yhat])))),
+            line=:solid, linewidth=5, label="OBS",
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
+            guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+            background_color = BG_COLOR, color=LN01_COLOR,
+            title=String(ycol) * " by dates ($(i_pad)h)",
+            xlabel="date", ylabel=String(ycol), legend=:best)
+
+        pl = Plots.plot!(dates_h, float.(df[!, :yhat]),
+            line=:solid, linewidth=5, color=LN02_COLOR, label="DNN")
+        Plots.png(pl, line_plotpath)
 
         line_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.csv"
         outdf = DataFrame(dates = dates_h, obs = float.(df[!, :y]), model = float.(df[!, :yhat]))

@@ -379,7 +379,7 @@ function make_pair_date_DNN(df::DataFrame,
     _X = _eltype.(getX(df, features, sample_size))
     # get Y (1D)
     _Y = _eltype.(getY(df, ycol, sample_size))
-    _date = df[(sample_size+1):end, :date]
+    _date = DateTime.(df[(sample_size+1):end, :date], Local)
 
     # for validation, sparse check not applied
     # GPU
@@ -459,7 +459,39 @@ function make_batch_DNN(dfs::Array{DataFrame, 1}, ycol::Symbol, features::Array{
         Y[:, i] = _Y
     end
 
-    (X, Y)
+    X, Y
+end
+
+function make_batch_date_DNN(dfs::Array{DataFrame, 1}, ycol::Symbol, features::Array{Symbol, 1},
+    sample_size::I, output_size::I, batch_size::I,
+    missing_ratio::AbstractFloat=0.5, _eltype::DataType=Float32) where I <: Integer
+
+    # check Dataframe array size be `batch_size`
+    @assert length(dfs) <= batch_size
+
+    X = zeros(_eltype, sample_size * length(features), batch_size)
+    Y = zeros(_eltype, output_size, batch_size)
+    _dates = Array{DateTime}(undef, output_size, batch_size)
+
+    # input_pairs Array{Tuple{Array{Int64,1},Array{Int64,1}},1}
+    for (i, df) in enumerate(dfs)
+        # get X (2D)
+        _X = _eltype.(vec(getX(df, features, sample_size)))
+        # get Y (1D)
+        _Y = _eltype.(getY(df, ycol, sample_size))
+        _date = DateTime.(df[(sample_size+1):end, :date], Local)
+
+        # fill zeros if data is too sparse (too many misisngs)
+        # only in training
+        remove_sparse_input!(_X, _Y)
+
+        # make X & Y as column stacked batch
+        X[:, i] = _X
+        Y[:, i] = _Y
+        _dates[:, i] = _date
+    end
+
+    X, Y, _dates
 end
 
 """
@@ -489,14 +521,14 @@ function getY(df::DataFrame, idxs::UnitRange{I}, ycol::Symbol) where I <: Intege
 end
 
 """
-    make_pair_LSTNet(df, ycol, features,
+    make_pair_RNN(df, ycol, features,
     sample_size, kernel_length, output_size,
     _eltype=Float32)
 
 Create batch CNN Input for LSTNet with batch_size == 1
 Used in valid/test set
 """
-function make_pair_LSTNet(df::DataFrame,
+function make_pair_RNN(df::DataFrame,
     ycol::Symbol, features::Array{Symbol, 1},
     sample_size::I, kernel_length::I, output_size::I,
     _eltype::DataType=Float32) where I <: Integer
@@ -540,15 +572,60 @@ function make_pair_LSTNet(df::DataFrame,
     X_enc, X_dec, Y
 end
 
+function make_pair_date_RNN(df::DataFrame,
+    ycol::Symbol, features::Array{Symbol, 1},
+    sample_size::I, kernel_length::I, output_size::I,
+    _eltype::DataType=Float32) where I <: Integer
+
+    # O = (W - K + 2P) / S + 1
+    # W = Input size, O = Output size
+    # K = Kernel size, P = Padding size, S = Stride size
+    pad_sample_size = kernel_length - 1
+    X_enc = zeros(_eltype, length(features), pad_sample_size + sample_size, 1, 1)
+    # decode array (Array of Array, batch sequences)
+    _x = zeros(_eltype, output_size, 1)
+    X_dec = similar([_x], output_size)
+    Y = zeros(_eltype, output_size, 1)
+
+    # get X (2D)
+    _X = _eltype.(getX(df, 1:sample_size, features))
+    # get Y (1D)
+    _Y = _eltype.(getY(df, (sample_size + 1):(sample_size + output_size),
+        ycol))
+    _date = DateTime.(df[(sample_size+1):end, :date], Local)
+
+    # WHCN order, Channel is 1 because this is not an image
+    # left zero padding
+    X_enc[:, (pad_sample_size + 1):end, 1, 1] = transpose(_X)
+    Y[:, 1] = _Y
+
+    # feed decoder output
+    # Ref : Yujin Tang, et. al, Sequence-to-Sequence Model with Attention for Time Series Classification
+    for i in 1:output_size
+        # first row is zero, but from second row, it feeds output from previous time step
+        # this makes to assert sample_size >= output_size
+        _Y = _eltype.(getY(df, (i + 1):(i + output_size - 1), ycol))
+        _X_dec = zeros(_eltype, output_size, 1)
+        _X_dec[2:output_size] = _Y
+        X_dec[i] = _X_dec
+    end
+
+    X_enc = X_enc |> gpu
+    X_dec = X_dec |> gpu
+    Y = Y |> gpu
+
+    X_enc, X_dec, Y, _date
+end
+
 """
-    make_batch_LSTNet(dfs, ycol, features,
+    make_batch_RNN(dfs, ycol, features,
     sample_size, kernel_length, output_size, batch_size,
     _eltype=Float32)
 
 Create batch CNN Input for LSTNet
 Used in train set
 """
-function make_batch_LSTNet(dfs::Array{DataFrame, 1},
+function make_batch_RNN(dfs::Array{DataFrame, 1},
     ycol::Symbol, features::Array{Symbol, 1},
     sample_size::I, kernel_length::I, output_size::I, batch_size::I,
     _eltype::DataType=Float32) where I <: Integer
@@ -596,6 +673,59 @@ function make_batch_LSTNet(dfs::Array{DataFrame, 1},
     Y = Y |> gpu
 
     X_enc, X_dec, Y
+end
+
+function make_batch_date_RNN(dfs::Array{DataFrame, 1},
+    ycol::Symbol, features::Array{Symbol, 1},
+    sample_size::I, kernel_length::I, output_size::I, batch_size::I,
+    _eltype::DataType=Float32) where I <: Integer
+
+    # O = (W - K + 2P) / S + 1
+    # W = Input size, O = Output size
+    # K = Kernel size, P = Padding size, S = Stride size
+    pad_sample_size = kernel_length - 1
+    X_enc = zeros(_eltype, length(features), pad_sample_size + sample_size, 1, batch_size)
+    # decode array (Array of Array, batch sequences)
+    _x = zeros(_eltype, output_size, batch_size)
+    X_dec = similar([_x], output_size)
+    Y = zeros(_eltype, output_size, batch_size)
+    _dates = Array{DateTime}(undef, output_size, batch_size)
+
+    # feed decoder output
+    # zero padding on input matrix
+    for (i, df) in enumerate(dfs)
+        # get X (2D)
+        _X = _eltype.(getX(df, 1:sample_size, features))
+        # get Y (1D)
+        _Y = _eltype.(getY(df, (sample_size + 1):(sample_size + output_size),
+            ycol))
+        _date = DateTime.(df[(sample_size+1):end, :date], Local)
+
+        # WHCN order, Channel is 1 because this is not an image
+        # left zero padding
+        X_enc[:, (pad_sample_size + 1):end, 1, i] = transpose(_X)
+        Y[:, i] = _Y
+        _dates[:, i] = _date
+    end
+
+    # Ref : Yujin Tang, et. al, Sequence-to-Sequence Model with Attention for Time Series Classification
+    for i in 1:output_size
+        _X_dec = zeros(_eltype, output_size, batch_size)
+        for (j, df) in enumerate(dfs)
+            # first row is zero, but from second row, it feeds output from previous time step
+            # this makes to assert sample_size >= output_size
+            _Y = _eltype.(getY(df, (i + 1):(i + output_size - 1), ycol))
+
+            _X_dec[2:output_size, j] = _Y
+        end
+        X_dec[i] = _X_dec
+    end
+
+    X_enc = X_enc |> gpu
+    X_dec = X_dec |> gpu
+    Y = Y |> gpu
+
+    X_enc, X_dec, Y, _dates
 end
 
 """
