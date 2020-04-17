@@ -101,6 +101,14 @@ function run_model()
     scaled_train_features = [Symbol(scaled_prefix, f) for f in train_features]
     scaled_target_features = [Symbol(scaled_prefix, f) for f in target_features]
 
+    # to train residuals
+    train_features_res = copy(train_features)
+    target_features_res = copy(target_features)
+    replace!(train_features_res, :PM10 => :PM10_res, :PM25 => :PM25_res)
+    replace!(target_features_res, :PM10 => :PM10_res, :PM25 => :PM25_res)
+    scaled_train_features_res = [Symbol(scaled_prefix, f) for f in train_features_res]
+    scaled_target_features_res = [Symbol(scaled_prefix, f) for f in target_features_res]
+
     # Preprocessing
     # 0. imputation
     DataFrames.allowmissing!(df, train_features)
@@ -110,16 +118,47 @@ function run_model()
     end
     DataFrames.disallowmissing!(df, train_features)
 
+    season_tables = Dict{Symbol, AbstractNDSparse}()
+    # 1. Decompose seasonality of particulate matter by total station
+    for target in target_features
+        # this assumes seasonality only resctricts to particulate matter, also PM has annual and daily seasonality
+        lee_year_sea1, lee_year_sea2, lee_year_res2, lee_day_sea1, lee_day_res1 =
+            season_adj_lee(df, Symbol(target), train_fdate, train_tdate)
+
+        # append seasonality to df for train_date
+        # smoothed annual seasonality
+        padded_push!(df, lee_year_sea1, Symbol(target, "_year_org"), train_fdate, train_tdate)
+        padded_push!(df, lee_year_sea2, Symbol(target, "_year_fit"), train_fdate, train_tdate)
+        # daily seasonality
+        padded_push!(df, lee_day_sea1, Symbol(target, "_day"), train_fdate, train_tdate)
+        # residual
+        #padded_push!(df, lee_day_res1, Symbol(target, "_res"), train_fdate, train_tdate)
+        res_arr = df[!, target] .- df[!, Symbol(target, "_year_fit")] .- df[!, Symbol(target, "_day")]
+        DataFrames.insertcols!(df, 3, Symbol(target, "_res") => res_arr)
+
+        season_table = construct_annual_table(df, target, DateTime(train_fdate, Local), DateTime(train_tdate, Local))
+        season_tables[target] = season_table
+
+        # add seasonality to df (existing column) for test_date
+        # annual seasonality is a smoothed version
+        padded_push!(df, target,
+            Symbol(target, "_year_fit"),
+            Symbol(target, "_year_org"),
+            Symbol(target, "_day"),
+            Symbol(target, "_res"),
+            season_table, test_fdate, test_tdate)
+    end
+
     # 2. Scaling
     if scaling_method == :zscore
         # scaling except :PM10, :PM25
-        zscore!(df, train_features, scaled_train_features)
+        zscore!(df, train_features_res, scaled_train_features_res)
 
-        statvals = extract_col_statvals(df, train_features)
+        statvals = extract_col_statvals(df, train_features_res)
     elseif scaling_method == :minmax
         minmax_scaling!(df, train_features, scaled_train_features, 0.0, 10.0)
 
-        statvals = extract_col_statvals(df, train_features)
+        statvals = extract_col_statvals(df, train_features_res)
     elseif scaling_method == :logzscore
         # zscore except targets
         _train_features = setdiff(train_features, target_features)
@@ -182,14 +221,14 @@ function run_model()
     # plot histogram regardless to station
     for target in target_features
         plot_histogram(df, target, "/mnt/")
-        plot_histogram(df, Symbol(:scaled_, target), "/mnt/")
+        plot_histogram(df, Symbol(:scaled_, target, "_res"), "/mnt/")
 
         if scaling_method == :logzscore || scaling_method == :logminmax
-            plot_histogram(df, Symbol(:log_, target), "/mnt/")
+            plot_histogram(df, Symbol(:log_, target, "_res"), "/mnt/")
         end
 
         if scaling_method == :invzscore
-            plot_histogram(df, Symbol(:inv_, target), "/mnt/")
+            plot_histogram(df, Symbol(:inv_, target, "_res"), "/mnt/")
         end
     end
 
@@ -249,11 +288,11 @@ function run_model()
         @info "sizes (sample, output, epoch, batch) : ", sample_size, output_size, epoch_size, batch_size
 
         # train residuals
-        target_model, dnn_res_df, target_statval = train_DNN(train_wd, valid_wd, test_wd,
-            target, Symbol(scaled_prefix, target), scaled_train_features, scaling_method,
+        dnn_res_model, dnn_res_df, dnn_res_statval = train_season_DNN(train_wd, valid_wd, test_wd,
+            target, Symbol(scaled_prefix, target, "_res"), scaled_train_features_res, scaling_method,
             train_size, valid_size, test_size,
             sample_size, input_size, batch_size, output_size, epoch_size, _eltype,
-            test_dates, statvals, "/mnt/", string(target))
+            test_dates, statvals, season_tables[target], "/mnt/", string(target))
 
         # add seasonality
         for name in test_stn_names
@@ -262,7 +301,7 @@ function run_model()
 
             Base.Filesystem.mkpath("/mnt/$(name)/")
 
-            dfs_out = export_CSV(DateTime.(test_dates, Local), dnn_res_df, target, output_size, "/mnt/$(name)/", String(target))
+            dfs_out = export_CSV(DateTime.(test_dates, Local), dnn_res_df, season_tables[target], target, output_size, "/mnt/$(name)/", String(target))
             plot_DNN_scatter(dfs_out, target, output_size, "/mnt/$(name)/", String(target))
             plot_DNN_histogram(dfs_out, target, output_size, "/mnt/$(name)/", String(target))
 

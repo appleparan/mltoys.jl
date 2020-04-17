@@ -6,21 +6,22 @@
         statvals, filename, test_dates)
 
 """
-function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1}, test_wd::Array{DataFrame, 1},
+function train_season_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1}, test_wd::Array{DataFrame, 1},
     ycol::Symbol, scaled_ycol::Symbol, scaled_features::Array{Symbol}, scaling_method::Symbol,
     train_size::Integer, valid_size::Integer, test_size::Integer,
     sample_size::Integer, input_size::Integer, batch_size::Integer, output_size::Integer,
     epoch_size::Integer, _eltype::DataType,
     test_dates::Array{ZonedDateTime,1},
-    statvals::AbstractNDSparse, output_prefix::String, filename::String) where I <: Integer
+    statvals::AbstractNDSparse, season_table::AbstractNDSparse,
+    output_prefix::String, filename::String) where I <: Integer
 
     @info "DNN training starts.."
 
     # extract from ndsparse
-    total_μ = statvals[String(ycol), "μ"].value
-    total_σ = statvals[String(ycol), "σ"].value
-    total_max = float(statvals[String(ycol), "maximum"].value)
-    total_min = float(statvals[String(ycol), "minimum"].value)
+    total_μ = statvals[String(ycol) * "_res", "μ"].value
+    total_σ = statvals[String(ycol) * "_res", "σ"].value
+    total_max = float(statvals[String(ycol) * "_res", "maximum"].value)
+    total_min = float(statvals[String(ycol) * "_res", "minimum"].value)
 
     # compute mean and std by each train/valid/test set
     statval = ndsparse((
@@ -29,7 +30,7 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
         (value = [total_μ, total_σ, total_max, total_min],))
 
     # construct compile function symbol
-    compile = eval(Symbol(:compile, "_", ycol, "_DNN"))
+    compile = eval(Symbol(:compile, "_", ycol, "_season_DNN"))
     model, loss, accuracy, opt = compile(input_size, batch_size, output_size, statval)
 
     # modify scaled_features to train residuals
@@ -63,7 +64,7 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     test_set = gpu.(test_set)
 
     # *_set : normalized values
-    df_evals = train_DNN!(model, train_set, valid_set,
+    df_evals = train_season_DNN!(model, train_set, valid_set,
         loss, accuracy, opt, epoch_size, statval, scaled_features, filename)
 
     # TODO : (current) validation with zscore, (future) validation with original value?
@@ -92,17 +93,20 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
 
     # back to unnormalized for comparison
     if scaling_method == :zscore
-        dnn_df = predict_DNN_model_zscore(test_set, model, ycol,
-            total_μ, total_σ, _eltype, output_size, "/$(output_prefix)/")
+        dnn_df = predict_DNN_model_zscore_season(test_set, model, ycol,
+            total_μ, total_σ, season_table, _eltype, output_size, "/$(output_prefix)/")
     elseif scaling_method == :minmax
+        # TODO : compose seasonality
         dnn_df = predict_DNN_model_minmax(test_set, model, ycol,
             total_min, total_max, 0.0, 10.0, _eltype, output_size, "/$(output_prefix)/")
     elseif scaling_method == :logzscore
+        # TODO : compose seasonality
         log_μ = statvals[string(:log_, ycol), "μ"].value
         log_σ = statvals[string(:log_, ycol), "σ"].value
         dnn_df = predict_DNN_model_logzscore(test_set, model, ycol,
             log_μ, log_σ, _eltype, output_size, "/$(output_prefix)/")
     elseif scaling_method == :invzscore
+        # TODO : compose seasonality
         inv_μ = statvals[string(:inv_, ycol), "μ"].value
         inv_σ = statvals[string(:inv_, ycol), "σ"].value
         dnn_df = predict_DNN_model_invzscore(test_set, model, ycol,
@@ -124,7 +128,7 @@ function train_DNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     model, dnn_df, statval
 end
 
-function train_DNN!(model::C,
+function train_season_DNN!(model::C,
     train_set::Array{T2, 1}, valid_set::Array{T2, 1},
     loss, accuracy, opt,
     epoch_size::Integer, statval::AbstractNDSparse, scaled_features::Array{Symbol},
@@ -204,7 +208,7 @@ function train_DNN!(model::C,
     df_eval
 end
 
-function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, statval::AbstractNDSparse)
+function compile_PM10_season_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, statval::AbstractNDSparse)
     @info("    Compiling model...")
 
     unit_size = 16
@@ -248,7 +252,7 @@ function compile_PM10_DNN(input_size::Integer, batch_size::Integer, output_size:
     model, loss, accuracy, opt
 end
 
-function compile_PM25_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, statval::AbstractNDSparse)
+function compile_PM25_season_DNN(input_size::Integer, batch_size::Integer, output_size::Integer, statval::AbstractNDSparse)
     @info("    Compiling model...")
 
     unit_size = 32

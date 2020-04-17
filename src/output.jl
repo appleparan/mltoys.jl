@@ -1,15 +1,10 @@
 function predict_DNN_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
-    μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String) where T <: Tuple
+    μ::AbstractFloat, σ::AbstractFloat,
+    _eltype::DataType, output_size::Integer, output_dir::String) where T <: Tuple
 
-    dnn_table = Array{IndexedTable}(undef, output_size)
-    table_path = Array{String}(undef, output_size)
+    dnn_res_df = DataFrame(date = DateTime[], offset = _eltype[], y = _eltype[], yhat = _eltype[])
 
-    for i = 1:output_size
-        table_path[i] = output_dir * "$(String(ycol))_$(lpad(i,2,'0'))_table.csv"
-        dnn_table[i] = table((y = [], ŷ = [],))
-    end
-
-    for (x, y) in dataset
+    for (x, y, dates) in dataset
         ŷ = model(x |> gpu)
 
         cpu_y = y |> cpu
@@ -21,30 +16,54 @@ function predict_DNN_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Sym
         org_ŷ = unzscore(cpu_ŷ, μ, σ)
 
         for i = 1:output_size
-            # 1 hour 
-            tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
-            dnn_table[i] = merge(dnn_table[i], tmp_table)
+            dnn_res_df_tmp = DataFrame(date = DateTime.(dates, Local), offset = 1:output_size, y = org_y, yhat = org_ŷ)
+            append!(dnn_res_df, dnn_res_df_tmp)
         end
     end
 
-    dnn_table
+    dnn_res_df
+end
+
+function predict_DNN_model_zscore_season(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
+    μ::AbstractFloat, σ::AbstractFloat, season_table::AbstractNDSparse,
+    _eltype::DataType, output_size::Integer, output_dir::String) where T <: Tuple
+
+    dnn_res_df = DataFrame(date = DateTime[], offset = _eltype[], y = _eltype[], yhat = _eltype[])
+
+    for (x, y, dates) in dataset
+        ŷ = model(x |> gpu)
+
+        cpu_y = y |> cpu
+        cpu_ŷ = ŷ |> cpu
+
+        # 24 hour data
+        org_y = compose_seasonality(collect(DateTime.(dates, Local)),
+            unzscore(cpu_y, μ, σ),
+            season_table)
+
+        # 24 hour prediction
+        org_ŷ = compose_seasonality(collect(DateTime.(dates, Local)),
+            unzscore(cpu_ŷ, μ, σ),
+            season_table)
+
+        for i = 1:output_size
+            dnn_res_df_tmp = DataFrame(date = DateTime.(dates, Local), offset = 1:output_size, y = org_y, yhat = org_ŷ)
+            append!(dnn_res_df, dnn_res_df_tmp)
+        end
+    end
+
+    dnn_res_df
 end
 
 function predict_DNN_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     _min::AbstractFloat, _max::AbstractFloat, a::AbstractFloat, b::AbstractFloat,
-    output_size::Integer, output_dir::String) where T <: Tuple
+    _eltype::DataType, output_size::Integer, output_dir::String) where T <: Tuple
 
-    dnn_table = Array{IndexedTable}(undef, output_size)
-    table_path = Array{String}(undef, output_size)
-
-    for i = 1:output_size
-        table_path[i] = output_dir * "$(String(ycol))_$(lpad(i,2,'0'))_table.csv"
-        dnn_table[i] = table((y = [], ŷ = [],))
-    end
+    dnn_res_df = DataFrame(date = DateTime[], offset = _eltype[], y = _eltype[], yhat = _eltype[])
 
     # https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)
     c = ((_max - _min) / (b - a))
-    for (x, y) in dataset
+    for (x, y, dates) in dataset
         ŷ = model(x |> gpu)
 
         cpu_y = y |> cpu
@@ -56,27 +75,21 @@ function predict_DNN_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Sym
         org_ŷ = unminmax_scaling(cpu_ŷ, _min, _max, a, b)
 
         for i = 1:output_size
-            # 1 hour
-            tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
-            dnn_table[i] = merge(dnn_table[i], tmp_table)
+            dnn_res_df_tmp = DataFrame(date = dates, offset = 0:output_size, y = org_y, yhat = org_ŷ)
+            append!(dnn_res_df, dnn_res_df_tmp)
         end
     end
 
-    dnn_table
+    dnn_res_df
 end
 
 function predict_DNN_model_logzscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
-    μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String) where T <: Tuple
+    μ::AbstractFloat, σ::AbstractFloat,
+    _eltype::DataType, output_size::Integer, output_dir::String) where T <: Tuple
 
-    dnn_table = Array{IndexedTable}(undef, output_size)
-    table_path = Array{String}(undef, output_size)
+    dnn_res_df = DataFrame(date = DateTime[], offset = _eltype[], y = _eltype[], yhat = _eltype[])
 
-    for i = 1:output_size
-        table_path[i] = output_dir * "$(String(ycol))_$(lpad(i,2,'0'))_table.csv"
-        dnn_table[i] = table((y = [], ŷ = [],))
-    end
-
-    for (x, y) in dataset
+    for (x, y, dates) in dataset
         ŷ = model(x |> gpu)
 
         cpu_y = y |> cpu
@@ -88,27 +101,21 @@ function predict_DNN_model_logzscore(dataset::AbstractArray{T, 1}, model, ycol::
         org_ŷ = exp.(unzscore(cpu_ŷ, μ, σ)) .- 10.0
 
         for i = 1:output_size
-            # 1 hour 
-            tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
-            dnn_table[i] = merge(dnn_table[i], tmp_table)
+            dnn_res_df_tmp = DataFrame(date = DateTime.(dates, Local), offset = 1:output_size, y = org_y, yhat = org_ŷ)
+            append!(dnn_res_df, dnn_res_df_tmp)
         end
     end
 
-    dnn_table
+    dnn_res_df
 end
 
 function predict_DNN_model_invzscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
-    μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String) where T <: Tuple
+    μ::AbstractFloat, σ::AbstractFloat,
+    _eltype::DataType, output_size::Integer, output_dir::String) where T <: Tuple
 
-    dnn_table = Array{IndexedTable}(undef, output_size)
-    table_path = Array{String}(undef, output_size)
+    dnn_res_df = DataFrame(date = DateTime[], offset = _eltype[], y = _eltype[], yhat = _eltype[])
 
-    for i = 1:output_size
-        table_path[i] = output_dir * "$(String(ycol))_$(lpad(i,2,'0'))_table.csv"
-        dnn_table[i] = table((y = [], ŷ = [],))
-    end
-
-    for (x, y) in dataset
+    for (x, y, dates) in dataset
         ŷ = model(x |> gpu)
 
         cpu_y = y |> cpu
@@ -120,30 +127,23 @@ function predict_DNN_model_invzscore(dataset::AbstractArray{T, 1}, model, ycol::
         org_ŷ = 1.0 ./ (unzscore(cpu_ŷ, μ, σ)) .- 10.0
 
         for i = 1:output_size
-            # 1 hour
-            tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
-            dnn_table[i] = merge(dnn_table[i], tmp_table)
+            dnn_res_df_tmp = DataFrame(date = DateTime.(dates, Local), offset = 1:output_size, y = org_y, yhat = org_ŷ)
+            append!(dnn_res_df, dnn_res_df_tmp)
         end
     end
 
-    dnn_table
+    dnn_res_df
 end
 
 function predict_DNN_model_logminmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     _min::AbstractFloat, _max::AbstractFloat, a::AbstractFloat, b::AbstractFloat,
-    output_size::Integer, output_dir::String) where T <: Tuple
+     _eltype::DataType, output_size::Integer, output_dir::String) where T <: Tuple
 
-    dnn_table = Array{IndexedTable}(undef, output_size)
-    table_path = Array{String}(undef, output_size)
-
-    for i = 1:output_size
-        table_path[i] = output_dir * "$(String(ycol))_$(lpad(i,2,'0'))_table.csv"
-        dnn_table[i] = table((y = [], ŷ = [],))
-    end
+    dnn_res_df = DataFrame(date = DateTime[], offset = _eltype[], y = _eltype[], yhat = _eltype[])
 
     # https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)
     c = ((_max - _min) / (b - a))
-    for (x, y) in dataset
+    for (x, y, dates) in dataset
         ŷ = model(x |> gpu)
 
         cpu_y = y |> cpu
@@ -155,25 +155,19 @@ function predict_DNN_model_logminmax(dataset::AbstractArray{T, 1}, model, ycol::
         org_ŷ = exp.(unminmax_scaling(cpu_ŷ, _min, _max, a, b)) .- 10.0
 
         for i = 1:output_size
-            # 1 hour
-            tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
-            dnn_table[i] = merge(dnn_table[i], tmp_table)
+            dnn_res_df_tmp = DataFrame(date = DateTime.(dates, Local), offset = 1:output_size, y = org_y, yhat = org_ŷ)
+            append!(dnn_res_df, dnn_res_df_tmp)
         end
     end
 
-    dnn_table
+    dnn_res_df
 end
 
 function predict_RNN_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
-    μ::AbstractFloat, σ::AbstractFloat, output_size::Integer, output_dir::String) where T <: Tuple
+    μ::AbstractFloat, σ::AbstractFloat,
+     _eltype::DataType, output_size::Integer, output_dir::String) where T <: Tuple
 
-    rnn_table = Array{IndexedTable}(undef, output_size)
-    table_path = Array{String}(undef, output_size)
-
-    for i = 1:output_size
-        table_path[i] = output_dir * "$(String(ycol))_$(lpad(i,2,'0'))_table.csv"
-        rnn_table[i] = table((y = [], ŷ = [],))
-    end
+    rnn_res_df = DataFrame(date = DateTime[], offset = _eltype[], y = _eltype[], yhat = _eltype[])
 
     for (xe, xd, y) in dataset
         ŷ = model(xe |> gpu, xd |> gpu)
@@ -187,26 +181,19 @@ function predict_RNN_model_zscore(dataset::AbstractArray{T, 1}, model, ycol::Sym
         org_ŷ = unzscore(cpu_ŷ, μ, σ)
 
         for i = 1:output_size
-            # 1 hour
-            tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
-            rnn_table[i] = merge(rnn_table[i], tmp_table)
+            rnn_res_df_tmp = DataFrame(date = DateTime.(dates, Local), offset = 1:output_size, y = org_y, yhat = org_ŷ)
+            append!(rnn_res_df, rnn_res_df_tmp)
         end
     end
 
-    rnn_table
+    rnn_res_df
 end
 
 function predict_RNN_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Symbol,
     _min::AbstractFloat, _max::AbstractFloat, a::AbstractFloat, b::AbstractFloat,
-    output_size::Integer, output_dir::String) where T <: Tuple
+    _eltype::DataType, output_size::Integer, output_dir::String) where T <: Tuple
 
-    rnn_table = Array{IndexedTable}(undef, output_size)
-    table_path = Array{String}(undef, output_size)
-
-    for i = 1:output_size
-        table_path[i] = output_dir * "$(String(ycol))_$(lpad(i,2,'0'))_table.csv"
-        rnn_table[i] = table((y = [], ŷ = [],))
-    end
+    rnn_res_df = DataFrame(date = DateTime[], offset = _eltype[], y = _eltype[], yhat = _eltype[])
 
     # https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)
     c = ((_max - _min) / (b - a))
@@ -222,13 +209,12 @@ function predict_RNN_model_minmax(dataset::AbstractArray{T, 1}, model, ycol::Sym
         org_ŷ = unminmax_scaling(cpu_ŷ, _min, _max, a, b)
 
         for i = 1:output_size
-            # 1 hour
-            tmp_table = table((y = [org_y[i]], ŷ = [org_ŷ[i]],))
-            rnn_table[i] = merge(rnn_table[i], tmp_table)
+            rnn_res_df_tmp = DataFrame(date = DateTime.(dates, Local), offset = 1:output_size, y = org_y, yhat = org_ŷ)
+            append!(rnn_res_df, rnn_res_df_tmp)
         end
     end
 
-    rnn_table
+    rnn_res_df
 end
 
 """
@@ -237,7 +223,8 @@ end
 Basic NDSparse
 """
 function export_CSV(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1},
-    ycol::Symbol, output_size::Integer, output_dir::String, output_prefix::String)
+    ycol::Symbol, output_size::Integer,
+    _eltype::DataType, output_dir::String, output_prefix::String)
 
     dfs = Array{DataFrame}(undef, output_size)
 
@@ -245,7 +232,7 @@ function export_CSV(dates::Array{DateTime, 1}, dnn_table::Array{IndexedTable, 1}
         i_pad = lpad(i, 2, '0')
         Base.Filesystem.mkpath(output_dir * "$(i_pad)/")
         plottable_path::String = output_dir * "$(i_pad)/" * "$(output_prefix)_plottable_$(i_pad)h.csv"
-        
+
         dates_h = dates .+ Dates.Hour(i)
         y = JuliaDB.select(dnn_table[i], :y)
         ŷ = JuliaDB.select(dnn_table[i], :ŷ)

@@ -367,6 +367,33 @@ function make_pair_DNN(df::DataFrame,
 end
 
 """
+    make_pair_DNN(df, ycol, features, sample_size, output_size)
+
+Split single window to serialized X and Y
+"""
+function make_pair_date_DNN(df::DataFrame,
+    ycol::Symbol, features::Array{Symbol, 1},
+    sample_size::I, output_size::I, _eltype::DataType=Float32) where I <: Integer
+
+    # get X (2D)
+    _X = _eltype.(getX(df, features, sample_size))
+    # get Y (1D)
+    _Y = _eltype.(getY(df, ycol, sample_size))
+    _date = df[(sample_size+1):end, :date]
+
+    # for validation, sparse check not applied
+    # GPU
+    _X = vec(_X)
+    _Y = _Y
+    @assert length(_X) == sample_size * length(features)
+    @assert length(_Y) == output_size
+    @assert ndims(_X) == 1
+    @assert ndims(_Y) == 1
+
+    _X, _Y, _date
+end
+
+"""
     make_minibatch_DNN(df, ycol, chnks, features, sample_size, output_size, batch_size, Float64)
 
 Create batch consists of pairs in `df` along with `idx` (row) and `features` (columns)
