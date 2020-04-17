@@ -734,20 +734,6 @@ function construct_annual_table(df::DataFrame, target::Symbol, train_fdate::Date
     sea_years = []
     sea_days = []
 
-    # month, day, hour is a key
-    #=
-    for (i, date) in enumerate(train_fdate:Dates.Hour(1):train_tdate)
-        m = Dates.month(date)
-        d = Dates.day(date)
-        h = Dates.hour(date)
-
-        push!(months, m)
-        push!(days, d)
-        push!(hours, h)
-        push!(sea_years, sea_year[i])
-        push!(sea_days, sea_day[i])
-    end
-    =#
     # ndsparse is immutable object, so make it dataframe first then group it.
     # 1. filter dataframe by date
     _df = DataFrames.filter(row -> train_fdate < DateTime(row[:date], Local) < train_tdate, df)
@@ -764,7 +750,8 @@ function construct_annual_table(df::DataFrame, target::Symbol, train_fdate::Date
     u_months = []
     u_days = []
     u_hours = []
-    u_sea_years = []
+    u_sea_years_fit = []
+    u_sea_years_org = []
     u_sea_days = []
 
     for gdf in gd
@@ -774,12 +761,14 @@ function construct_annual_table(df::DataFrame, target::Symbol, train_fdate::Date
         push!(u_months, ugdf[!, :month][1])
         push!(u_days, ugdf[!, :day][1])
         push!(u_hours, ugdf[!, :hour][1])
-        push!(u_sea_years, ugdf[!, Symbol(target, "_year")][1])
+        push!(u_sea_years_fit, ugdf[!, Symbol(target, "_year_fit")][1])
+        push!(u_sea_years_org, ugdf[!, Symbol(target, "_year_org")][1])
         push!(u_sea_days, ugdf[!, Symbol(target, "_day")][1])
     end
 
     ndsparse((month = u_months, day = u_days, hour = u_hours),
-    (season_year = u_sea_years, season_day = u_sea_days,))
+    (season_year_fit = u_sea_years_fit, season_year_org = u_sea_years_org,
+    season_day = u_sea_days,))
 end
 
 """
@@ -807,20 +796,52 @@ function padded_push!(df::DataFrame, target::Symbol,
     for (i, row) in enumerate(eachrow(df))
         # check date in range
         if test_fdate <= DateTime(row.date, Local) <= test_tdate
-            df[i, year_sea_col] = season_table[Dates.month(row.date), Dates.day(row.date), Dates.hour(row.date)].season_year
+            df[i, year_sea_col] = season_table[Dates.month(row.date), Dates.day(row.date), Dates.hour(row.date)].season_year_fit
             df[i, day_sea_col] = season_table[Dates.month(row.date), Dates.day(row.date), Dates.hour(row.date)].season_day
             df[i, day_res_col] = df[i, target] - df[i, year_sea_col] - df[i, day_sea_col]
         end
     end
 end
 
-function compose_seasonality(dates::Array{DateTime, 1}, result, season_table::AbstractNDSparse)
+padded_push!(df::DataFrame, target::Symbol,
+    year_sea_fit_col::Symbol, year_sea_org_col::Symbol, day_sea_col::Symbol, day_res_col::Symbol,
+    season_table::AbstractNDSparse,
+    test_fdate::ZonedDateTime, test_tdate::ZonedDateTime) =
+    padded_push!(df, target, year_sea_fit_col, year_sea_org_col, day_sea_col, day_res_col, season_table,
+    DateTime(test_fdate, Local), DateTime(test_tdate, Local))
+
+function padded_push!(df::DataFrame, target::Symbol,
+    year_sea_fit_col::Symbol, year_sea_org_col::Symbol, day_sea_col::Symbol, day_res_col::Symbol,
+    season_table::AbstractNDSparse,
+    test_fdate::DateTime, test_tdate::DateTime)
+
+    # fill value from table and compute residual
+    for (i, row) in enumerate(eachrow(df))
+        # check date in range
+        if test_fdate <= DateTime(row.date, Local) <= test_tdate
+            df[i, year_sea_fit_col] = season_table[Dates.month(row.date), Dates.day(row.date), Dates.hour(row.date)].season_year_fit
+            df[i, year_sea_org_col] = season_table[Dates.month(row.date), Dates.day(row.date), Dates.hour(row.date)].season_year_org
+            df[i, day_sea_col] = season_table[Dates.month(row.date), Dates.day(row.date), Dates.hour(row.date)].season_day
+            df[i, day_res_col] = df[i, target] - df[i, year_sea_fit_col] - df[i, day_sea_col]
+        end
+    end
+end
+
+function compose_seasonality(dates::Array{DateTime, 1}, result, season_table::AbstractNDSparse, fitted=true)
     org_values = Array{Float64}(undef, size(dates, 1))
 
-    for (i, date) in enumerate(dates)
-        org_valeus[i] = result[i] +
-            season_table[Dates.month(date), Dates.day(date), Dates.hour(date)].season_year +
-            season_table[Dates.month(date), Dates.day(date), Dates.hour(date)].season_day
+    if fitted
+        for (i, date) in enumerate(dates)
+            org_values[i] = result[i] +
+                season_table[Dates.month(date), Dates.day(date), Dates.hour(date)].season_year_fit +
+                season_table[Dates.month(date), Dates.day(date), Dates.hour(date)].season_day
+        end
+    else
+        for (i, date) in enumerate(dates)
+            org_values[i] = result[i] +
+                season_table[Dates.month(date), Dates.day(date), Dates.hour(date)].season_year_org +
+                season_table[Dates.month(date), Dates.day(date), Dates.hour(date)].season_day
+        end
     end
 
     org_values

@@ -119,66 +119,10 @@ residual : residual
 naive but easy to implement
 """
 function season_adj_lee(df::DataFrame, ycol::Symbol)
-    last_date = df[end, :date]
-    window = 24
+    f_date = df[1, :date]
+    t_date = df[end, :date]
 
-    # window mean
-    year_wd_mean = compute_annual_mean(df, ycol)
-    # remove annual seasonality
-    # fluctuation of annual average by 24 hour window
-    period_df = copy(df)
-    year_res1 = zeros(length(period_df[!, :date]))
-    year_sea1 = zeros(length(period_df[!, :date]))
-
-    for (i, row) in enumerate(eachrow(period_df))
-        t = getproperty(row, :date)
-        if t > last_date - Dates.Hour(window)
-            break
-        end
-        idx = (Dates.month(t) - 1) * 31 * 24 + (Dates.day(t) - 1) * 24 + Dates.hour(t) + 1
-
-        year_res1[i] = getproperty(row, ycol) - year_wd_mean[idx]
-        year_sea1[i] = year_wd_mean[idx]
-    end
-
-    # smoothing(S_year)
-    # The leap year error will be ignorable thanks to smoothing
-    year_sea2_x, year_sea2_y = smoothing_series(float.(collect(1:length(year_sea1))), year_sea1; span = 0.1)
-
-    #_model = Loess.loess(float.(collect(1:length(year_sea1))), year_sea1)
-    #year_sea2_x = collect(range(extrema(float.(collect(1:length(year_sea1))))...; step = 1))
-    #year_sea2_y = Loess.predict(_model, year_sea2_x)
-
-    # Interpolations
-    #itp = interpolate((year_sea2_x, year_sea2_y), BSpline(Cubic(Line(OnGrid()))))
-    #year_sea2 = map(i -> itp(float(i)), 1:length(period_df[!, :date]))
-    # Dierckx
-    spl = Spline1D(year_sea2_x, year_sea2_y)
-    year_sea2 = evaluate(spl, float.(collect(1:length(period_df[!, :date]))))
-    year_res2 = period_df[!, ycol] .- year_sea2
-    DataFrames.insertcols!(period_df, 3, :year_sea2 => year_sea2)
-    DataFrames.insertcols!(period_df, 3, :year_res2 => year_res2)
-
-    # now calculate S_day
-    hour_col = hour.(period_df[!, :date])
-    DataFrames.insertcols!(period_df, 3, :hour => hour_col)
-
-    # put mean values to dataframe, adjust index only for hour (0-23)
-    day_sea1_summary, day_sea1 = populate_periodic_mean(period_df, :year_res2, :hour)
-    DataFrames.insertcols!(period_df, 3, :day_sea1 => day_sea1)
-    day_res1 = zeros(length(period_df[!, :date]))
-
-    for (i, row) in enumerate(eachrow(period_df))
-        t = getproperty(row, :date)
-        if t > last_date - Dates.Hour(window)
-            break
-        end
-
-        day_res1[i] = getproperty(row, :year_res2) - getproperty(row, :day_sea1)
-    end
-
-    # S_year, smoothed(S_year), S_day, R
-    year_sea1, year_sea2, year_res2, day_sea1, day_res1
+    season_adj_lee(df, ycol, f_date, t_date)
 end
 
 """

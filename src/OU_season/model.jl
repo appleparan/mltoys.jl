@@ -7,7 +7,7 @@ function evolve_OU(df, ycol, norm_prefix, norm_feas,
 https://pdfs.semanticscholar.org/dfdd/ff87a20a918e7ac101808881b926bb298e95.pdf
 
 The Ornstein-Uhlembeck position process
-dXₜ = θ(μ - Xₜ)dt + σdWₜ 
+dXₜ = θ(μ - Xₜ)dt + σdWₜ
 OU dynamics = "mean reverting" term + "white noise" term
 """
 function evolve_OU_season(test_set, ycol::Symbol, scaled_ycol::Symbol,
@@ -23,7 +23,7 @@ function evolve_OU_season(test_set, ycol::Symbol, scaled_ycol::Symbol,
     posIntT = max(1, Int(round(org_intT)) - 1)
     org_fit = exp_fit(acf_df[1:posIntT, :time], acf_df[1:posIntT, :corr])
     #@info "Coef a and b in a * exp(b * x) for Annual Residual.. to 0:$(posIntT)", fit[1], fit[2]
-    
+
     fitted_fit = exp_fit(acf_df[1:posIntT, :time], acf_df[1:posIntT, :corr])
     fit_x = acf_df[1:posIntT, :time]
     fit_y = fitted_fit[1] .* exp.(fit_x .* fitted_fit[2])
@@ -33,7 +33,7 @@ function evolve_OU_season(test_set, ycol::Symbol, scaled_ycol::Symbol,
     μ_ycol = μσs[String(ycol), "μ"].value
     σ_ycol = μσs[String(ycol), "σ"].value
 
-    # Time scale 
+    # Time scale
     # T(hour), dt = 1
     T = intT
     Θ = 1.0 / T
@@ -57,8 +57,10 @@ function evolve_OU_season(test_set, ycol::Symbol, scaled_ycol::Symbol,
         prob = NoiseProblem(OU, (0.0, output_size))
         Xₜ = solve(prob; dt=1.0)
 
-        org_y = unzscore(df_tset[1:output_size + 1, scaled_ycol], μ_ycol, σ_ycol)
-        org_Xt = unzscore(Xₜ[1:output_size + 1], μ_ycol, σ_ycol)
+        org_y = df_tset[1:output_size + 1, ycol]
+        org_Xt = compose_seasonality(collect(output_dates[1:output_size + 1]),
+            unzscore(Xₜ[1:output_size + 1], μ_ycol, σ_ycol),
+            season_table)
 
         ou_res_df_tmp = DataFrame(date = output_dates, offset = 0:output_size, y = org_y, yhat = org_Xt)
         append!(ou_res_df, ou_res_df_tmp)

@@ -44,7 +44,7 @@ function run_model()
 
     #===== start of parameter zone =====#
     total_fdate, total_tdate = get_date_range(rawdf)
-    train_fdate = ZonedDateTime(2015, 1, 1, 0, tz"Asia/Seoul")
+    train_fdate = ZonedDateTime(2012, 1, 1, 0, tz"Asia/Seoul")
     train_tdate = ZonedDateTime(2017, 12, 31, 23, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 1, 1, 1, tz"Asia/Seoul")
     test_tdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
@@ -91,7 +91,7 @@ function run_model()
     output_size = 24
     epoch_size = 300
     batch_size = 32
-    input_size = sample_size * length(train_features)
+    input_size = sample_size
     #===== end of parameter zone =====#
 
     log_prefix = "log_"
@@ -126,12 +126,13 @@ function run_model()
 
         # append seasonality to df for train_date
         # smoothed annual seasonality
-        padded_push!(df, lee_year_sea2, Symbol(target, "_year"), train_fdate, train_tdate)
+        padded_push!(df, lee_year_sea1, Symbol(target, "_year_org"), train_fdate, train_tdate)
+        padded_push!(df, lee_year_sea2, Symbol(target, "_year_fit"), train_fdate, train_tdate)
         # daily seasonality
         padded_push!(df, lee_day_sea1, Symbol(target, "_day"), train_fdate, train_tdate)
         # residual
         #padded_push!(df, lee_day_res1, Symbol(target, "_res"), train_fdate, train_tdate)
-        res_arr = df[!, target] .- df[!, Symbol(target, "_year")] .- df[!, Symbol(target, "_day")]
+        res_arr = df[!, target] .- df[!, Symbol(target, "_year_fit")] .- df[!, Symbol(target, "_day")]
         DataFrames.insertcols!(df, 3, Symbol(target, "_res") => res_arr)
 
         season_table = construct_annual_table(df, target, DateTime(train_fdate, Local), DateTime(train_tdate, Local))
@@ -140,23 +141,23 @@ function run_model()
         # add seasonality to df (existing column) for test_date
         # annual seasonality is a smoothed version
         padded_push!(df, target,
-            Symbol(target, "_year"),
+            Symbol(target, "_year_fit"),
+            Symbol(target, "_year_org"),
             Symbol(target, "_day"),
             Symbol(target, "_res"),
             season_table, test_fdate, test_tdate)
     end
 
-    @info "Scaling.."
     # 2. Scaling
     if scaling_method == :zscore
         # scaling except :PM10, :PM25
         zscore!(df, train_features_res, scaled_train_features_res)
 
-        statvals = extract_col_statvals(df, train_features)
+        statvals = extract_col_statvals(df, train_features_res)
     elseif scaling_method == :minmax
-        minmax_scaling!(df, train_features, scaled_train_features, 0.0, 10.0)
+        minmax_scaling!(df, train_features_res, scaled_train_features_res, 0.0, 10.0)
 
-        statvals = extract_col_statvals(df, train_features)
+        statvals = extract_col_statvals(df, train_features_res)
     elseif scaling_method == :logzscore
         # zscore except targets
         _train_features = setdiff(train_features, target_features)
@@ -271,9 +272,9 @@ function run_model()
 
             Base.Filesystem.mkpath("/mnt/$(name)/")
 
-            max_time = input_size * 15
+            max_time = sample_size * 15
             acf_dres1 = StatsBase.autocor(stn_df[!, Symbol(scaled_prefix, target, "_res")], 0:max_time)
-            
+
             # free minibatch after training because of memory usage
             ou_df = evolve_OU_season(test_wd, target, Symbol(scaled_prefix, target, "_res"),
                 acf_dres1, season_tables[target],
@@ -284,7 +285,7 @@ function run_model()
                 i_pad = lpad(i, 2, '0')
                 Base.Filesystem.mkpath("/mnt/$(name)/$(i_pad)/")
             end
-            
+
             dfs_out = export_CSV(DateTime.(test_dates, Local), ou_df, season_tables[target], target, output_size, "/mnt/$(name)/", String(target))
             plot_DNN_scatter(dfs_out, target, output_size, "/mnt/$(name)/", String(target))
             plot_DNN_histogram(dfs_out, target, output_size, "/mnt/$(name)/", String(target))

@@ -295,10 +295,37 @@ function export_CSV(dates::Array{DateTime, 1}, table::AbstractNDSparse, season_t
     dfs
 end
 
+
 """
     export_CSV
 
-new DataFrame
+new DataFrame + seasonality
+"""
+function export_CSV(dates::Array{DateTime, 1}, df::DataFrame,
+    ycol::Symbol, output_size::Integer, output_dir::String, output_prefix::String)
+
+    offset_dfs = Array{DataFrame}(undef, output_size)
+
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        Base.Filesystem.mkpath(output_dir * "$(i_pad)/")
+        plottable_path::String = output_dir * "$(i_pad)/" * "$(output_prefix)_plottable_$(i_pad)h.csv"
+
+        dates_h = dates .+ Dates.Hour(i)
+        offset_df = filter(row -> row[:offset] == i, df)
+
+        offset_dfs[i] = offset_df
+
+        CSV.write(plottable_path, offset_df)
+    end
+
+    offset_dfs
+end
+
+"""
+    export_CSV
+
+new DataFrame + seasonality
 """
 function export_CSV(dates::Array{DateTime, 1}, df::DataFrame, season_table::AbstractNDSparse,
     ycol::Symbol, output_size::Integer, output_dir::String, output_prefix::String)
