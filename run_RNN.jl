@@ -42,7 +42,7 @@ function run_model()
     │ 5   │ 111123      │ 2015-01-01T05:00:00+09:00 │ 37.572   │ 127.005   │ 0.005   │ 0.2     │ 0.019   │ 0.006   │ 127.0   │ 5.0     │ -9.1    │ 5.35625 │ 1.94951 │ 1011.8  │ missing  │ missing  │
     =#
     total_fdate, total_tdate = get_date_range(df)
-    train_fdate = ZonedDateTime(2016, 1, 1, 1, tz"Asia/Seoul")
+    train_fdate = ZonedDateTime(2012, 1, 1, 1, tz"Asia/Seoul")
     train_tdate = ZonedDateTime(2017, 12, 31, 23, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 1, 1, 0, tz"Asia/Seoul")
     test_tdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
