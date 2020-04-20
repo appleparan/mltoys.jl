@@ -95,7 +95,7 @@ include("OU_season/model.jl")
 include("DNN/preprocess.jl")
 include("DNN/model.jl")
 include("DNN_season/model.jl")
-include("LSTNet/model.jl")
+include("RNN/model.jl")
 
 include("postprocess/post_DNN.jl")
 
