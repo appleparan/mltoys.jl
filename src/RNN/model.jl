@@ -66,6 +66,7 @@ function train_RNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
             sample_size, kernel_length, output_size, _eltype))
         for df in test_wd]
     =#
+
     train_set = gpu.(train_set)
     valid_set = gpu.(valid_set)
     test_set = gpu.(test_set)

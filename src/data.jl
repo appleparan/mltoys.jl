@@ -322,9 +322,7 @@ Get 2D input X from DataFrame.
 return size: (sample_size, length(features))
 """
 function getX(df::DataFrame, features::Array{Symbol, 1}, sample_size::I) where I <: Integer
-    X = convert(Matrix, df[1:sample_size, features])
-
-    X
+    convert(Matrix, df[1:sample_size, features])
 end
 
 """
@@ -335,9 +333,7 @@ Get 1D output Y from DataFrame.
 return size: (output_size,)
 """
 function getY(df::DataFrame, ycol::Symbol, sample_size::I) where I <: Integer
-    Y = Array(df[(sample_size+1):end, ycol])
-
-    Y
+    Array(df[(sample_size+1):end, ycol])
 end
 
 """
@@ -502,9 +498,7 @@ Get 2D input X from DataFrame.
 return size: (sample_size, length(features))
 """
 function getX(df::DataFrame, idxs::UnitRange{I}, features::Array{Symbol, 1}) where I <: Integer
-    X = convert(Matrix, df[idxs, features])
-
-    X
+    convert(Matrix, df[idxs, features])
 end
 
 """
@@ -515,9 +509,7 @@ Get 1D output Y from DataFrame.
 return size: (output_size,)
 """
 function getY(df::DataFrame, idxs::UnitRange{I}, ycol::Symbol) where I <: Integer
-    Y = Array(df[idxs, ycol])
-
-    Y
+    Array(df[idxs, ycol])
 end
 
 """
@@ -565,10 +557,6 @@ function make_pair_RNN(df::DataFrame,
         X_dec[i] = _X_dec
     end
 
-    X_enc = X_enc |> gpu
-    X_dec = X_dec |> gpu
-    Y = Y |> gpu
-
     X_enc, X_dec, Y
 end
 
@@ -609,10 +597,6 @@ function make_pair_date_RNN(df::DataFrame,
         _X_dec[2:output_size] = _Y
         X_dec[i] = _X_dec
     end
-
-    X_enc = X_enc |> gpu
-    X_dec = X_dec |> gpu
-    Y = Y |> gpu
 
     X_enc, X_dec, Y, _date
 end
@@ -668,10 +652,6 @@ function make_batch_RNN(dfs::Array{DataFrame, 1},
         X_dec[i] = _X_dec
     end
 
-    X_enc = X_enc |> gpu
-    X_dec = X_dec |> gpu
-    Y = Y |> gpu
-
     X_enc, X_dec, Y
 end
 
@@ -720,10 +700,6 @@ function make_batch_date_RNN(dfs::Array{DataFrame, 1},
         end
         X_dec[i] = _X_dec
     end
-
-    X_enc = X_enc |> gpu
-    X_dec = X_dec |> gpu
-    Y = Y |> gpu
 
     X_enc, X_dec, Y, _dates
 end
