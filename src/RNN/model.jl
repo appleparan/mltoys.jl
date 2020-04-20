@@ -14,7 +14,7 @@ function train_RNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
     test_dates::Array{ZonedDateTime,1},
     statvals::AbstractNDSparse, output_prefix::String, filename::String) where I <: Integer
 
-    @info "LSTNet training starts.."
+    @info "RNN training starts.."
 
     # extract from ndsparse
     total_μ = statvals[String(ycol), "μ"].value
@@ -163,6 +163,7 @@ function train_RNN!(state, model, train_set, valid_set, loss, accuracy, opt,
 
     for epoch_idx in 1:epoch_size
         best_acc, last_improvement
+        # print(CuArrays.memory_status())
         # train model with normalized data set
         Flux.train!(loss, Flux.params(state), train_set, opt)
 
@@ -319,8 +320,8 @@ function compile_PM10_RNN(
 
     state = (
         CNNmodel = modelCNN,
-        encoder = modelLSTM1,
-        decoder = modelLSTM2,
+        encoder = modelGRU1,
+        decoder = modelGRU2,
         DNNmodel = modelDNN)
 
     # Define model by combining multiple models
@@ -339,10 +340,6 @@ function compile_PM10_RNN(
         # 3D Array (hidCNN, sample_size, batch_size)
         x_cnh = whcn2cnh(x_whcn)
 
-        # RNN
-        Flux.reset!(state.encoder)
-		Flux.reset!(state.decoder)
-
         # CNH array to batch sequences
         # 3D Array (hidCNN, sample_size, batch_size) ->
         # Array of Array [(hidCNN, batch_size)...]:  (sample_size,)
@@ -355,16 +352,20 @@ function compile_PM10_RNN(
 
         # broadcast : train columns. Each column (single batch) have been trained independently
         # drop _encoded, only need state from encoder
-        _encoded = state.encoder.(x_encoded)
+        _encoded = state.encoder.(x_encoded)[end]
 
         # copy state from encoder to decoder
         state.decoder.state = state.encoder.state
 
+        Flux.reset!(state.encoder)
         #_decoded = state.decoder.(x_decoded)
         # precomputed decoded input
-        _decoded = state.decoder.(xd)
-		y_decoded = state.decoder.state[2]
+        _decoded = state.decoder.(xd)[end]
+        # LSTM -> state.decoder.state == (h', c)
+        # GRU -> state.decoder.state == h'
+        typeof(state.decoder.state) <: Tuple ? y_decoded = state.decoder.state[1] : y_decoded = state.decoder.state
 
+		Flux.reset!(state.decoder)
         # each seq element represzents hidden state at each time stamp
 		# what I want
 		# In: hidCNN x window_size x batch_size
@@ -376,6 +377,7 @@ function compile_PM10_RNN(
     end
 
     loss(xe, xd, y) = Flux.mse(model(xe, xd), y)
+    loss(xe, xd, y, dates) = Flux.mse(model(xe, xd), y)
     accuracy(data) = evaluation2(data, model, statval, :RMSE)
 
     opt = Flux.ADAM()
@@ -431,8 +433,8 @@ function compile_PM25_RNN(
 
     state = (
         CNNmodel = modelCNN,
-        encoder = modelLSTM1,
-        decoder = modelLSTM2,
+        encoder = modelGRU1,
+        decoder = modelGRU2,
         DNNmodel = modelDNN)
 
     # Define model by combining multiple models
@@ -451,10 +453,6 @@ function compile_PM25_RNN(
         # 3D Array (hidCNN, sample_size, batch_size)
         x_cnh = whcn2cnh(x_CNN)
 
-        # RNN
-        Flux.reset!(state.encoder)
-		Flux.reset!(state.decoder)
-
         # CNH array to batch sequences
         # 3D Array (hidCNN, sample_size, batch_size) ->
         # Array of Array [(hidCNN, batch_size)...]:  (sample_size,)
@@ -467,16 +465,21 @@ function compile_PM25_RNN(
 
         # broadcast : train columns. Each column (single batch) have been trained independently
         # drop _encoded, only need state from encoder
-        _encoded = state.encoder.(x_encoded)
+        _encoded = state.encoder.(x_encoded)[end]
 
         # copy state from encoder to decoder
         state.decoder.state = state.encoder.state
 
+        Flux.reset!(state.encoder)
         #_decoded = state.decoder.(x_decoded)
         # precomputed decoded input
-        _decoded = state.decoder.(xd)
-		y_decoded = state.decoder.state[2]
 
+        _decoded = state.decoder.(xd)[end]
+        # LSTM -> state.decoder.state == (h', c)
+        # GRU -> state.decoder.state == h'
+        typeof(state.decoder.state) <: Tuple ? y_decoded = state.decoder.state[1] : y_decoded = state.decoder.state
+
+        Flux.reset!(state.decoder)
         # each seq element represzents hidden state at each time stamp
 		# what I want
 		# In: hidCNN x window_size x batch_size
@@ -488,6 +491,7 @@ function compile_PM25_RNN(
     end
 
     loss(xe, xd, y) = Flux.mse(model(xe, xd), y)
+    loss(xe, xd, y, dates) = Flux.mse(model(xe, xd), y)
     accuracy(data) = evaluation2(data, model, statval, :RMSE)
 
     opt = Flux.ADAM()
