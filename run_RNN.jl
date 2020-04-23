@@ -42,7 +42,7 @@ function run_model()
     │ 5   │ 111123      │ 2015-01-01T05:00:00+09:00 │ 37.572   │ 127.005   │ 0.005   │ 0.2     │ 0.019   │ 0.006   │ 127.0   │ 5.0     │ -9.1    │ 5.35625 │ 1.94951 │ 1011.8  │ missing  │ missing  │
     =#
     total_fdate, total_tdate = get_date_range(df)
-    train_fdate = ZonedDateTime(2015, 1, 1, 1, tz"Asia/Seoul")
+    train_fdate = ZonedDateTime(2012, 1, 1, 1, tz"Asia/Seoul")
     train_tdate = ZonedDateTime(2017, 12, 31, 23, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2018, 1, 1, 0, tz"Asia/Seoul")
     test_tdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
@@ -56,7 +56,6 @@ function run_model()
     test_stn_names = [:종로구]
 
     df = filter_raw_data(df, train_fdate, train_tdate, test_fdate, test_tdate)
-    @show first(df, 10)
 
     features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
     # If you want exclude some features, modify train_features
@@ -84,6 +83,10 @@ function run_model()
     scaled_features = [Symbol(scaled_prefix, f) for f in features]
     scaled_train_features = [Symbol(scaled_prefix, f) for f in train_features]
     scaled_target_features = [Symbol(scaled_prefix, f) for f in target_features]
+
+    for feature in train_features
+        df[:, feature] = _eltype.(df[:, feature])
+    end
 
     # 2. Scaling
     if scaling_method == :zscore
