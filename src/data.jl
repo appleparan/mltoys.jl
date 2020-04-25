@@ -498,8 +498,7 @@ Get 2D input X from DataFrame.
 return size: (sample_size, length(features))
 """
 function getX(df::DataFrame, idxs::UnitRange{I}, features::Array{Symbol, 1}) where I <: Integer
-    #convert(Matrix, df[idxs, features])
-    view(df, idxs, features)
+    convert(Matrix, df[idxs, features])
 end
 
 """
@@ -510,8 +509,7 @@ Get 1D output Y from DataFrame.
 return size: (output_size,)
 """
 function getY(df::DataFrame, idxs::UnitRange{I}, ycol::Symbol) where I <: Integer
-    #Array(df[idxs, ycol])
-    view(df, idxs, ycol)
+    Array(df[idxs, ycol])
 end
 
 """
@@ -537,21 +535,19 @@ function make_pair_RNN(df::DataFrame,
     #X_enc = zeros(_eltype, length(features), pad_sample_size + sample_size, 1, 1)
     X_enc = zeros(_eltype, pad_sample_size + sample_size, length(features), 1, 1)
     # decode array (Array of Array, batch sequences)
-    X_dec = similar([_x], output_size)
+    X_dec = similar([zeros(_eltype, output_size, 1)], output_size)
     Y = zeros(_eltype, output_size, 1)
 
     # get X (2D)
-    #_X = _eltype.(getX(df, 1:sample_size, features))
-    _X = view(df, 1:sample_size, features)
+    _X = _eltype.(getX(df, 1:sample_size, features))
     # get Y (1D)
-    #_Y = _eltype.(getY(df, (sample_size + 1):(sample_size + output_size), ycol))
-    _Y = view(df, (sample_size + 1):(sample_size + output_size), ycol)
+    _Y = _eltype.(getY(df, (sample_size + 1):(sample_size + output_size), ycol))
 
     # WHCN order, Channel is 1 because this is not an image
     # left zero padding
-    #X_enc[:, (pad_sample_size + 1):end, 1, 1] = transpose(collect(_X))
     X_enc[(pad_sample_size + 1):end, :, 1, 1] = _X
     Y[:, 1] = _Y
+
 
     # feed decoder output
     # Ref : Yujin Tang, et. al, Sequence-to-Sequence Model with Attention for Time Series Classification
@@ -559,9 +555,9 @@ function make_pair_RNN(df::DataFrame,
         # first row is zero, but from second row, it feeds output from previous time step
         # this makes to assert sample_size >= output_size
         #_Y = _eltype.(getY(df, (i + 1):(i + output_size - 1), ycol))
-        _Y = view(df, (i + 1):(i + output_size - 1), ycol)
+        #_Y = view(df, (i + 1):(i + output_size - 1), ycol)
         _X_dec = zeros(_eltype, output_size, 1)
-        _X_dec[2:output_size] = _Y
+        _X_dec[2:output_size] = view(df, (i + 1):(i + output_size - 1), ycol)
         X_dec[i] = _X_dec
     end
 
@@ -580,20 +576,18 @@ function make_pair_date_RNN(df::DataFrame,
     #X_enc = zeros(_eltype, length(features), pad_sample_size + sample_size, 1, 1)
     X_enc = zeros(_eltype, pad_sample_size + sample_size, length(features), 1, 1)
     # decode array (Array of Array, batch sequences)
-    X_dec = similar([_x], output_size)
+    _x = zeros(_eltype, output_size, 1)
+    X_dec = similar([zeros(_eltype, output_size, 1)], output_size)
     Y = zeros(_eltype, output_size, 1)
 
     # get X (2D)
-    # _X = _eltype.(getX(df, 1:sample_size, features))
-    _X = view(df, 1:sample_size, features)
+     _X = _eltype.(getX(df, 1:sample_size, features))
     # get Y (1D)
-    # _Y = _eltype.(getY(df, (sample_size + 1):(sample_size + output_size), ycol))
-    _Y = view(df, (sample_size + 1):(sample_size + output_size), ycol)
+     _Y = _eltype.(getY(df, (sample_size + 1):(sample_size + output_size), ycol))
     _date = DateTime.(df[(sample_size+1):end, :date], Local)
 
     # WHCN order, Channel is 1 because this is not an image
     # left zero padding
-    #X_enc[:, (pad_sample_size + 1):end, 1, 1] = transpose(collect(_X))
     X_enc[(pad_sample_size + 1):end, :, 1, 1] = _X
     Y[:, 1] = _Y
 
@@ -602,11 +596,7 @@ function make_pair_date_RNN(df::DataFrame,
     for i in 1:output_size
         # first row is zero, but from second row, it feeds output from previous time step
         # this makes to assert sample_size >= output_size
-        #_Y = _eltype.(getY(df, (i + 1):(i + output_size - 1), ycol))
-        _Y = view(df, (i + 1):(i + output_size - 1), ycol)
-        _X_dec = zeros(_eltype, output_size, 1)
-        _X_dec[2:output_size] = _Y
-        X_dec[i] = _X_dec
+        X_dec[i] = vcat(zeros(_eltype, 1, 1), _eltype.(getY(df, (i + 1):(i + output_size - 1), ycol)))
     end
 
     X_enc, X_dec, Y, _date
@@ -632,18 +622,18 @@ function make_batch_RNN(dfs::Array{DataFrame, 1},
     #X_enc = zeros(_eltype, length(features), pad_sample_size + sample_size, 1, batch_size)
     X_enc = zeros(_eltype, pad_sample_size + sample_size, length(features), 1, batch_size)
     # decode array (Array of Array, batch sequences)
-    X_dec = similar([_x], output_size)
+    X_dec = similar([zeros(_eltype, output_size, 1)], output_size)
     Y = zeros(_eltype, output_size, batch_size)
 
     # feed decoder output
     # zero padding on input matrix
     for (i, df) in enumerate(dfs)
         # get X (2D)
-        #_X = _eltype.(getX(df, 1:sample_size, features))
-        _X = view(df, 1:sample_size, features)
+        _X = _eltype.(getX(df, 1:sample_size, features))
+        #_X = view(df, 1:sample_size, features)
         # get Y (1D)
-        #_Y = _eltype.(getY(df, (sample_size + 1):(sample_size + output_size), ycol))
-        _Y = view(df, (sample_size + 1):(sample_size + output_size), ycol)
+        _Y = _eltype.(getY(df, (sample_size + 1):(sample_size + output_size), ycol))
+        #_Y = view(df, (sample_size + 1):(sample_size + output_size), ycol)
 
         # WHCN order, Channel is 1 because this is not an image
         # left zero padding
@@ -661,7 +651,7 @@ function make_batch_RNN(dfs::Array{DataFrame, 1},
             # this makes to assert sample_size >= output_size
             #_Y = _eltype.(getY(df, (i + 1):(i + output_size - 1), ycol))
 
-            _X_dec[2:output_size, j] = view(df, (i + 1):(i + output_size - 1), ycol)
+            _X_dec[:, j] = vcat(zeros(_eltype, 1, 1), _eltype.(getY(df, (i + 1):(i + output_size - 1), ycol)))
         end
         X_dec[i] = _X_dec
     end
@@ -681,7 +671,7 @@ function make_batch_date_RNN(dfs::Array{DataFrame, 1},
     #X_enc = zeros(_eltype, length(features), pad_sample_size + sample_size, 1, batch_size)
     X_enc = zeros(_eltype, pad_sample_size + sample_size, length(features), 1, batch_size)
     # decode array (Array of Array, batch sequences)
-    X_dec = similar([_x], output_size)
+    X_dec = similar([zeros(_eltype, output_size, 1)], output_size)
     Y = zeros(_eltype, output_size, batch_size)
     _dates = Array{DateTime}(undef, output_size, batch_size)
 
@@ -689,12 +679,12 @@ function make_batch_date_RNN(dfs::Array{DataFrame, 1},
     # zero padding on input matrix
     for (i, df) in enumerate(dfs)
         # get X (2D)
-        #_X = _eltype.(getX(df, 1:sample_size, features))
-        _X = view(df, 1:sample_size, features)
+        _X = _eltype.(getX(df, 1:sample_size, features))
+        #_X = view(df, 1:sample_size, features)
         # get Y (1D)
-        #_Y = _eltype.(getY(df, (sample_size + 1):(sample_size + output_size), ycol))
-        _Y = view(df, (sample_size + 1):(sample_size + output_size), ycol)
-        _date = DateTime.(df[(sample_size+1):end, :date], Local)
+        _Y = _eltype.(getY(df, (sample_size + 1):(sample_size + output_size), ycol))
+        #_Y = view(df, (sample_size + 1):(sample_size + output_size), ycol)
+        #_date = DateTime.(df[(sample_size+1):end, :date], Local)
 
         # WHCN order, Channel is 1 because this is not an image
         # left zero padding
@@ -702,7 +692,7 @@ function make_batch_date_RNN(dfs::Array{DataFrame, 1},
         # X_enc[:, (pad_sample_size + 1):end, 1, i] = transpose(collect(_X))
         X_enc[(pad_sample_size + 1):end, :, 1, i] = _X
         Y[:, i] = _Y
-        _dates[:, i] = _date
+        _dates[:, i] = DateTime.(df[(sample_size+1):end, :date], Local)
     end
 
     # Ref : Yujin Tang, et. al, Sequence-to-Sequence Model with Attention for Time Series Classification
@@ -714,7 +704,7 @@ function make_batch_date_RNN(dfs::Array{DataFrame, 1},
             #_Y = _eltype.(getY(df, (i + 1):(i + output_size - 1), ycol))
 
             #_X_dec[2:output_size, j] = _Y
-            _X_dec[2:output_size, j] = view(df, (i + 1):(i + output_size - 1), ycol)
+            _X_dec[:, j] = vcat(zeros(_eltype, 1, 1), _eltype.(getY(df, (i + 1):(i + output_size - 1), ycol)))
         end
         X_dec[i] = _X_dec
     end

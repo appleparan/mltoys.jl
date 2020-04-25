@@ -70,7 +70,7 @@ function run_model()
     sample_size = 50
     output_size = 24
     epoch_size = 300
-    batch_size = 64
+    batch_size = 32
     input_size = sample_size
 
     # assert this due to decoder input
@@ -84,9 +84,11 @@ function run_model()
     scaled_train_features = [Symbol(scaled_prefix, f) for f in train_features]
     scaled_target_features = [Symbol(scaled_prefix, f) for f in target_features]
 
-    for feature in train_features
-        df[:, feature] = _eltype.(df[:, feature])
+    # convert Float types
+    for feature in features
+        df[!, feature] = _eltype.(df[!, feature])
     end
+    @show first(df, 5)
 
     # 2. Scaling
     if scaling_method == :zscore
@@ -149,12 +151,6 @@ function run_model()
         minmax_scaling!(df, log_target_features, scaled_target_features, 0.0, 10.0)
 
         statvals = extract_col_statvals(df, vcat(train_features, log_target_features))
-    end
-
-    @show first(df, 5)
-    # convert Float types
-    for feature in features
-        df[!, feature] = _eltype.(df[!, feature])
     end
 
     # plot histogram regardless to station

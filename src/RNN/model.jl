@@ -30,8 +30,12 @@ function train_RNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
 
     # construct compile function symbol
     compile = eval(Symbol(:compile, "_", ycol, "_RNN"))
+    #model, state, loss, accuracy, opt =
+    #   compile((length(scaled_features), kernel_length), sample_size, output_size, statval)
+    # W : col in DataFrame
+    # H : row in DataFrame
     model, state, loss, accuracy, opt =
-        compile((length(scaled_features), kernel_length), sample_size, output_size, statval)
+        compile((kernel_length, length(scaled_features)), sample_size, output_size, statval)
 
     # |> gpu doesn't work to *_set directly
     # construct minibatch for train_set
@@ -67,13 +71,14 @@ function train_RNN(train_wd::Array{DataFrame, 1}, valid_wd::Array{DataFrame, 1},
         for df in test_wd]
     =#
 
-    train_set = gpu.(train_set)
-    valid_set = gpu.(valid_set)
-    test_set = gpu.(test_set)
+    train_set = train_set |> gpu
+    valid_set = valid_set |> gpu
 
     # *_set : normalized
     df_evals = train_RNN!(state, model, train_set, valid_set,
         loss, accuracy, opt, epoch_size, statval, scaled_features, filename)
+
+    test_set = test_set |> gpu
 
     # TODO : (current) validation with zscore, (future) validation with original value?
     @info "    Test ACC  : ", accuracy(test_set)
@@ -287,13 +292,13 @@ function compile_PM10_RNN(
     @info("    Compiling PM10 model...")
     # hidCNN : length of CNN latent dim, CNN channel
     # hidRNN : length of RNN latent dim
-    hidCNN = 8
+    hidCNN = 4
     hidRNN = 16
 
-    kernel_length = kernel_size[1]
+    kernel_length = kernel_size[2]
     # WHCN order : reverse to python framework (row-major && column-major)
-    # W : Width = # of variables (= # of features)
-    # H : Height = # of timesteps
+    # W : Width = # of timesteps
+    # H : Height = # of variables (= # of features)
     # C : Channel = 1
     # N : batches
 
@@ -335,11 +340,11 @@ function compile_PM10_RNN(
     function model(xe, xd)
         # CNN to extract local features
         # size(x_cnn) == (1, sample_size, hidCNN, batch_size)
-        x_whcn = state.CNNmodel(xe)
+        # x_whcn = state.CNNmodel(xe)
 
         # 4D (WHCN) (1, sample_size, hidCNN, batch_size) ->
         # 3D Array (hidCNN, sample_size, batch_size)
-        x_cnh = whcn2cnh(x_whcn)
+        x_cnh = whcn2cnh(state.CNNmodel(xe))
 
         # CNH array to batch sequences
         # 3D Array (hidCNN, sample_size, batch_size) ->
@@ -353,20 +358,19 @@ function compile_PM10_RNN(
 
         # broadcast : train columns. Each column (single batch) have been trained independently
         # drop _encoded, only need state from encoder
-        _encoded = state.encoder.(x_encoded)[end]
+        state.encoder.(x_encoded)[end]
 
         # copy state from encoder to decoder
         state.decoder.state = state.encoder.state
 
-        Flux.reset!(state.encoder)
         #_decoded = state.decoder.(x_decoded)
         # precomputed decoded input
-        _decoded = state.decoder.(xd)[end]
+        state.decoder.(xd)[end]
         # LSTM -> state.decoder.state == (h', c)
         # GRU -> state.decoder.state == h'
         typeof(state.decoder.state) <: Tuple ? y_decoded = state.decoder.state[1] : y_decoded = state.decoder.state
 
-		Flux.reset!(state.decoder)
+		Flux.reset!(state)
         # each seq element represzents hidden state at each time stamp
 		# what I want
 		# In: hidCNN x window_size x batch_size
@@ -403,10 +407,10 @@ function compile_PM25_RNN(
     hidCNN = 8
     hidRNN = 16
 
-    kernel_length = kernel_size[1]
+    kernel_length = kernel_size[2]
     # WHCN order : reverse to python framework (row-major && column-major)
-    # W : Width = # of variables (= # of features)
-    # H : Height = # of timesteps
+    # W : Width = # of timesteps
+    # H : Height = # of variables (= # of features)
     # C : Channel = 1
     # N : batches
 
@@ -426,8 +430,10 @@ function compile_PM25_RNN(
     modelGRU1 = GRU(hidCNN, hidRNN) |> gpu
     modelGRU2 = GRU(output_size, hidRNN) |> gpu
 
+    #=
     modelLSTM1 = LSTM(hidCNN, hidRNN) |> gpu
     modelLSTM2 = LSTM(output_size, hidRNN) |> gpu
+    =#
 
     # DNN converts GRU output to single real output value
     modelDNN = Dense(hidRNN, output_size) |> gpu
@@ -447,12 +453,12 @@ function compile_PM25_RNN(
     #   y_hat : prediction result (output_size, batch_size)
     function model(xe, xd)
         # CNN to extract local features
-        # size(x_cnn) == (1, sample_size, hidCNN, batch_size)
-        x_CNN = state.CNNmodel(xe)
+        # size(x_cnn) == (sample_size, 1, hidCNN, batch_size)
+        #x_CNN = state.CNNmodel(xe)
 
-        # 4D (WHCN) (1, sample_size, hidCNN, batch_size) ->
+        # 4D (WHCN) (sample_size, 1, hidCNN, batch_size) ->
         # 3D Array (hidCNN, sample_size, batch_size)
-        x_cnh = whcn2cnh(x_CNN)
+        x_cnh = whcn2cnh(state.CNNmodel(xe))
 
         # CNH array to batch sequences
         # 3D Array (hidCNN, sample_size, batch_size) ->
@@ -466,7 +472,7 @@ function compile_PM25_RNN(
 
         # broadcast : train columns. Each column (single batch) have been trained independently
         # drop _encoded, only need state from encoder
-        _encoded = state.encoder.(x_encoded)[end]
+        state.encoder.(x_encoded)[end]
 
         # copy state from encoder to decoder
         state.decoder.state = state.encoder.state
@@ -475,7 +481,7 @@ function compile_PM25_RNN(
         #_decoded = state.decoder.(x_decoded)
         # precomputed decoded input
 
-        _decoded = state.decoder.(xd)[end]
+        state.decoder.(xd)[end]
         # LSTM -> state.decoder.state == (h', c)
         # GRU -> state.decoder.state == h'
         typeof(state.decoder.state) <: Tuple ? y_decoded = state.decoder.state[1] : y_decoded = state.decoder.state
