@@ -171,7 +171,9 @@ function train_RNN!(state, model, train_set, valid_set, loss, accuracy, opt,
         best_acc, last_improvement
         # print(CuArrays.memory_status())
         # train model with normalized data set
+        #println("1: ", CuArrays.memory_status())
         Flux.train!(loss, Flux.params(state), train_set, opt)
+        #println("2: ", CuArrays.memory_status())
 
         # record evaluation
         rmse, mae, mspe, mape =
@@ -231,6 +233,7 @@ function train_RNN!(state, model, train_set, valid_set, loss, accuracy, opt,
 
             break
         end
+        CuArrays.reclaim()
     end
 
     df_eval
@@ -318,8 +321,8 @@ function compile_PM10_RNN(
     modelGRU1 = GRU(hidCNN, hidRNN) |> gpu
     modelGRU2 = GRU(output_size, hidRNN) |> gpu
 
-    modelLSTM1 = LSTM(hidCNN, hidRNN) |> gpu
-    modelLSTM2 = LSTM(output_size, hidRNN) |> gpu
+    #modelLSTM1 = LSTM(hidCNN, hidRNN) |> gpu
+    #modelLSTM2 = LSTM(output_size, hidRNN) |> gpu
 
     # DNN converts GRU output to single real output value
     modelDNN = Dense(hidRNN, output_size) |> gpu
@@ -344,45 +347,46 @@ function compile_PM10_RNN(
 
         # 4D (WHCN) (1, sample_size, hidCNN, batch_size) ->
         # 3D Array (hidCNN, sample_size, batch_size)
-        x_cnh = whcn2cnh(state.CNNmodel(xe))
-
+        # x_cnh = whcn2cnh(state.CNNmodel(xe))
         # CNH array to batch sequences
         # 3D Array (hidCNN, sample_size, batch_size) ->
-        # Array of Array [(hidCNN, batch_size)...]:  (sample_size,)
-        x_encoded = stackEncoded(x_cnh, sample_size)
-
-        # 2D Array to batch sequences (all zeros)
-        # 2D Array (output_size, batch_size) ->
-        # Array of Array [(output_size, batch_size)...]:  (output_size,)
-		# x_decoded = stackDecoded(xd, output_size)
+        # Array of 2D Array [(hidCNN, batch_size)...]:  (sample_size,)
 
         # broadcast : train columns. Each column (single batch) have been trained independently
-        # drop _encoded, only need state from encoder
-        state.encoder.(x_encoded)[end]
-
+        #
+        # use of temporary variables is minimized to reduce memory usage
         # copy state from encoder to decoder
-        state.decoder.state = state.encoder.state
+        #x_encoded = stackEncoded(whcn2cnh(state.CNNmodel(xe)), sample_size)
+        #state.encoder.(x_encoded)[end]
+        #state.decoder.state = state.encoder.state
+        # Check out https://stackoverflow.com/a/61453171/743078
+        state.decoder.state = state.encoder.(collect(eachslice(whcn2cnh(state.CNNmodel(xe)), dims=3)))[end]
 
         #_decoded = state.decoder.(x_decoded)
-        # precomputed decoded input
-        state.decoder.(xd)[end]
+        # xd : precomputed decoded input
+        # 2D Array (output_size, batch_size) ->
+        # Array of 2D Array [(output_size, batch_size)...]:  (output_size,)
+        state.decoder.(xd)
+
         # LSTM -> state.decoder.state == (h', c)
         # GRU -> state.decoder.state == h'
+        #y_decoded = state.decoder.state
         typeof(state.decoder.state) <: Tuple ? y_decoded = state.decoder.state[1] : y_decoded = state.decoder.state
+        Flux.reset!(state)
 
-		Flux.reset!(state)
         # each seq element represzents hidden state at each time stamp
-		# what I want
-		# In: hidCNN x window_size x batch_size
-		# 1: [hidCNN x batch_size] x window_size (stackEncoded & encoder)
-		# 2: [hidRNN x batch_size] x window_size (stackDecoded & decoder)
-		# 3: num_output x batch_size (Dense)
-		# Out: num_output x batch_size
+        # what I want
+        # In: hidCNN x window_size x batch_size
+        # 1: [hidCNN x batch_size] x window_size (stackEncoded & encoder)
+        # 2: [hidRNN x batch_size] x window_size (stackDecoded & decoder)
+        # 3: num_output x batch_size (Dense)
+        # Out: num_output x batch_size
         state.DNNmodel(y_decoded)
     end
 
-    loss(xe, xd, y) = Flux.mse(model(xe, xd), y)
+    loss(xe, xd, y) = Flux.mse(model(xe, xd), y)    
     loss(xe, xd, y, dates) = Flux.mse(model(xe, xd), y)
+
     accuracy(data) = evaluation2(data, model, statval, :RMSE)
 
     opt = Flux.ADAM()
@@ -404,7 +408,7 @@ function compile_PM25_RNN(
     @info("    Compiling PM25 model...")
     # hidCNN : length of CNN latent dim, CNN channel
     # hidRNN : length of RNN latent dim
-    hidCNN = 8
+    hidCNN = 4
     hidRNN = 16
 
     kernel_length = kernel_size[2]
@@ -458,47 +462,50 @@ function compile_PM25_RNN(
 
         # 4D (WHCN) (sample_size, 1, hidCNN, batch_size) ->
         # 3D Array (hidCNN, sample_size, batch_size)
-        x_cnh = whcn2cnh(state.CNNmodel(xe))
+        #x_cnh = whcn2cnh(state.CNNmodel(xe))
 
         # CNH array to batch sequences
         # 3D Array (hidCNN, sample_size, batch_size) ->
         # Array of Array [(hidCNN, batch_size)...]:  (sample_size,)
-        x_encoded = stackEncoded(x_cnh, sample_size)
+        #x_encoded = stackEncoded(whcn2cnh(state.CNNmodel(xe)), sample_size)
 
         # 2D Array to batch sequences (all zeros)
         # 2D Array (output_size, batch_size) ->
         # Array of Array [(output_size, batch_size)...]:  (output_size,)
-		# x_decoded = stackDecoded(xd, output_size)
+        # x_decoded = stackDecoded(xd, output_size)
 
         # broadcast : train columns. Each column (single batch) have been trained independently
         # drop _encoded, only need state from encoder
-        state.encoder.(x_encoded)[end]
+        #state.encoder.(x_encoded)[end]
 
         # copy state from encoder to decoder
-        state.decoder.state = state.encoder.state
+        #state.decoder.state = state.encoder.state
+        # use of temporary variables is minimized to reduce memory usage
+        state.decoder.state = state.encoder.(collect(eachslice(whcn2cnh(state.CNNmodel(xe)), dims=3)))[end]
 
-        Flux.reset!(state.encoder)
         #_decoded = state.decoder.(x_decoded)
         # precomputed decoded input
+        state.decoder.(xd)
 
-        state.decoder.(xd)[end]
         # LSTM -> state.decoder.state == (h', c)
         # GRU -> state.decoder.state == h'
+        #y_decoded = state.decoder.state
         typeof(state.decoder.state) <: Tuple ? y_decoded = state.decoder.state[1] : y_decoded = state.decoder.state
+        Flux.reset!(state)
 
-        Flux.reset!(state.decoder)
         # each seq element represzents hidden state at each time stamp
-		# what I want
-		# In: hidCNN x window_size x batch_size
-		# 1: [hidCNN x batch_size_size] x window_size (stackEncoded & encoder)
-		# 2: [hidRNN x batch_size_size] x window_size (stackDecoded & decoder)
-		# 3: num_output x batch_size (Dense)
-		# Out: num_output x batch_size
+        # what I want
+        # In: hidCNN x window_size x batch_size
+        # 1: [hidCNN x batch_size_size] x window_size (stackEncoded & encoder)
+        # 2: [hidRNN x batch_size_size] x window_size (stackDecoded & decoder)
+        # 3: num_output x batch_size (Dense)
+        # Out: num_output x batch_size
         state.DNNmodel(y_decoded)
     end
 
     loss(xe, xd, y) = Flux.mse(model(xe, xd), y)
     loss(xe, xd, y, dates) = Flux.mse(model(xe, xd), y)
+
     accuracy(data) = evaluation2(data, model, statval, :RMSE)
 
     opt = Flux.ADAM()

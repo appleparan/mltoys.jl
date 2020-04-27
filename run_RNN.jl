@@ -43,9 +43,9 @@ function run_model()
     =#
     total_fdate, total_tdate = get_date_range(df)
     train_fdate = ZonedDateTime(2012, 1, 1, 1, tz"Asia/Seoul")
-    train_tdate = ZonedDateTime(2017, 12, 31, 23, tz"Asia/Seoul")
-    test_fdate = ZonedDateTime(2018, 1, 1, 0, tz"Asia/Seoul")
-    test_tdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
+    train_tdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
+    test_fdate = ZonedDateTime(2019, 1, 1, 0, tz"Asia/Seoul")
+    test_tdate = ZonedDateTime(2019, 12, 31, 23, tz"Asia/Seoul")
 
     # stations (limit 1 station)
     train_stn_names = [:종로구, :강서구, :강남구]
