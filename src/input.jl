@@ -40,7 +40,7 @@ function parse_obsxlsx(obs_path::String, input_dir::String)
         end
 
         # if there is not stationCode (i.e. wrong column), skip loop
-        try 
+        try
             if isa(row[3], String)
                 station_code = parse(Int, row[3])
             elseif isa(row[3], AbstractFloat)
@@ -52,7 +52,7 @@ function parse_obsxlsx(obs_path::String, input_dir::String)
             end
         end
 
-        # check lat / long 
+        # check lat / long
         if isa(row[6], Real) && isa(row[7], Real)
             station_code = 0
             station_name = ""
@@ -73,7 +73,7 @@ function parse_obsxlsx(obs_path::String, input_dir::String)
             end
 
             # parse date of station opened
-            # check there is a stationCode and "신규"(opened new station) in remarks 
+            # check there is a stationCode and "신규"(opened new station) in remarks
             if occursin(re_opened, string(row[8]))
                 # parse date (year & month only)
                 m = match(re_opened_date, string(row[8]))
@@ -101,10 +101,10 @@ function parse_obsxlsx(obs_path::String, input_dir::String)
             # parse date of station moved
             #=
             if hasvalue(row[3]) == true && occursin(re_moved, string(row[8]))
-                if row[3] != 
+                if row[3] !=
                     station_code = int(row[3])
                     station_name = string(row[4])
-                else 
+                else
                     station_code = int(prev_row[3])
                     station_name = string(prev_row[4])
                 end
@@ -124,14 +124,14 @@ function parse_obsxlsx(obs_path::String, input_dir::String)
                     @select i
                     @collect DataFrame
                 end
-                
+
                 station_code = Msrstn_list[prev_msrstn_idx][stationCode]
                 station_name = Msrstn_list[prev_msrstn_idx][stationName]
 
                 Msrstn_list[prev_Msrstn_idx][closedDate] = closed_date_ex.strftime(strftime_fmt)
             end
             =#
-            
+
             # check type
             @assert isa(station_code, Int)
             @assert isa(long_X, Real)
@@ -149,8 +149,8 @@ function parse_obsxlsx(obs_path::String, input_dir::String)
 end
 
 function parse_aerosols(aes_dir::String, input_dir::String)
-    re_aes_fn = r"([0-9]+)년\W*([0-9]+)분기.csv"
-    re_ext_fn = r".*.(csv|xlsx)"
+    re_aes_fn = r"([0-9]+)년\W*([0-9]+)(분기|월).csv"
+    re_ext_fn = r".*.csv"
     date_str = "yyyymmddHH"
 
     aes_paths = joinpath(input_dir, aes_dir)
@@ -158,7 +158,7 @@ function parse_aerosols(aes_dir::String, input_dir::String)
 
     # check there is a input file
     @assert isempty(aes_globs) == false
-    
+
     df = DataFrame(stationCode = [], date = [],
                    SO2 = [], CO = [], O3 = [], NO2 = [],
                    PM10 = [], PM25 = [])
@@ -181,7 +181,7 @@ function parse_aerosols(aes_dir::String, input_dir::String)
         dropmissing!(df_raw, :date)
 
         # convert to ZonedDateTime to parse time correctly (i.e. 20181231T24:00 and 20190101T00:00)
-        dates = [ZonedDateTime(DateTime(string(d), date_str), tz"Asia/Seoul") for d in df_raw[:date]]
+        dates = [ZonedDateTime(DateTime(string(d), date_str), tz"Asia/Seoul") for d in df_raw[!, :date]]
 
         df_tmp = DataFrame(stationCode = df_raw[!, :stationCode],
             date = dates,
@@ -198,6 +198,7 @@ function parse_aerosols(aes_dir::String, input_dir::String)
         flush(stdout); flush(stderr)
     end
 
+    sort!(df, :date)
     df
 end
 
@@ -217,7 +218,7 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
 
         df_raw = CSV.read(_wea, copycols=true)
 
-        rename!(df_raw, [Symbol("일시") => :date,
+        DataFrames.rename!(df_raw, [Symbol("일시") => :date,
             Symbol("기온(°C)") => :temp,
             Symbol("강수량(mm)") => :prep,
             Symbol("풍속(m/s)") => :wind_vel,
@@ -228,7 +229,7 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
         dropmissing!(df_raw, :date)
 
         dates = [ZonedDateTime(DateTime(string(d), date_str), tz"Asia/Seoul") for d in df_raw[!, :date]]
-        
+
         # missings to zero except temp, humid, and pres (pressure)
         df_raw[!, :wind_vel] = coalesce.(df_raw[!, :wind_vel], 0.0)
         df_raw[!, :wind_dir] = coalesce.(df_raw[!, :wind_dir], 0.0)
@@ -236,8 +237,8 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
         df_raw[!, :snow] = coalesce.(df_raw[!, :snow], 0.0)
 
         # http://colaweb.gmu.edu/dev/clim301/lectures/wind/wind-uv
-        _u = [w[1] * Base.Math.cos(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[:wind_vel], df_raw[!, :wind_dir])]
-        _v = [w[1] * Base.Math.sin(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[:wind_vel], df_raw[!, :wind_dir])]
+        _u = [w[1] * Base.Math.cos(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[!, :wind_vel], df_raw[!, :wind_dir])]
+        _v = [w[1] * Base.Math.sin(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[!, :wind_vel], df_raw[!, :wind_dir])]
 
         df_tmp = DataFrame(
             date = dates,
@@ -255,6 +256,7 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
         flush(stdout); flush(stderr)
     end
 
+    sort!(df, :date)
     df
 end
 

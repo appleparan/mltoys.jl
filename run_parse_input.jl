@@ -7,7 +7,7 @@ function read_data()
     aes_dir = "aerosol"
     wea_dir = joinpath("weather", "seoul")
     start_date = ZonedDateTime(2008, 1, 1, 1, 0, tz"Asia/Seoul")
-    end_date = ZonedDateTime(2018, 12, 31, 24, 0, tz"Asia/Seoul")
+    end_date = ZonedDateTime(2019, 12, 31, 23, 0, tz"Asia/Seoul")
 
     join_data(input_dir, obs_path, aes_dir, wea_dir, start_date, end_date)
 end
@@ -16,7 +16,7 @@ function read_raw_PM1025()
     input_dir = "/input"
     aes_dir = "aerosol"
     start_date = ZonedDateTime(2008, 1, 1, 1, 0, tz"Asia/Seoul")
-    end_date = ZonedDateTime(2018, 12, 31, 24, 0, tz"Asia/Seoul")
+    end_date = ZonedDateTime(2019, 12, 31, 23, 0, tz"Asia/Seoul")
 
     stn_code = 111123
     df_aes = parse_aerosols(aes_dir, input_dir)
