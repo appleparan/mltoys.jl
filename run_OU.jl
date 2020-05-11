@@ -8,7 +8,7 @@ using MicroLogging
 
 function run_model()
 
-    @info "Start Model"
+    @info "Start OU Process Prediction"
     flush(stdout); flush(stderr)
 
     seoul_codes = [

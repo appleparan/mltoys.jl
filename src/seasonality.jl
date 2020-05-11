@@ -1,3 +1,4 @@
+
 """
     periodic_mean(df, target, pdir)
 
@@ -68,7 +69,24 @@ function populate_periodic_mean(df::DataFrame, target::Symbol, pdir::Symbol)
     means, means_repeated
 end
 
-function smoothing_series(xs, ys; span = 0.75)
+"""
+    populate_periodic_mean!(df1, df2, key, target) 
+
+populate `df2` column `target` to `df1` by `key` and return joined result
+
+* df1 must have `key` column
+* df2 must have `key` and `target` column
+"""
+#populate_periodic_mean(df1::DF, df2::DF, key::Symbol, target::Symbol) where {DF<:DataFrame} =
+#    DataFrames.join(df1[!, [key]], df2[!, [key, target]], on = key)
+function populate_periodic_mean(df1::DF, df2::DF, key::Symbol, target::Symbol) where {DF<:DataFrame}
+    #@show names(df1[!, [key]]), names(df2[!, [key, target]])
+    _joined = DataFrames.join(df1[!, [key]], df2[!, [key, target]], on = key)
+    #@show first(_joined, 5)
+    DataFrames.join(df1[!, [key]], df2[!, [key, target]], on = key)
+end
+
+function smoothing_series(xs, ys; span = 0.05)
     model = Loess.loess(xs, ys; span = span)
 
     us = collect(range(extrema(xs)...; step = 1))
@@ -77,7 +95,7 @@ function smoothing_series(xs, ys; span = 0.75)
     us, vs
 end
 
-function compute_annual_mean(df::DataFrame, ycol::Symbol)
+function compute_annual_mean(df::DataFrame, target::Symbol)
     # to deal with leap year, just make large array for indexing
     # when moving window have some error but it is ignorable
     year_wd_mean = zeros(12*31*24)
@@ -101,6 +119,88 @@ function compute_annual_mean(df::DataFrame, ycol::Symbol)
     end
 
     year_wd_mean
+end
+
+"""
+    decompose_seasonality(df, target)
+
+decompose seasonality to daily + annual seasonality
+"""
+function decompose_seasonality(df::DataFrame, target::Symbol)
+    # daily mean
+    # remove time information
+    #df[!, :date_day] = Date.(DateTime.(df[!, :date], Local))
+    df[!, :hour] = Dates.hour.(df[!, :date])
+    
+    # find out periodic mean (averaged over hours)
+    _df_avg_hour = DataFrames.by(df, :hour, avg_hour = target => mean)
+    # same as df_avg_hour
+    # names -> (:date, :hour, :avg_hour, :raw)
+    # row -> (yymmddTHH , HH, yymmdd, ..., ...)
+    df_avg_hour = populate_periodic_mean(df, _df_avg_hour, :hour, :avg_hour)
+
+    DataFrames.insertcols!(df_avg_hour, 1, :raw => df[!, target])
+    # add date column for periodic mean computation
+    # names(df_avg_day) = (:hour, :date, :date_day, :(target)_mean)
+    DataFrames.insertcols!(df_avg_hour, 1, :date => DateTime.(df[!, :date], Local))
+
+    # now daily seasonality is df_avg_hour[!, :avg_hour]
+    day_sea = df_avg_hour[!, :avg_hour]
+    day_res = df[!, target] .- df_avg_hour[!, :avg_hour]
+
+    # now get annual seasonality from day_res1
+    DataFrames.insertcols!(df_avg_hour, 3, :day_sea => day_sea)
+    DataFrames.insertcols!(df_avg_hour, 3, :day_res => day_res)
+    @show first(df_avg_hour, 30)
+
+    df_avg_hour[!, :date_day] = Date.(df_avg_hour[!, :date])
+    # Metaprogamming for ycol_mean = ycol => x -> mean
+    # https://discourse.julialang.org/t/metaprogramming-function-with-keyword-argument/12551/2?u=appleparan
+    z = Expr(:kw, :day_res_mean, :day_res => mean)
+    #z2 = Expr(:kw, :date_day, :date => x -> Dates.Date.(DateTime.(x, Local)))
+    # size(df_daymean, 1) == size(df, 1) / 24
+    # 1 value per YYMMDD
+    df_daymean = eval(:(DataFrames.by($(df_avg_hour), :date_day; $z)))
+    # daily averaged values are stored
+    # size(df_avg_day, 1) == size(df, 1)
+    # names -> (:date, :hour, :date_day, target_daymean, :raw)
+    # row -> (yymmddTHH , HH, YYMMDD, ..., ...)
+    df_avg_day = populate_periodic_mean(df_avg_hour, df_daymean, :date_day, :day_res_mean)
+    DataFrames.insertcols!(df_avg_day, 1, :hour => Dates.hour.(df_avg_hour[!, :date]))
+    DataFrames.insertcols!(df_avg_day, 1, :date => df_avg_hour[!, :date])
+    DataFrames.insertcols!(df_avg_day, 5, :raw => df_avg_hour[!, :raw])
+    DataFrames.insertcols!(df_avg_day, 5, :day_res => df_avg_hour[!, :day_res])
+    DataFrames.insertcols!(df_avg_day, 5, :day_sea => df_avg_hour[!, :day_sea])
+    @show first(df_avg_day, 5)
+
+    # construct keys like MMDDHH
+    months = Dates.month.(df_avg_day[!, :date])
+    days = Dates.day.(df_avg_day[!, :date])
+    hours = Dates.hour.(df_avg_day[!, :date])
+    
+    day_keys = Symbol.(lpad.(string.(months), 2, "0") .* lpad.(string.(days), 2, "0") .* lpad.(string.(hours), 2, "0") )
+    DataFrames.insertcols!(df_avg_day, 3, :day_keys => day_keys)
+
+    # join and get seasonality 
+    _df_avg_year = DataFrames.by(df_avg_day, :day_keys, :day_res => mean)
+    df_avg_year = populate_periodic_mean(df_avg_day, _df_avg_year, :day_keys, :day_res_mean)
+
+    year_sea = df_avg_year[!, :day_res_mean]
+    year_res = df_avg_day[!, :day_res] .- df_avg_year[!, :day_res_mean]
+
+    # insert results (raw residual)
+    DataFrames.insertcols!(df_avg_day, 3, :year_sea => year_sea)
+    DataFrames.insertcols!(df_avg_day, 3, :year_res => year_res)
+
+    # get also smoothed residual
+    year_sea_s_x, year_sea_s = smoothing_series(float.(collect(1:length(df_avg_day[!, :year_sea]))), float.(df_avg_day[!, :year_sea]))
+    year_res_s = df_avg_day[!, :day_res] .- year_sea_s
+    # insert results (smoothed residual)
+    DataFrames.insertcols!(df_avg_day, 3, :year_sea_s => year_sea_s)
+    DataFrames.insertcols!(df_avg_day, 3, :year_res_s => year_res_s)
+    @show first(df_avg_day, 5)
+
+    df_avg_day
 end
 
 """
@@ -159,7 +259,7 @@ function season_adj_lee(df::DataFrame, ycol::Symbol,
     # all station values are averaged by date and filter date, ycol, and mean_ycol only
     ycol_mean = Symbol(ycol, "_mean")
 
-    # Metaprogamming for ycol_maen = ycol => x -> mean
+    # Metaprogamming for ycol_mean = ycol => x -> mean
     # https://discourse.julialang.org/t/metaprogramming-function-with-keyword-argument/12551/2?u=appleparan
     z = Expr(:kw, ycol_mean, ycol => mean)
     period_df = eval(:(DataFrames.by($(_df), :date; $z)))

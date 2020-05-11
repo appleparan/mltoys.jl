@@ -173,6 +173,7 @@ function run_analysis()
             #@show HypothesisTests.LjungBoxTest(df[!, ycol], 365*24)
 
             # Analysis : Autocorrelation Functions]
+            #=
             for _ycol in [ycol, Symbol(ycol, :_impute), Symbol(ycol, :_logimpute)]
                 Base.Filesystem.mkpath("/mnt/analysis/$(string(_ycol))/")
                 #max_time = Int(ceil(min(size(stn_df[!, ycol],1)-1, 10*log10(size(stn_df[!, ycol],1)))))
@@ -204,6 +205,7 @@ function run_analysis()
                 CSV.write("/mnt/analysis/$(string(_ycol))/$(string(ycol))_$(string(name))_mt$(max_time)_acf.csv", acf_df)
                 @info "Integral Time Scale for raw data..", compute_inttscale(0:max_time, acf)
             end
+            =#
             #=
             # Analysis : Integral Length Scale (Total)
             int_scale = integrate(1:length(acf), acf, SimpsonEven())
@@ -248,7 +250,7 @@ function run_analysis()
             =#
             # Analysis : Grouping by time
             @info "Groupby time..."
-
+            #=
             for _ycol in [ycol, Symbol(ycol, :_impute), Symbol(ycol, :_logimpute)]
                 Base.Filesystem.mkpath("/mnt/analysis/$(string(_ycol))/")
                 period_df = copy(stn_df)
@@ -315,13 +317,19 @@ function run_analysis()
                         "$(string(ycol))_$(string(name))_mt$(max_time)_fluc_$(string(period_dir))ly_acf")
                 end
             end
-
+            =#
             # decompose seasonal components
             Base.Filesystem.mkpath("/mnt/analysis/decomposition/$(string(ycol))/")
-            lee_year_sea1, lee_year_sea2, lee_year_res2, lee_day_sea1, lee_day_res1 =
-                season_adj_lee(stn_df, Symbol(ycol, "_impute"))
+            #lee_year_sea1, lee_year_sea2, lee_year_res2, lee_day_sea1, lee_day_res1 =
+            #    season_adj_lee(stn_df, Symbol(ycol, "_impute"))
 
-            plot_year = 2013
+            decomposed_df = decompose_seasonality(stn_df, Symbol(ycol, "_impute"))
+            CSV.write("/mnt/analysis/decomposition/$(string(ycol))/" * "$(string(ycol))_$(string(name))_new_sea_decompose.csv", decomposed_df)
+            plot_year = 2016
+            plot_seasonality(ycols, decomposed_df, ycol, plot_year, DateTime(train_fdate, Local),
+                "Seasonal Decomposition in $(plot_year)",
+                "/mnt/analysis/decomposition/$(string(ycol))/", "$(string(ycol))_$(string(name))_new_sea_decompose")
+            #=
             plot_seasonality(ycols, lee_year_sea1, lee_year_sea2, lee_day_sea1, lee_day_res1, ycol, plot_year,
                 DateTime(stn_df[1, :date], Local),
                 ["Original data", "Annual seasonality", "Daily seasonality", "Residual"],
@@ -332,15 +340,25 @@ function run_analysis()
                 ["Original data", "Annual seasonality", "Daily seasonality", "Residual"],
                 "Seasonal Decomposition from 2015 to 2017",
                 "/mnt/analysis/decomposition/$(string(ycol))/", "$(string(ycol))_$(string(name))_seasonality_3year")
-
+            =#
             # Autocorrelation
             max_time = 15*24
-            acf_yres2 = StatsBase.autocor(lee_year_res2, 0:max_time)
-            acf_dres1 = StatsBase.autocor(lee_day_res1, 0:max_time)
+            acf_raw = StatsBase.autocor(decomposed_df[!, :raw], 0:max_time)
+            acf_yres2_s = StatsBase.autocor(decomposed_df[!, :year_res_s], 0:max_time)
+            acf_yres2 = StatsBase.autocor(decomposed_df[!, :year_res], 0:max_time)
+            acf_dres1 = StatsBase.autocor(decomposed_df[!, :day_res], 0:max_time)
             #acf_dres1_log = StatsBase.autocor(log.(lee_day_res1), 0:15*24)
 
+            plot_anal_correlogram(acf_raw, ycol,
+                "Raw Autocorrelation",
+                "/mnt/analysis/decomposition/$(string(ycol))/",
+                "$(string(ycol))_$(string(name))_mt$(max_time)_acf_raw")
+            plot_anal_correlogram(acf_yres2_s, ycol,
+                "Annual Residual (Smoothed) Autocorrelation",
+                "/mnt/analysis/decomposition/$(string(ycol))/",
+                "$(string(ycol))_$(string(name))_mt$(max_time)_acf_yres2_s")
             plot_anal_correlogram(acf_yres2, ycol,
-                "Annual Residual Autocorrelation",
+                "Annual Residual (Raw) Autocorrelation",
                 "/mnt/analysis/decomposition/$(string(ycol))/",
                 "$(string(ycol))_$(string(name))_mt$(max_time)_acf_yres2")
             plot_anal_correlogram(acf_dres1, ycol, 
@@ -348,7 +366,10 @@ function run_analysis()
                 "/mnt/analysis/decomposition/$(string(ycol))/",
                 "$(string(ycol))_$(string(name))_mt$(max_time)_acf_dres1")
             acf_df = DataFrame(time = collect(0:max_time), corr = acf_yres2)
+            
+            Base.mkpath("/mnt/analysis/$(string(ycol))")
             CSV.write("/mnt/analysis/$(string(ycol))/$(string(ycol))_$(string(name))_mt$(max_time)_acf_yres2.csv", acf_df)
+
             intT = compute_inttscale(0:max_time, acf_yres2)
             @info "Integral Time Scale for Annual Residual..", intT
             # not to log negative value when fitting
@@ -379,8 +400,8 @@ function run_analysis()
             @info "Coef a and b in a * exp(b * x / T) for Fitted Daily Residual.. to 0:$(positiveIntT)", fit[1], fit[2] / intT
 
             max_time = 365*24
-            acf_yres2_long = StatsBase.autocor(lee_year_res2, 0:max_time)
-            acf_dres1_long = StatsBase.autocor(lee_day_res1, 0:max_time)
+            acf_yres2_long = StatsBase.autocor(decomposed_df[!, :year_res], 0:max_time)
+            acf_dres1_long = StatsBase.autocor(decomposed_df[!, :day_res], 0:max_time)
             plot_anal_correlogram(acf_yres2_long, ycol,
                 "Annual Residual Autocorrelation",
                 "/mnt/analysis/decomposition/$(string(ycol))/",
@@ -397,35 +418,6 @@ function run_analysis()
             CSV.write("/mnt/analysis/$(string(ycol))/$(string(ycol))_$(string(name))_mt$(max_time)_acf_dres1.csv", acf_df)
             intT = compute_inttscale(0:max_time, acf_dres1_long)
             @info "Integral Time Scale for Daily Residual..", compute_inttscale(0:max_time, acf_dres1_long)
-
-            # decompose seasonal components
-            lee_year_sea1_log, lee_year_sea2_log, lee_year_res2_log, lee_day_sea1_log, lee_day_res1_log =
-                season_adj_lee(stn_df, Symbol(ycol, "_logimpute"))
-
-            plot_year = 2016
-            plot_seasonality(logycols, lee_year_sea1_log, lee_year_sea2_log, lee_day_sea1_log, lee_day_res1_log, ycol, plot_year,
-                DateTime(stn_df[1, :date], Local),
-                ["Original data", "Annual seasonality", "Daily seasonality", "Residual"],
-                "Seasonal Decomposition in $(plot_year)",
-                "/mnt/analysis/decomposition/$(string(ycol))/", "$(string(ycol))_log_$(string(name))_seasonality")
-            plot_seasonality(logycols, lee_year_sea1_log, lee_year_sea2_log, lee_day_sea1_log, lee_day_res1_log, ycol, 2015, 2017,
-                DateTime(stn_df[1, :date], Local),
-                ["Original data", "Annual seasonality", "Daily seasonality", "Residual"],
-                "Seasonal Decomposition from 2015 to 2017",
-                "/mnt/analysis/decomposition/$(string(ycol))/", "$(string(ycol))_log_$(string(name))_seasonality_3year")
-
-            # Autocorrelation
-            acf_yres2_log = StatsBase.autocor(lee_year_res2_log, 0:15*24)
-            acf_dres1_log = StatsBase.autocor(lee_day_res1_log, 0:15*24)
-
-            plot_anal_correlogram(acf_yres2_log, Symbol(ycol, "_log"),
-                "Annual Residual Autocorrelation (LOG)",
-                "/mnt/analysis/decomposition/$(string(ycol))/",
-                "$(string(ycol))_log_$(string(name))_year_res2_acf")
-            plot_anal_correlogram(acf_dres1_log, Symbol(ycol, "_log"), 
-                "Daily Residual Autocorrelation (LOG)",
-                "/mnt/analysis/decomposition/$(string(ycol))/",
-                "$(string(ycol))_log_$(string(name))_day_res1_acf")
         end
     end
 
