@@ -199,6 +199,7 @@ function parse_aerosols(aes_dir::String, input_dir::String)
     end
 
     sort!(df, :date)
+
     df
 end
 
@@ -210,7 +211,8 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
     wea_globs = rglob([re_wea_fn], wea_paths)
     @assert isempty(wea_globs) == false
 
-    df = DataFrame(date = [], temp = [], u = [], v = [],
+    df = DataFrame(date = [], temp = [],
+        u = [], v = [], wind_spd = [], wind_dir = [], wind_sdir = [], wind_cdir = [],
         pres = [], humid = [], prep = [], snow = [])
 
     p = Progress(length(collect(wea_globs)), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
@@ -221,7 +223,7 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
         DataFrames.rename!(df_raw, [Symbol("일시") => :date,
             Symbol("기온(°C)") => :temp,
             Symbol("강수량(mm)") => :prep,
-            Symbol("풍속(m/s)") => :wind_vel,
+            Symbol("풍속(m/s)") => :wind_spd,
             Symbol("풍향(16방위)") => :wind_dir,
             Symbol("습도(%)") => :humid,
             Symbol("현지기압(hPa)") => :pres,
@@ -231,20 +233,27 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
         dates = [ZonedDateTime(DateTime(string(d), date_str), tz"Asia/Seoul") for d in df_raw[!, :date]]
 
         # missings to zero except temp, humid, and pres (pressure)
-        df_raw[!, :wind_vel] = coalesce.(df_raw[!, :wind_vel], 0.0)
+        df_raw[!, :wind_spd] = coalesce.(df_raw[!, :wind_spd], 0.0)
         df_raw[!, :wind_dir] = coalesce.(df_raw[!, :wind_dir], 0.0)
         df_raw[!, :prep] = coalesce.(df_raw[!, :prep], 0.0)
         df_raw[!, :snow] = coalesce.(df_raw[!, :snow], 0.0)
 
         # http://colaweb.gmu.edu/dev/clim301/lectures/wind/wind-uv
-        _u = [w[1] * Base.Math.cos(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[!, :wind_vel], df_raw[!, :wind_dir])]
-        _v = [w[1] * Base.Math.sin(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[!, :wind_vel], df_raw[!, :wind_dir])]
+        _u = [w[1] * Base.Math.cos(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[!, :wind_spd], df_raw[!, :wind_dir])]
+        _v = [w[1] * Base.Math.sin(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[!, :wind_spd], df_raw[!, :wind_dir])]
+
+        _wind_sdir = [Base.Math.cos(Base.Math.deg2rad(wdir - 270)) for wdir in df_raw[!, :wind_dir]]
+        _wind_cdir = [Base.Math.sin(Base.Math.deg2rad(wdir - 270)) for wdir in df_raw[!, :wind_dir]]
 
         df_tmp = DataFrame(
             date = dates,
             temp = df_raw[!, :temp],
             u = _u,
             v = _v,
+            wind_spd = df_raw[!, :wind_spd],
+            wind_dir = df_raw[!, :wind_dir],
+            wind_sdir = _wind_sdir,
+            wind_cdir = _wind_cdir,
             pres = df_raw[!, :pres],
             humid = df_raw[!, :humid],
             prep = df_raw[!, :prep],
@@ -257,6 +266,7 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
     end
 
     sort!(df, :date)
+
     df
 end
 
@@ -280,30 +290,34 @@ function join_data(input_dir::String, obs_path::String, aes_dir::String, wea_dir
     @info "Parsing Aerosol dataset..."
     flush(stdout); flush(stderr)
     df_aes = parse_aerosols(aes_dir, input_dir)
+    # @info "Parsing Vertical Wind dataset..."
+    # flush(stdout); flush(stderr)
+    # df_vwn = parse_vwind(vwind_dir, input_dir
 
     # filter in date range
     df_obs = df_obs[(df_obs.oDate .<= start_date) .& (df_obs.cDate .>= end_date), :]
     df_aes = df_aes[(df_aes.date .>= start_date) .& (df_aes.date .<= end_date), :]
     df_wea = df_wea[(df_wea.date .>= start_date) .& (df_wea.date .<= end_date), :]
+    # df_vwn = df_vwn[(df_wea.date .>= start_date) .& (df_wea.date .<= end_date), :]
 
     df1 = join(df_obs, df_aes, on = :stationCode)
     df2 = join(df1, df_wea, on = :date, kind = :inner)
+    # df3 = join(df2, df_vwn, on = :date, kind = :inner)
 
     # sort by stationCode and date
     sort!(df2, (:stationCode, :date))
 
     # scaling except :PM10, :PM25
     features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25,
-        :temp, :u, :v, :pres, :humid, :prep, :snow]
-    scaled_features = [Symbol("zscore_", f) for f in features]
+        :temp, :u, :v, :wind_spd, :wind_dir, :pres, :humid, :prep, :snow]
 
     df = df2[!, [:stationCode, :date, :lat, :lon,
                    :SO2, :CO, :O3, :NO2, :PM10, :PM25,
-                   :temp, :u, :v, :pres, :humid, :prep, :snow]]
+                   :temp, :u, :v, :wind_spd, :wind_dir, :pres, :humid, :prep, :snow]]
 
     # check path
     mkpath(input_dir)
-    filename = joinpath(input_dir, "input.csv")
+    filename = joinpath(input_dir, "input_2021.csv")
     CSV.write(filename, df)
 
     df
