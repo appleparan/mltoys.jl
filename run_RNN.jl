@@ -6,8 +6,13 @@ using MicroLogging
 using Mise
 
 function run_model()
-
     @info "Start Model"
+
+    # Use split memory pool to reduce GC
+    # https://github.com/JuliaGPU/CuArrays.jl/issues/323
+    ENV["JULIA_CUDA_MEMORY_POOL"] = "split"
+    haskey(ENV, "JULIA_CUDA_MEMORY_POOL") && @show ENV["JULIA_CUDA_MEMORY_POOL"]
+
     flush(stdout); flush(stderr)
 
     seoul_codes = [
@@ -42,7 +47,7 @@ function run_model()
     │ 5   │ 111123      │ 2015-01-01T05:00:00+09:00 │ 37.572   │ 127.005   │ 0.005   │ 0.2     │ 0.019   │ 0.006   │ 127.0   │ 5.0     │ -9.1    │ 5.35625 │ 1.94951 │ 1011.8  │ missing  │ missing  │
     =#
     total_fdate, total_tdate = get_date_range(df)
-    train_fdate = ZonedDateTime(2012, 1, 1, 1, tz"Asia/Seoul")
+    train_fdate = ZonedDateTime(2014, 1, 1, 1, tz"Asia/Seoul")
     train_tdate = ZonedDateTime(2018, 12, 31, 23, tz"Asia/Seoul")
     test_fdate = ZonedDateTime(2019, 1, 1, 0, tz"Asia/Seoul")
     test_tdate = ZonedDateTime(2019, 12, 31, 23, tz"Asia/Seoul")
@@ -57,10 +62,10 @@ function run_model()
 
     df = filter_raw_data(df, train_fdate, train_tdate, test_fdate, test_tdate)
 
-    features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
+    features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep]
     # If you want exclude some features, modify train_features
     # exclude :PM10, :PM25 temporarily for log transform
-    train_features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep, :snow]
+    train_features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25, :temp, :u, :v, :pres, :humid, :prep]
     target_features = [:PM10, :PM25]
 
     # For GPU

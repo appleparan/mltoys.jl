@@ -233,6 +233,7 @@ function train_RNN!(state, model, train_set, valid_set, loss, accuracy, opt,
 
             break
         end
+        CuArrays.memory_status()
         CuArrays.reclaim()
     end
 
