@@ -102,3 +102,125 @@ function plot_ARIMA_fluc(df::DataFrame, tdir::Symbol, ycol::Symbol,
 
     nothing
 end
+
+function plot_ARIMA_acf(df::DataFrame, output_dir::String, output_prefix::String, sim_name::String)
+    ENV["GKSwstype"] = "100"
+
+    # ACF
+    plot_path = output_dir * "$(output_prefix)_acf_$(sim_name).png"
+
+    pl = Plots.plot(df[:, :lags], df[:, :acf],
+        size = (2560, 1080),
+        line=:solid, linewidth=5,
+        ylim=(min(0.0, minimum(df[:, :acf])), 1.0),
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=30PlotMeasures.px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color= :black,
+        xlabel = "lags", ylabel = "acf", legend=false)
+
+    Plots.png(pl, plot_path)
+
+    # PACF
+    plot_path = output_dir * "$(output_prefix)_pacf_$(sim_name).png"
+
+    pl = Plots.plot(df[:, :lags], df[:, :pacf],
+        size = (2560, 1080),
+        line=:solid, linewidth=5,
+        ylim=(min(0.0, minimum(df[:, :pacf])), 1.0),
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=30PlotMeasures.px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, color= :black,
+        xlabel = "lags", ylabel = "pacf", legend=false)
+
+    Plots.png(pl, plot_path)
+
+    nothing
+end
+
+function plot_ARIMA_corr(df_corr::DataFrame, output_size::Integer, output_dir::String, output_prefix::String, sym_name::Symbol)
+
+    ENV["GKSwstype"] = "100"
+
+    plot_path = output_dir * "$(output_prefix)_corr_hourly_$(String(sym_name))"
+
+    pl = Plots.plot(float.(df_corr[!, :hour]), float.(df_corr[!, :corr]),
+        size = (2560, 1080),
+        title="Correlation on hourly prediction", xlabel="hour", ylabel="corr",
+        line=:solid, linewidth=5, label="OBS",
+        guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
+        guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+        background_color = BG_COLOR, linecolor = LN01_COLOR, legend=false)
+
+    png(pl, plot_path)
+
+    nothing
+end
+
+function plot_ARIMA_scatter(dfs::Array{DataFrame, 1}, ycol::Symbol,
+    output_size::Integer, output_dir::String, output_prefix::String, sym_name::Symbol)
+
+    ENV["GKSwstype"] = "100"
+
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        sc_path = output_dir * "$(i_pad)/" * "$(output_prefix)_scatter_$(String(sym_name))_$(i_pad)h.png"
+        df = dfs[i]
+        lim = max(maximum(float.(df[!, :y])), maximum(float.(df[!, :yhat])))
+
+        sc = Plots.scatter(float.(df[!, :y]), float.(df[!, :yhat]),
+            size = (1080, 1080),
+            xlim = (0, lim), ylim = (0, lim), legend=false,
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
+            guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+            title="DNN/OBS ($(i_pad)h)", xlabel="OBS", ylabel="DNN",
+            background_color = BG_COLOR, markercolor = MK_COLOR)
+
+        # diagonal line (corr = 1)
+        Plots.plot!(collect(0:0.1:lim), collect(0:0.1:lim),
+            xlim = (0, lim), ylim = (0, lim), legend=false,
+            background_color = BG_COLOR, linecolor = LN_COLOR)
+        Plots.png(sc, sc_path)
+
+        sc_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_scatter_$(i_pad)h.csv"
+        outdf = DataFrame(obs = float.(df[!, :y]), model = float.(df[!, :yhat]))
+        CSV.write(sc_csvpath, outdf, writeheader = true)
+    end
+
+    nothing
+end
+
+function plot_ARIMA_lineplot(dfs::Array{DataFrame, 1}, ycol::Symbol,
+    output_size::Integer, test_fdate::DateTime, test_tdate::DateTime,
+    output_dir::String, output_prefix::String, sym_name::Symbol)
+
+    ENV["GKSwstype"] = "100"
+
+    for i = 1:output_size
+        i_pad = lpad(i, 2, '0')
+        line_plotpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(String(sym_name))_$(i_pad)h.png"
+        # filter by date because batched input makes `undef` DateTime values and throw Overflow
+        df = filter(row -> test_fdate <= row[:date] <= test_tdate, dfs[i])
+        dates_h = df[!, :date] .+ Dates.Hour(i)
+
+        pl = Plots.plot(dates_h, float.(df[!, :y]),
+            size = (2560, 1080),
+            ylim = (0.0,
+                max(maximum(float.(df[!, :y])), maximum(float.(df[!, :yhat])))),
+            line=:solid, linewidth=5, label="OBS",
+            guidefontsize = 18, titlefontsize = 24, tickfontsize = 18, legendfontsize = 18, margin=15PlotMeasures.px,
+            guidefontcolor = LN_COLOR, titlefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
+            background_color = BG_COLOR, color=LN01_COLOR,
+            title=String(ycol) * " by dates ($(i_pad)h)",
+            xlabel="date", ylabel=String(ycol), legend=:best)
+
+        pl = Plots.plot!(dates_h, float.(df[!, :yhat]),
+            line=:solid, linewidth=5, color=LN02_COLOR, label="DNN")
+        Plots.png(pl, line_plotpath)
+
+        line_csvpath = output_dir * "$(i_pad)/" * "$(output_prefix)_line_$(i_pad)h.csv"
+        outdf = DataFrame(dates = dates_h, obs = float.(df[!, :y]), model = float.(df[!, :yhat]))
+        CSV.write(line_csvpath, outdf, writeheader = true)
+    end
+
+    nothing
+end
