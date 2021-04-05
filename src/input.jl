@@ -218,7 +218,7 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
     p = Progress(length(collect(wea_globs)), dt=1.0, barglyphs=BarGlyphs("[=> ]"), barlen=40, color=:yellow)
     for _wea in wea_globs
 
-        df_raw = CSV.read(_wea, copycols=true)
+        df_raw = CSV.read(_wea, copycols=true, normalizenames=true)
 
         DataFrames.rename!(df_raw, [Symbol("일시") => :date,
             Symbol("기온(°C)") => :temp,
@@ -239,11 +239,19 @@ function parse_weathers(wea_dir::String, input_dir::String, wea_stn_code::Intege
         df_raw[!, :snow] = coalesce.(df_raw[!, :snow], 0.0)
 
         # http://colaweb.gmu.edu/dev/clim301/lectures/wind/wind-uv
-        _u = [w[1] * Base.Math.cos(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[!, :wind_spd], df_raw[!, :wind_dir])]
-        _v = [w[1] * Base.Math.sin(Base.Math.deg2rad(w[2] - 270)) for w in zip(df_raw[!, :wind_spd], df_raw[!, :wind_dir])]
 
-        _wind_sdir = [Base.Math.cos(Base.Math.deg2rad(wdir - 270)) for wdir in df_raw[!, :wind_dir]]
-        _wind_cdir = [Base.Math.sin(Base.Math.deg2rad(wdir - 270)) for wdir in df_raw[!, :wind_dir]]
+        dict_wind_dir = Dict([
+            ("0", 90),
+            ("360", 90 ), ("20" , 67.5 ), ("50" , 45 ), ("70", 22.5),
+            ("90" , 0  ), ("110", 337.5), ("140", 315), ("160", 292.5),
+            ("180", 270), ("200", 247.5), ("230", 225), ("250", 202.5),
+            ("270", 180), ("290", 157.5), ("320", 135), ("340", 112.5)])
+
+        _wind_cdir = [Base.Math.cos(Base.Math.deg2rad(-dict_wind_dir[string(Int(w))] + 90)) for w in df_raw[!, :wind_dir]]
+        _wind_sdir = [Base.Math.sin(Base.Math.deg2rad(-dict_wind_dir[string(Int(w))] + 90)) for w in df_raw[!, :wind_dir]]
+
+        _u = [w[1] * Base.Math.cos(Base.Math.deg2rad(-dict_wind_dir[string(Int(w[2]))] + 90)) for w in zip(df_raw[!, :wind_spd], df_raw[!, :wind_dir])]
+        _v = [w[1] * Base.Math.sin(Base.Math.deg2rad(-dict_wind_dir[string(Int(w[2]))] + 90)) for w in zip(df_raw[!, :wind_spd], df_raw[!, :wind_dir])]
 
         df_tmp = DataFrame(
             date = dates,
@@ -309,11 +317,13 @@ function join_data(input_dir::String, obs_path::String, aes_dir::String, wea_dir
 
     # scaling except :PM10, :PM25
     features = [:SO2, :CO, :O3, :NO2, :PM10, :PM25,
-        :temp, :u, :v, :wind_spd, :wind_dir, :pres, :humid, :prep, :snow]
+        :temp, :u, :v, :wind_sdir, :wind_cdir, :wind_spd, :wind_dir, :pres, :humid, :prep, :snow]
 
     df = df2[!, [:stationCode, :date, :lat, :lon,
                    :SO2, :CO, :O3, :NO2, :PM10, :PM25,
-                   :temp, :u, :v, :wind_spd, :wind_dir, :pres, :humid, :prep, :snow]]
+                   :temp, :pres, 
+                   :u, :v, :wind_spd, :wind_dir, :wind_sdir, :wind_cdir,
+                   :humid, :prep, :snow]]
 
     # check path
     mkpath(input_dir)

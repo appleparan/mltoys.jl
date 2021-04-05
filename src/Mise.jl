@@ -36,7 +36,7 @@ using Flux
 using Zygote
 
 # GPU
-using CuArrays
+using CUDA
 
 # MCMC
 #using Mamba
@@ -96,6 +96,7 @@ include("DNN/preprocess.jl")
 include("DNN/model.jl")
 include("DNN_season/model.jl")
 include("RNN/model.jl")
+#include("RNN_Attention/model.jl")
 
 include("postprocess/post_DNN.jl")
 
@@ -127,24 +128,28 @@ export join_data, filter_raw_data, filter_station, filter_jongro, read_jongro,
 # smoothing
     periodic_mean, populate_periodic_mean,
     season_adj_lee, compute_annual_mean,
+    decompose_seasonality,
 # analysis & plot
-    compute_inttscale, mean_aucotor, pdf,
+    compute_inttscale, mean_aucotor, pdf, 
     plot_anal_lineplot,
     plot_anal_pdf, plot_anal_autocor,
     plot_anal_correlogram, plot_anal_violin,
     plot_anal_periodic_mean, plot_anal_periodic_fluc,
 # ARIMA
     smoothing_mean,
+    predict_ARIMA, plot_ARIMA_acf,
     plot_seasonality,
     plot_ARIMA_fluc, plot_ARIMA1_mean, plot_ARIMA_mean_smoothing,
-# DNN
-    train_DNN, train_season_DNN, corr_input,
 # preprocess
     load_data_DNN, filter_station_DNN, process_raw_data_DNN!, read_station,
+# DNN
+    train_DNN, train_season_DNN, corr_input,
 # RNN
-    train_RNN, train_season_RNN,
+    train_RNN, train_Attention,
 # OU
     evolve_OU, evolve_OU_season,
+# ARIMA
+    predict_ARIMA,
 # post processing
     compute_corr, test_features, test_station, test_classification,
 # output
@@ -161,6 +166,9 @@ export join_data, filter_raw_data, filter_station, filter_jongro, read_jongro,
     plot_corr_input,
     plot_pcorr,
     plot_corr,
+    plot_ARIMA_corr,
+    plot_ARIMA_scatter,
+    plot_ARIMA_lineplot,
     plot_DNN_scatter,
     plot_DNN_histogram,
     plot_DNN_lineplot,
