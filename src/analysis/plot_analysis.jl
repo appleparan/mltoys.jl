@@ -297,33 +297,33 @@ function plot_seasonality(raw_data, df, ycol::Symbol, _year::Integer, f_date::Da
 
     # l1 : raw + daily season + (annual_season + smoothed_season) + annual_residual_smoothed
     p1 = Plots.plot(year_dr, df[!, :raw][(b_offset+1):(b_offset+length(year_dr))],
-        title = "Raw Data", titlefontsize = 54, titlefontcolor = LN_COLOR, 
-        guidefontsize = 32, tickfontsize = 32,
+        title = "Raw Data", titlefontsize = 108, titlefontcolor = LN_COLOR, 
+        guidefontsize = 64, tickfontsize = 64,
         guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, color=GRAY7,
         ylabel="data", legend=false)
     # Daily Seasonality
     p2 = Plots.plot(collect(0:23), df[!, :day_sea][(b_offset+1):(b_offset+length(day_dr))],
-        title = "Daily Seasonality", titlefontsize = 54, titlefontcolor = LN_COLOR,
-        guidefontsize = 32, tickfontsize = 32, linewidth=5,
+        title = "Daily Seasonality", titlefontsize = 108, titlefontcolor = LN_COLOR,
+        guidefontsize = 64, tickfontsize = 64, linewidth=5,
         guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, color=GRAY7,
         ylabel="daily seasonality", legend=false)
     # Annual Seasonality
     p3 = Plots.plot(year_dr, df[!, :year_sea][(b_offset+1):(b_offset+length(year_dr))],
-        title = "Annual Seasonality", titlefontsize = 54, titlefontcolor = LN_COLOR,
-        guidefontsize = 32, tickfontsize = 32,
+        title = "Annual Seasonality", titlefontsize = 108, titlefontcolor = LN_COLOR,
+        guidefontsize = 64, tickfontsize = 64,
         guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, color=GRAY4,
         ylabel="annual seasonality", legend=false)
     Plots.plot!(year_dr, df[!, :year_sea_s][(b_offset+1):(b_offset+length(year_dr))],
-        guidefontsize = 32, tickfontsize = 32, color=RED7, linewidth=7,
+        guidefontsize = 64, tickfontsize = 64, color=RED7, linewidth=7,
         guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, legend=false)
 
     # Annual Residual
     p4 = Plots.plot(year_dr,  df[!, :year_res][(b_offset+1):(b_offset+length(year_dr))],
-        title = "Annual Residual", titlefontsize = 54, titlefontcolor = LN_COLOR,
+        title = "Annual Residual", titlefontsize = 108, titlefontcolor = LN_COLOR,
         guidefontsize = 32, tickfontsize = 32,
         guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, color=GRAY7,
@@ -342,28 +342,28 @@ function plot_seasonality(raw_data, df, ycol::Symbol, _year::Integer, f_date::Da
     max_p1p2 = max(maximum(df[!, :year_sea][(b_offset+1):(b_offset+length(year_dr))]), maximum(df[!, :year_sea_s][(b_offset+1):(b_offset+length(day_dr))]))
     min_p1p2 = min(minimum(df[!, :year_sea][(b_offset+1):(b_offset+length(year_dr))]), minimum(df[!, :year_sea_s][(b_offset+1):(b_offset+length(day_dr))]))
     p1 = Plots.plot(year_dr, df[!, :year_sea][(b_offset+1):(b_offset+length(year_dr))],
-        title = "Annual Seasonality", titlefontsize = 54, titlefontcolor = LN_COLOR,
-        guidefontsize = 32, tickfontsize = 32, ylim=(min_p1p2, max_p1p2),
+        title = "Annual Seasonality", titlefontsize = 108, titlefontcolor = LN_COLOR,
+        guidefontsize = 64, tickfontsize = 64, ylim=(min_p1p2, max_p1p2),
         guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, color=GRAY7,
         ylabel="annual seasonality", legend=false)
     p2 = Plots.plot(year_dr, df[!, :year_sea_s][(b_offset+1):(b_offset+length(year_dr))],
-        title = "Annual Seasonality (smoothed)", titlefontsize = 54, titlefontcolor = LN_COLOR,
-        guidefontsize = 32, tickfontsize = 32, linewidth=5, ylim=(min_p1p2, max_p1p2),
+        title = "Annual Seasonality (smoothed)", titlefontsize = 108, titlefontcolor = LN_COLOR,
+        guidefontsize = 64, tickfontsize = 64, linewidth=5, ylim=(min_p1p2, max_p1p2),
         guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, color=GRAY7, 
         ylabel="annual seasonality (smoothed)", legend=false)
     max_p3p4 = max(maximum(df[!, :year_res][(b_offset+1):(b_offset+length(year_dr))]), maximum(df[!, :year_res_s][(b_offset+1):(b_offset+length(day_dr))]))
     min_p3p4 = min(minimum(df[!, :year_res][(b_offset+1):(b_offset+length(year_dr))]), minimum(df[!, :year_res_s][(b_offset+1):(b_offset+length(day_dr))]))
     p3 = Plots.plot(year_dr, df[!, :year_res][(b_offset+1):(b_offset+length(year_dr))],
-        title = "Annual Residual (Raw)", titlefontsize = 54, titlefontcolor = LN_COLOR,
-        guidefontsize = 32, tickfontsize = 32, ylim=(min_p3p4, max_p3p4),
+        title = "Annual Residual (Raw)", titlefontsize = 108, titlefontcolor = LN_COLOR,
+        guidefontsize = 64, tickfontsize = 64, ylim=(min_p3p4, max_p3p4),
         guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, color=GRAY7,
         ylabel="annual residual", legend=false)
     p4 = Plots.plot(year_dr, df[!, :year_res_s][(b_offset+1):(b_offset+length(year_dr))],
-        title = "Annual Residual (Smooth)", titlefontsize = 54, titlefontcolor = LN_COLOR,
-        guidefontsize = 32, tickfontsize = 32, ylim=(min_p3p4, max_p3p4),
+        title = "Annual Residual (Smooth)", titlefontsize = 108, titlefontcolor = LN_COLOR,
+        guidefontsize = 64, tickfontsize = 64, ylim=(min_p3p4, max_p3p4),
         guidefontcolor = LN_COLOR, tickfontcolor = LN_COLOR, legendfontcolor = LN_COLOR,
         background_color = BG_COLOR, color=GRAY7,
         ylabel="annual residual", legend=false)
